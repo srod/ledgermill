@@ -3,4 +3,3 @@
 /harness/results*.jsonl
 /pkg
 *.wasm
-!harness/fixtures/**
