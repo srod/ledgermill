@@ -149,12 +149,13 @@ export async function compareCase(paths: string[]): Promise<Verdict> {
   if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
   const errors = ours.findings.filter((f) => f.severity === "error");
 
-  if (!ref.ok) {
-    return errors.length > 0
-      ? { status: "PASS", note: "both fail" }
-      : { status: "FAIL", note: `hledger fails (${ref.message}), ours reports no error` };
-  }
   const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
+  if (!ref.ok) {
+    // Only an error of our own counts as agreeing; "not supported yet" agrees with nothing.
+    if (errors.some((f) => f.code !== "unsupported-syntax")) return { status: "PASS", note: "both fail" };
+    if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"} (hledger fails)` };
+    return { status: "FAIL", note: `hledger fails (${ref.message}), ours reports no error` };
+  }
   if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
   const unbalanced = ours.findings.find((f) => f.code === "unbalanced-transaction");
   if (unbalanced) return { status: "FAIL", note: `ours reports unbalanced-transaction at line ${unbalanced.line}, hledger accepts` };
