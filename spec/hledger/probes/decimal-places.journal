@@ -1,0 +1,14 @@
+2026-01-01 places differ between postings
+  a  0.30
+  b  0.7
+  c  -1
+
+2026-01-02 trailing zeros are kept, negative zero is zero
+  a  -0.00
+  b  0
+  c  0.000 EUR
+  d  -0 EUR
+
+2026-01-03 many digits
+  a  1234567.8901234 EUR
+  b  -1234567.8901234 EUR

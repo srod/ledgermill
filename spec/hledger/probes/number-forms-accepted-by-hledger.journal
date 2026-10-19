@@ -1,0 +1,19 @@
+2026-01-01 plus sign
+  a  +3
+  b  -3
+
+2026-01-02 no leading digit
+  a  .5
+  b  -.5
+
+2026-01-03 trailing point
+  a  5.
+  b  -5.
+
+2026-01-04 leading zeros
+  a  007.50
+  b  -7.5
+
+2026-01-05 space after the minus sign
+  a  - 3 EUR
+  b  3 EUR

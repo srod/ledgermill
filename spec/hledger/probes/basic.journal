@@ -1,0 +1,9 @@
+; top comment
+2026-01-05 * Coffee shop ; morning
+    ; second line of the transaction comment
+    expenses:food  $3.50 ; latte
+    assets:cash   -$3.50
+
+2026-01-06 ! Lunch
+    expenses:food  12.5 EUR
+    assets:cash   -12.50EUR

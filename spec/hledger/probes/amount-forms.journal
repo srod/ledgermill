@@ -1,0 +1,43 @@
+2026-01-01 bare
+  a  3
+  b  -3
+
+2026-01-02 symbol before, no space
+  a  $3.50
+  b  -$3.50
+
+2026-01-03 sign after the symbol
+  a  $-3.50
+  b  $3.50
+
+2026-01-04 symbol after, spaced
+  a  3.50 EUR
+  b  -3.50 EUR
+
+2026-01-05 symbol after, glued
+  a  3.50EUR
+  b  -3.50EUR
+
+2026-01-06 symbol before, spaced
+  a  EUR 3.50
+  b  EUR -3.50
+
+2026-01-07 symbol before, glued, sign first
+  a  -EUR3.50
+  b  EUR3.50
+
+2026-01-08 non-ASCII symbols
+  a  3.50 €
+  b  -€3.50
+
+2026-01-09 cyrillic and cjk symbols
+  a  3 руб
+  b  -3руб
+  c  1 元
+  d  -1 元
+
+2026-01-10 symbols are case sensitive but a lone E is a symbol
+  a  3 eur
+  b  -3eur
+  c  2E
+  d  -2 E

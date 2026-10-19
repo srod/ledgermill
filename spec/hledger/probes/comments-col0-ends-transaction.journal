@@ -1,0 +1,4 @@
+2026-01-01 t
+  a  1
+# a column-0 comment ends the transaction
+  b  -1

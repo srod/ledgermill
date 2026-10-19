@@ -1,0 +1,27 @@
+; col 0 semicolon comment
+# col 0 hash comment
+* col 0 star comment
+  ; indented comment outside any transaction
+
+2026-01-01 t ; c1
+    ; c2
+  a  1 ; p1
+    ; p1b
+  b  -1
+    ; p2
+
+2026-01-02 comments only after postings
+  a  1
+  b  -1
+  ;
+  ;   last   one   
+
+2026-01-03 empty comment kinds ;
+  ;
+  a  1 ;
+  b  -1 ;  spaced   inner  text   ;  with semicolons
+; col 0 comment between transactions
+2026-01-04 glued to previous comment
+  ;leading comment line, no space
+  a  1;glued
+  b  -1

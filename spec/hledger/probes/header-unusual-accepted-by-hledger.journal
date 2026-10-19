@@ -1,0 +1,15 @@
+2026-01-01 (code) description
+  a  1
+  b  -1
+
+2026-01-02=2026-01-05 secondary date
+  a  1
+  b  -1
+
+2026-01-03 !glued after a space
+  a  1
+  b  -1
+
+2026-1-4 unpadded
+  a  1
+  b  -1

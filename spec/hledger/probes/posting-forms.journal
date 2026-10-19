@@ -1,0 +1,9 @@
+2026-01-01 account names
+  a b  1
+  c:d:e  -2
+  é:ü  3
+  :f:  -2
+
+2026-01-02 separator is two or more spaces
+ x    1
+ y        -1

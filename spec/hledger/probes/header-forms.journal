@@ -1,0 +1,45 @@
+2026-01-01 plain
+  a  1
+  b  -1
+
+2026-01-02 * cleared
+  a  1
+  b  -1
+
+2026-01-03 ! pending
+  a  1
+  b  -1
+
+2026-01-04   *   extra   spaces   inside   
+  a  1
+  b  -1
+
+2026-01-05 Coffee;memo glued
+  a  1
+  b  -1
+
+2026-01-06 Pay | note ; comment with trailing blanks   
+  a  1
+  b  -1
+
+2026-01-07
+  a  1
+  b  -1
+
+2026-01-08 *
+  a  1
+  b  -1
+
+2026-01-09 * ; only a comment
+  a  1
+  b  -1
+
+2026-01-10 Café € déjà-vu
+  a  1
+  b  -1
+
+2026-01-11 a=b (not a code) and "quotes"
+  a  1
+  b  -1
+
+2026-01-12 no postings at all
