@@ -1,0 +1,6 @@
+/target
+/harness/node_modules
+/harness/results*.jsonl
+/pkg
+*.wasm
+!harness/fixtures/**
