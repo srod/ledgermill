@@ -1,5 +1,7 @@
 //! What ledgermill must refuse, and how it says so. hledger 1.52.4 accepts most of these journals
 //! (see the notes under spec/hledger/); the point is that ledgermill never answers for them.
+// Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
 
@@ -342,8 +344,8 @@ fn findings_are_ordered_by_file_then_line_and_name_their_file() {
     let b = file("b.journal", "2026-01-01 t\n  a  1 EUR\n  b  -2 EUR\n");
     let all: Vec<(String, u32, String)> = load(&[a, b])
         .check()
-        .into_iter()
-        .map(|f| (f.file, f.line, f.code))
+        .iter()
+        .map(|f| (f.file.clone(), f.line, f.code.clone()))
         .collect();
     let s = |f: &str, l, c: &str| (f.to_string(), l, c.to_string());
     assert_eq!(

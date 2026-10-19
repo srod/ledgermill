@@ -1,4 +1,6 @@
 //! Source lines, file layout and output order. Expected values: hledger 1.52.4 on the named probes.
+// Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
 
@@ -92,8 +94,8 @@ fn several_files_are_read_in_the_order_given_with_their_own_line_numbers() {
     let seen = |files: &[ledgermill::SourceFile]| -> Vec<(String, String, u32)> {
         load(files)
             .transactions()
-            .into_iter()
-            .map(|t| (t.date, t.source.file, t.source.line))
+            .iter()
+            .map(|t| (t.date.clone(), t.source.file.clone(), t.source.line))
             .collect()
     };
     let s = |d: &str, f: &str, l| (d.to_string(), f.to_string(), l);

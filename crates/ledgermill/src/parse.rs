@@ -92,7 +92,7 @@ struct PostingDraft {
     line: u32,
     account: String,
     comment_lines: Vec<String>,
-    amount: Option<ParsedAmount>,
+    amount: ParsedAmount,
 }
 
 struct TxDraft {
@@ -133,7 +133,7 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
     let mut state = State::Top;
     let last = text.split('\n').count() - 1;
     for (i, raw) in text.split('\n').enumerate() {
-        let line_no = i as u32 + 1;
+        let line_no = u32::try_from(i + 1).unwrap_or(u32::MAX);
         let line = raw.strip_suffix('\r').unwrap_or(raw);
         // The reference tool fails on a final line of only blanks that has no newline after it.
         if i == last && !raw.is_empty() && line.bytes().all(|b| b == b' ') {
@@ -212,7 +212,7 @@ impl FileParser<'_> {
     ) {
         let column = line
             .get(..byte_offset)
-            .map(|s| s.chars().count() as u32 + 1);
+            .map(|s| u32::try_from(s.chars().count() + 1).unwrap_or(u32::MAX));
         self.refuse_at(line_no, column, construct, text);
     }
 
@@ -265,7 +265,7 @@ impl FileParser<'_> {
         // Any other column-0 line starts something new.
         self.finish(state);
         if first.is_ascii_digit() {
-            match self.header(line_no, line) {
+            match Self::header(line_no, line) {
                 Ok(draft) => State::InTransaction(draft),
                 Err((at, construct)) => {
                     self.refuse(line_no, line, at, construct, None);
@@ -283,7 +283,7 @@ impl FileParser<'_> {
         }
     }
 
-    fn header(&mut self, line_no: u32, line: &str) -> Result<TxDraft, (usize, Construct)> {
+    fn header(line_no: u32, line: &str) -> Result<TxDraft, (usize, Construct)> {
         let date = line
             .get(..10)
             .filter(|d| valid_date(d))
@@ -338,7 +338,7 @@ impl FileParser<'_> {
                 Construct::ControlCharacter,
                 None,
             );
-            return self.mark_refused(state);
+            return Self::mark_refused(state);
         }
         if let Some(at) = odd_char(content) {
             self.refuse(
@@ -348,7 +348,7 @@ impl FileParser<'_> {
                 Construct::ControlCharacter,
                 None,
             );
-            return self.mark_refused(state);
+            return Self::mark_refused(state);
         }
         match state {
             State::Refused => State::Refused,
@@ -378,7 +378,7 @@ impl FileParser<'_> {
         }
     }
 
-    fn mark_refused(&mut self, state: State) -> State {
+    fn mark_refused(state: State) -> State {
         match state {
             State::InTransaction(mut tx) => {
                 tx.refused = true;
@@ -439,7 +439,7 @@ impl FileParser<'_> {
             line: line_no,
             account: account.to_string(),
             comment_lines: comment.into_iter().collect(),
-            amount: Some(amount),
+            amount,
         });
     }
 
@@ -450,16 +450,12 @@ impl FileParser<'_> {
         };
 
         // One commodity per transaction in this slice.
-        let first = tx
-            .postings
-            .first()
-            .and_then(|p| p.amount.as_ref())
-            .map(|a| a.commodity.clone());
+        let first = tx.postings.first().map(|p| p.amount.commodity.clone());
         if let Some(first) = first {
             let offending: Vec<u32> = tx
                 .postings
                 .iter()
-                .filter(|p| p.amount.as_ref().is_some_and(|a| a.commodity != first))
+                .filter(|p| p.amount.commodity != first)
                 .map(|p| p.line)
                 .collect();
             for line_no in offending {
@@ -471,11 +467,7 @@ impl FileParser<'_> {
             return;
         }
 
-        let numbers: Vec<Decimal> = tx
-            .postings
-            .iter()
-            .filter_map(|p| p.amount.as_ref().map(|a| a.number))
-            .collect();
+        let numbers: Vec<Decimal> = tx.postings.iter().map(|p| p.amount.number).collect();
         match Decimal::sum(&numbers) {
             None => {
                 self.refuse_at(tx.line, None, Construct::NumberTooLarge, None);
@@ -485,8 +477,7 @@ impl FileParser<'_> {
                 let commodity = tx
                     .postings
                     .first()
-                    .and_then(|p| p.amount.as_ref())
-                    .map(|a| a.commodity.clone())
+                    .map(|p| p.amount.commodity.clone())
                     .unwrap_or_default();
                 self.out.findings.push((
                     self.file_index,
@@ -507,17 +498,14 @@ impl FileParser<'_> {
         let postings = tx
             .postings
             .into_iter()
-            .map(|p| {
-                let amount = p.amount.expect("postings without amounts are refused");
-                Posting {
-                    account: p.account,
-                    kind: PostingKind::Regular,
-                    comment: join_comment(&p.comment_lines),
-                    amounts: vec![Amount {
-                        commodity: amount.commodity,
-                        quantity: amount.number.to_string(),
-                    }],
-                }
+            .map(|p| Posting {
+                account: p.account,
+                kind: PostingKind::Regular,
+                comment: join_comment(&p.comment_lines),
+                amounts: vec![Amount {
+                    commodity: p.amount.commodity,
+                    quantity: p.amount.number.to_string(),
+                }],
             })
             .collect();
         self.out.transactions.push(Transaction {

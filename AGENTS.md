@@ -24,8 +24,29 @@ engines. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; its clean-room rules bin
 - `harness/` – the comparison harness (runs the reference tools and diffs typed values).
 - `spec/` – spec notes, one per behaviour, each backed by a probe journal.
 
+## Rust style
+
+We follow a few rules from the
+[Apollo Rust best-practices handbook](https://github.com/apollographql/rust-best-practices);
+the mechanical ones are enforced by `[workspace.lints]` in `Cargo.toml`.
+
+- **No `unwrap`/`expect` outside tests.** The core runs inside browsers and apps, where a panic
+  is a crash. Make impossible states unrepresentable (a field that is always set is not an
+  `Option`), or turn the problem into a finding.
+- **Borrow, don't clone.** Accessors return slices (`&[T]`); clone only when ownership is truly
+  needed, as late as possible.
+- **No silent truncation.** Convert with `try_from`, not `as`.
+- **Fix lints, don't silence them.** If a lint must be overridden, use `#[expect(...)]` with a
+  one-line reason, never a bare `#[allow(...)]`. Integration test files may allow
+  `unwrap_used`/`expect_used` at the top (a panic there is a failed test).
+- **Comments say why**, not what. `TODO`s name an issue: `// TODO(#12): ...`.
+- **Tests**: through the public interface only, named after the behaviour they check. One test
+  per journal comparing the whole result is fine.
+- **Before 0.1.0** every public item gets a doc comment (`missing_docs` will be turned on).
+
 ## Checks before you finish
 
+- `cargo fmt --check` and `cargo clippy --workspace --all-targets --locked -- -D warnings`
 - `cargo test --workspace`
 - the harness (`harness/README.md`)
 - builds for wasm32, `aarch64-apple-ios` and `aarch64-linux-android`, and the size budget

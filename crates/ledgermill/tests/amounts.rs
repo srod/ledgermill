@@ -1,5 +1,7 @@
 //! Amount forms and decimal places. Expected values: hledger 1.52.4 on the named probes
 //! (mantissa and places from `show.sh`, written here as exact decimal strings).
+// Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
 

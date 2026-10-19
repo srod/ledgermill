@@ -18,13 +18,13 @@ pub struct Ledger {
 
 impl Ledger {
     /// Transactions in the order the reference tool prints them: by date, then source order.
-    pub fn transactions(&self) -> Vec<Transaction> {
-        self.transactions.clone()
+    pub fn transactions(&self) -> &[Transaction] {
+        &self.transactions
     }
 
     /// Problems found while loading, ordered by file (as given) then line.
-    pub fn check(&self) -> Vec<Finding> {
-        self.findings.clone()
+    pub fn check(&self) -> &[Finding] {
+        &self.findings
     }
 }
 

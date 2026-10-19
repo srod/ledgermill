@@ -1,5 +1,7 @@
 //! Expected values are what `hledger 1.52.4 print -O json` reports for the probe journals
 //! (see spec/hledger/*.md); they are written out by hand, not computed.
+// Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
 

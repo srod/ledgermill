@@ -1,5 +1,7 @@
 //! Header lines and comments. Expected values: hledger 1.52.4 on the named probes
 //! (its comments end with a newline; ledgermill's are trimmed).
+// Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
 

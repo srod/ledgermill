@@ -38,7 +38,8 @@ impl Decimal {
         let mantissa = format!("{int}{frac}").parse().ok()?;
         Some(Decimal {
             mantissa,
-            places: frac.len() as u32,
+            // At most MAX_PLACES (checked above), so it fits.
+            places: u32::try_from(frac.len()).ok()?,
         })
     }
 
