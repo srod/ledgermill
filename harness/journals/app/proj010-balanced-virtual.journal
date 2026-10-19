@@ -1,0 +1,5 @@
+2026-01-04 Balanced virtual
+    assets:bank  -100 EUR
+    expenses:food  100 EUR
+    [budget:food]  -50 EUR
+    [budget:food]  50 EUR

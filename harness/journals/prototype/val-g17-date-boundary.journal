@@ -1,0 +1,9 @@
+; P on the value date counts, later ones do not
+P 2026-01-10 X 2 EUR
+P 2026-01-20 X 3 EUR
+P 2026-01-05 Y 4 EUR
+P 2026-02-01 Y 5 EUR
+
+2026-01-01 t
+    (p1)  1 X
+    (p2)  1 Y

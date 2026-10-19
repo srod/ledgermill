@@ -1,0 +1,8 @@
+; equal-length mixed paths: the one leaving by a forward edge wins
+P 2026-01-01 A 0.5 X
+P 2026-01-01 A 7 EUR
+P 2026-01-01 X 3 B
+P 2026-01-01 EUR 0.1 B
+
+2026-01-01 t
+    (p1)  1 X

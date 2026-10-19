@@ -1,0 +1,17 @@
+account assets  ; type:A
+payee Foo
+tag t
+commodity EUR
+Y 2026
+~ monthly
+    e  1 EUR
+    b
+= expenses
+    (budget)  *1
+
+2026-01-01 a
+ e  1 EUR
+ b
+01-02 b
+ e  1 EUR
+ b

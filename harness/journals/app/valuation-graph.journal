@@ -1,0 +1,16 @@
+P 2026-06-30 BTC 0.70 EUR
+P 2026-07-01 BTC 0.80 EUR
+P 2026-07-01 BTC 0.85 EUR
+P 2026-07-02 BTC 0.90 EUR
+P 2026-07-01 CAD 2 USD
+P 2026-07-01 USD 0.50 EUR
+P 2026-07-05 USD 0.40 EUR
+P 2026-07-01 EUR 2 CHF
+
+2026-06-15 Holdings
+    assets:btc  2 BTC
+    equity:btc  -2 BTC
+    assets:cad  3 CAD
+    equity:cad  -3 CAD
+    assets:chf  4 CHF
+    equity:chf  -4 CHF

@@ -1,0 +1,4 @@
+2026-01-04 Virtual
+    assets:bank  -100 EUR
+    expenses:food  100 EUR
+    (budget:food)  -50 EUR

@@ -1,0 +1,6 @@
+; --cost suppresses only tagged conversion postings, shifting later ordinals.
+2026-07-10 Explicit conversion
+    assets:mix  2 USD @ 5 EUR
+    equity:conversion:EUR-USD:USD  -2 USD ; _conversion-posting:
+    equity:conversion:EUR-USD:EUR  10 EUR ; _conversion-posting:
+    assets:cash  -10 EUR

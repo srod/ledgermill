@@ -1,0 +1,11 @@
+2026-01-01 pair
+    a  2 X @ 3 EUR
+    equity:conversion  -2 X
+    equity:conversion  6 EUR
+    b  -6 EUR
+
+2026-01-02 pair different accounts
+    a  2 X @ 3 EUR
+    equity:trade:x  -2 X
+    equity:trade:y  6 EUR
+    b  -6 EUR

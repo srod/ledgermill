@@ -1,0 +1,16 @@
+; A forward chain beats even a direct inverse. Path ties use commodity order,
+; not host-language locale ordering. A zero quote is still a market price.
+P 2026-07-01 AAA 2 USD
+P 2026-07-01 USD 3 EUR
+P 2026-07-01 EUR 10 AAA
+P 2026-07-01 ZERO 0 EUR
+P 2026-07-01 ZZZ 1 aaa
+P 2026-07-01 ZZZ 1 BBB
+P 2026-07-01 aaa 2 EUR
+P 2026-07-01 BBB 3 EUR
+
+2026-06-15 Holdings
+    assets:forward  1 AAA
+    assets:zero  3 ZERO
+    assets:tie  1 ZZZ
+    equity:opening

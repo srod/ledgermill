@@ -1,0 +1,4 @@
+alias /^(\w+):(\w+)$/ = \2:\1
+2026-01-01 a
+ expenses:food  1 EUR
+ b

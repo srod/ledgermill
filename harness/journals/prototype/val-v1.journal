@@ -1,0 +1,20 @@
+P 2026-01-10 X 2 EUR
+P 2026-01-20 X 3 EUR
+P 2026-02-01 Y 0.5 X
+P 2026-01-15 EUR 1.1 USD
+
+2026-01-05 early tx
+    a  10 X
+    b  -10 X
+
+2026-01-25 late tx
+    a  10 X
+    b  -10 X
+
+2026-01-26 other
+    a  10 Y
+    a  5 EUR
+    a  7 USD
+    a  1 Z
+    a  3
+    b

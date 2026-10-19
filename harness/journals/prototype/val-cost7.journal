@@ -1,0 +1,7 @@
+account cv  ; type: V
+
+2026-01-03 declared
+    a  2 X @ 3 EUR
+    cv  -2 X
+    cv:z  6 EUR
+    b  -6 EUR

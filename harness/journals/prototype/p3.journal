@@ -1,0 +1,5 @@
+alias exp = expenses
+alias /^a(.*)/ = z\1
+2026-01-01 a
+ exp:food  1 EUR
+ assets

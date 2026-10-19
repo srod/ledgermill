@@ -1,0 +1,7 @@
+2026-01-01 Opening
+    assets:bank  100 EUR
+    equity:opening
+
+2026-01-06 Assertion
+    assets:bank   -5 EUR =95 EUR
+    expenses:food

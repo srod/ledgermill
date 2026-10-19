@@ -1,0 +1,6 @@
+; A forward P beats an inverse one for the same pair, whatever the dates
+P 2026-01-01 X 2 EUR
+P 2026-01-02 EUR 0.4 X
+
+2026-01-01 t
+    (p1)  1 X

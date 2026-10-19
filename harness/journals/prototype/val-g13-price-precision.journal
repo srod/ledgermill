@@ -1,0 +1,7 @@
+; P rates keep full precision
+P 2026-01-01 X 0.123456789012345 EUR
+
+2026-01-01 t
+    (p1)  1 X
+    (p2)  100 X
+    (p3)  10000000 X

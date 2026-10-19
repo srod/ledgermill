@@ -1,0 +1,6 @@
+; forward + inverse hops when no forward-only path
+P 2026-01-01 X 3 Y
+P 2026-01-01 EUR 0.1 Y
+
+2026-01-01 t
+    (p1)  1 X

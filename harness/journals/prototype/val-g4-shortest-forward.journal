@@ -1,0 +1,9 @@
+; shortest forward chain wins
+P 2026-01-01 X 3 Y
+P 2026-01-01 Y 5 EUR
+P 2026-01-01 X 2 Q
+P 2026-01-01 Q 2 R
+P 2026-01-01 R 2 EUR
+
+2026-01-01 t
+    (p1)  1 X

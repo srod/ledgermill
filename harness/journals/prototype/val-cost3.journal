@@ -1,0 +1,16 @@
+2026-01-01 many decimals
+    a  1.23456 X @ 2.3456789 EUR
+    b
+
+2026-01-02 negative
+    a  -1.5 X @ 2 EUR
+    b
+
+2026-01-03 elided with price
+    a  1.5 X @ 2 EUR
+    b
+
+2026-01-04 elided multi
+    a  1 X @ 2 EUR
+    a  1 Y @@ 3 EUR
+    b

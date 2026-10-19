@@ -1,0 +1,6 @@
+2026/01/05=2026.1.7 ! (c1) a
+ * e  1 EUR ; date:2026-02-01, date2:2026-02-03
+ ! [f]  -1 EUR
+ [b]  1 EUR
+	g	-1 EUR
+ assets:my bank  0 EUR

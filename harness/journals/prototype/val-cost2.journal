@@ -1,0 +1,30 @@
+2026-01-01 mixed amounts same account
+    a  1 X @ 3 EUR
+    a  2 X @@ 8 EUR
+    a  3 EUR
+    b  -14 EUR
+
+2026-01-02 tiny unit price
+    a  3 X @ 0.3333333333333 EUR
+    b  -1 EUR
+
+2026-01-03 lot and total
+    a  3 X {{10 EUR}} @@ 12 EUR
+    b  -12 EUR
+
+2026-01-04 chain price
+    a  3 X @ 2 Y
+    b  -6 Y
+
+2026-01-05 trailing zeros
+    a  3 X @ 1.50 EUR
+    a  1 X @@ 2.50 EUR
+    b  -7 EUR
+
+2026-01-06 all removed
+    a  1 X @ 3 EUR  ; _conversion-posting:
+    b  -3 EUR  ; _conversion-posting:
+
+2026-01-07 priced tagged
+    a  1 X @ 3 EUR  ; _conversion-posting:
+    b  -3 EUR

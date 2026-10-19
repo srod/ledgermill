@@ -1,0 +1,23 @@
+2026-01-01 untagged conv
+    assets:mix  2 USD @ 5 EUR
+    equity:conversion  -2 USD
+    equity:conversion  10 EUR
+    assets:cash  -10 EUR
+
+2026-01-02 tag variants
+    a  1 X @ 3 EUR  ; foo
+    b  -3 EUR  ; _conversion-posting:
+    c  1 EUR  ; _conversion-posting: yes
+    d  1 EUR  ; other, _conversion-posting:x
+    e  -2 EUR  ; x_conversion-posting:
+
+2026-01-03 virtual
+    a  1 X @ 3 EUR
+    (v)  2 X @ 4 EUR
+    [bv]  1 Y @@ 2 EUR
+    [bw]  -2 EUR
+    b  -3 EUR
+
+2026-01-04 elided and infer
+    a  1 X
+    b  -3 EUR

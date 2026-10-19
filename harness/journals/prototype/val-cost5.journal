@@ -1,0 +1,30 @@
+2026-01-01 all tagged unpriced
+    a  3 EUR  ; _conversion-posting:
+    b  -3 EUR  ; _conversion-posting:
+
+2026-01-02 multi amount tagged
+    a  3 EUR
+    a  1 X @ 2 EUR
+    b  -5 EUR  ; _conversion-posting:
+
+2026-01-03 case
+    a  3 EUR
+    b  -3 EUR  ; _Conversion-Posting:
+
+2026-01-04 elided tagged
+    a  3 EUR
+    b  ; _conversion-posting:
+
+2026-01-05 conv decl pair not needed
+    equity:conversion  -3 EUR
+    equity:conversion  3 EUR
+    a  1 EUR
+    b  -1 EUR
+
+2026-01-06 pair with total price
+    a  -2 X @@ 6 EUR
+    equity:conversion  2 X
+    equity:conversion  -6 EUR
+    b  6 EUR
+    c  -6 EUR
+    d  6 EUR

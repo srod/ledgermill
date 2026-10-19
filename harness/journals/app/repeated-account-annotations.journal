@@ -1,0 +1,4 @@
+2026-01-01 Repeated account annotations
+    assets:crypto   1 BTC @ 100 EUR
+    assets:crypto   2 BTC @@ 300 EUR
+    assets:bank  -400 EUR

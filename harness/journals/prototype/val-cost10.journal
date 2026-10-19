@@ -1,0 +1,32 @@
+2026-01-01 zero price
+    a  1.50 X @ 0.00 EUR
+    b
+
+2026-01-02 zero qty
+    a  0.00 X @ 3 EUR
+    b
+
+2026-01-03 zero total
+    a  1 X @@ 0.00 EUR
+    b
+
+2026-01-04 zero zero
+    a  0.0 X @ 0.0 EUR
+    b
+
+2026-01-05 trailing zeros quantity
+    a  1.50 X @ 2.0 EUR
+    b
+
+2026-01-06 big places
+    a  0.0000000001 X @ 0.5 EUR
+    b
+
+2026-01-07 11 places product
+    a  0.0000000001 X @ 0.55 EUR
+    b
+
+2026-01-08 tie
+    a  0.0000000001 X @ 0.5 EUR
+    b
+    ; x

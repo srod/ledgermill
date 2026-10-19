@@ -1,0 +1,5 @@
+2026-01-01 a
+ (e:x)  1 EUR
+ (e)  1 EUR = 1 EUR
+ (e)  0 EUR =* 2 EUR
+ (e)  0 USD = 0 USD

@@ -1,0 +1,7 @@
+; transaction prices are not market prices
+P 2026-01-01 EUR 2 USD
+
+2026-01-01 t
+    (p1)  3 X @ 2 EUR
+    (p2)  3 X @@ 6 EUR
+    (p3)  3 X {2 EUR}

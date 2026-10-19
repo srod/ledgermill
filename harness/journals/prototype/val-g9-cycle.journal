@@ -1,0 +1,9 @@
+; cycles are fine
+P 2026-01-01 A 2 EUR
+P 2026-01-01 EUR 3 A
+P 2026-01-01 B 5 A
+
+2026-01-01 t
+    (p1)  1 A
+    (p2)  1 B
+    (p3)  1 EUR

@@ -1,0 +1,6 @@
+P 2026-07-31 USD 0.80 EUR
+P 2026-08-01 USD 0.90 EUR
+
+2026-07-15 Buy dollars
+    assets:usd  100 USD
+    assets:bank  -80 EUR

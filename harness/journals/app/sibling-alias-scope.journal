@@ -1,0 +1,5 @@
+alias exp = expenses
+
+2026-01-01 Aliased
+    exp:food  10 EUR
+    assets:bank

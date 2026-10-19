@@ -1,0 +1,7 @@
+; shape C A B C C: odd conversion run before the priced posting + a pair elsewhere => balanced by quantity => unbalanced (hledger errors)
+2026-01-01 t
+    equity:conversion  1 EUR
+    a  3 X @ 2 EUR
+    b  -9 EUR
+    equity:conversion  -2 EUR
+    equity:conversion  3 EUR

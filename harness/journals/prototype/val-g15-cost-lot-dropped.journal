@@ -1,0 +1,11 @@
+; converted amounts lose cost and lot; unconverted keep them
+P 2026-01-01 X 5 USD
+P 2026-01-01 EUR 2 USD
+
+2026-01-01 t
+    (p1)  3 X @ 2 EUR
+    (p2)  3 X @@ 6 EUR
+    (p3)  3 X {2 EUR}
+    (p4)  3 USD @ 2 EUR
+    (p5)  3 EUR {2 USD}
+    (p6)  3 Q @ 2 EUR

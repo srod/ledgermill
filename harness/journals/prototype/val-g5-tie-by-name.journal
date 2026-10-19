@@ -1,0 +1,8 @@
+; equal-length forward paths: smaller commodity name first (codepoint)
+P 2026-01-01 X 5 a
+P 2026-01-01 a 7 EUR
+P 2026-01-01 X 2 Z
+P 2026-01-01 Z 3 EUR
+
+2026-01-01 t
+    (p1)  1 X

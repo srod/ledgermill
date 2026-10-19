@@ -1,0 +1,20 @@
+P 2026-01-01 X 2 EUR
+P 2026-01-01 Y 1 EUR
+
+2026-01-02 zero-sum after conversion
+    a  5 EUR
+    a  -2.5 X
+    b
+
+2026-01-03 merge with basis on target
+    a  5 EUR {1 USD}
+    a  3 X
+    b  -3 X
+    c  -5 EUR
+
+2026-01-04 three commodities
+    a  1 X
+    a  1 Y
+    a  1 EUR
+    a  1 Z
+    b

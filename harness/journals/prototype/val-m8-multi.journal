@@ -1,0 +1,15 @@
+P 2026-01-01 X 2 EUR
+P 2026-01-01 Y 0.5 X
+P 2026-01-01 EUR 1.1 USD
+
+2026-01-02 multi-commodity elided + virtual + balanced virtual
+    a  3 X
+    a  1 Y
+    a  2 EUR
+    (v)  4 USD
+    [bv]  1 X
+    [bw]  -1 X
+    b
+2026-01-03 priced
+    c  2 Y @ 3 USD
+    d  -6 USD

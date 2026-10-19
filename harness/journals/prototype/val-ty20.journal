@@ -1,0 +1,7 @@
+account x  ; type: V
+
+2026-01-01 t
+    a  2 X @ 3 EUR
+    x  -2 X
+    x  6 EUR
+    b  -6 EUR

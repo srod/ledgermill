@@ -1,0 +1,9 @@
+comment
+2026-01-01 Not real
+    a:draft  1 EUR
+    b:draft
+end comment
+
+2026-01-02 Real
+    a:real  2 EUR
+    b:real

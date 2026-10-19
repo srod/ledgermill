@@ -1,0 +1,5 @@
+2026-01-01 a
+ e  2 USD @ 4 EUR
+ equity:conversion:a  -2 USD
+ equity:conversion:b  10 EUR
+ c  -10 EUR

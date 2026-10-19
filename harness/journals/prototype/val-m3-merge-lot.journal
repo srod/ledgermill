@@ -1,0 +1,11 @@
+P 2026-01-01 X 2 EUR
+P 2026-01-01 X 3 USD
+
+2026-01-03 merge with basis on target
+    a  5 EUR {1 USD}
+    a  3 X {1 USD}
+    b
+
+2026-01-04 merge basis keep: only target has basis
+    a  5 EUR {1 USD}
+    b

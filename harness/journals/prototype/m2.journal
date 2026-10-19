@@ -1,0 +1,10 @@
+2026-01-02 * (123) Pay | note ; c1 tag1:v1
+    ; second line, t2:
+    ! e  10 EUR ; pc date:2026-01-05
+    ; pc2
+    b
+
+; trailing
+2026-01-03 x
+  e  1
+  b

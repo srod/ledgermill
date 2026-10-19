@@ -1,0 +1,6 @@
+; bad P line: whole print fails
+P 2026-01-01 2 EUR
+
+2026-01-01 t
+    a  1 EUR
+    b

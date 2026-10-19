@@ -1,0 +1,6 @@
+; commodity-less amounts are a commodity too
+P 2026-01-01 X 2
+
+2026-01-01 t
+    (p1)  3
+    (p2)  1 X

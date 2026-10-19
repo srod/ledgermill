@@ -1,0 +1,35 @@
+2026-01-01 tag on first no price
+    a  -3 EUR  ; _conversion-posting:
+    b  1 X @ 3 EUR
+
+2026-01-02 tag both priced
+    a  1 X @ 3 EUR  ; _conversion-posting:
+    b  -1 X @ 3 EUR  ; _conversion-posting:
+
+2026-01-03 tagged unpriced zero
+    a  1 X @ 3 EUR
+    b  -3 EUR
+    c  0 EUR  ; _conversion-posting:
+
+2026-01-04 tag with value
+    a  1 X @ 3 EUR
+    b  -3 EUR  ; _conversion-posting:foo
+
+2026-01-05 virtual tagged
+    a  1 X @ 3 EUR
+    (b)  -3 EUR  ; _conversion-posting:
+    c  -3 EUR
+
+2026-01-06 pcomment tag on next line
+    a  1 X @ 3 EUR
+    b  -3 EUR
+    ; _conversion-posting:
+
+2026-01-07 tx comment tag
+  ; _conversion-posting:
+    a  1 X @ 3 EUR
+    b  -3 EUR
+
+2026-01-08 hdr  ; _conversion-posting:
+    a  1 X @ 3 EUR
+    b  -3 EUR

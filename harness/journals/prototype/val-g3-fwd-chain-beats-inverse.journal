@@ -1,0 +1,9 @@
+; a forward chain of any length beats a direct inverse
+P 2026-01-01 EUR 0.4 X
+P 2026-01-01 X 2 A
+P 2026-01-01 A 2 B
+P 2026-01-01 B 2 C
+P 2026-01-01 C 2 EUR
+
+2026-01-01 t
+    (p1)  1 X

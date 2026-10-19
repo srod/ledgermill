@@ -1,0 +1,7 @@
+; The first assets:shared posting is suppressed under --cost. The later posting
+; shares its account but must retain its own 10 EUR cost result.
+2026-07-11 Same-account conversion
+    assets:shared  -2 USD ; _conversion-posting:
+    assets:shared  2 XAU @ 5 EUR
+    equity:conversion:EUR-USD:USD  2 USD
+    assets:cash  -10 EUR

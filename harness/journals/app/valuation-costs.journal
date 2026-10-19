@@ -1,0 +1,28 @@
+; Refutes universal lot-cost conversion and re-signing CLI-resolved totals.
+2026-06-15 Unit price
+    assets:unit  2 BTC @ 100 EUR
+    equity:unit  -200 EUR
+
+2026-06-15 Total sale
+    assets:total  -2 BTC @@ 100 EUR
+    equity:total  100 EUR
+
+2026-06-15 Lot only
+    assets:lot  2 BTC {80 EUR}
+    equity:lot  -2 BTC
+
+2026-06-15 Lot and price
+    assets:combined  2 BTC {80 EUR} @ 100 EUR
+    equity:combined  -200 EUR
+
+2026-06-15 Negative total
+    assets:negative  2 BTC @@ -100 EUR
+    equity:negative  100 EUR
+
+2026-06-15 Zero quantity with fixed total
+    assets:zero  0 BTC @@ 100 EUR
+    equity:zero  -100 EUR
+
+2026-06-15 Native
+    assets:native  10 EUR
+    equity:native  -10 EUR

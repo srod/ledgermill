@@ -1,0 +1,8 @@
+; a zero price is a price; inverse of zero is zero
+P 2026-01-01 X 0 EUR
+P 2026-01-01 Y 3 X
+
+2026-01-01 t
+    (p1)  1 X
+    (p2)  1 Y
+    (p3)  1 EUR

@@ -1,0 +1,4 @@
+; adjacent conversion postings must not carry a cost: error
+2026-01-01 conv pair, one priced
+    equity:conversion  -2 X @ 3 EUR
+    equity:conversion  6 EUR

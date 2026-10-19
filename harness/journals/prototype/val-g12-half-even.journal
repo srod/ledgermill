@@ -1,0 +1,11 @@
+; 10-place rounding is half-even
+P 2026-01-01 X 0.00000000005 EUR
+P 2026-01-01 Y 8 EUR
+
+2026-01-01 t
+    (p1)  1 X
+    (p2)  3 X
+    (p3)  5 X
+    (p4)  -5 X
+    (p5)  7 X
+    (p6)  0.00000001 EUR

@@ -1,0 +1,7 @@
+; shape B C C C A (run does not start at the first posting): balanced by cost, fine
+2026-01-01 t
+    b  -8 EUR
+    equity:conversion  1 EUR
+    equity:conversion  -2 EUR
+    equity:conversion  3 EUR
+    a  3 X @ 2 EUR

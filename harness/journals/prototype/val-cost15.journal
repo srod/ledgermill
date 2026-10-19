@@ -1,0 +1,5 @@
+; --cost: the only non-conversion posting is priced, so the adjacent conversion pair stays
+2026-01-01 priced posting then a pair
+    a  2 X @ 1 EUR
+    equity:trading  4 EUR
+    equity:trade

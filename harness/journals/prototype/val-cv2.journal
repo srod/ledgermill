@@ -1,0 +1,7 @@
+; shape C C C A B: same family, error
+2026-01-01 t
+    equity:conversion  1 EUR
+    equity:conversion  -2 EUR
+    equity:conversion  3 EUR
+    a  3 X @ 2 EUR
+    b  -8 EUR

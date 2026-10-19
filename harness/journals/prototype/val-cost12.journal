@@ -1,0 +1,15 @@
+; priced conversion postings that are not an adjacent pair are fine
+2026-01-01 single conv priced
+    equity:conversion  2 X @ 3 EUR
+    b  -6 EUR
+
+2026-01-02 nonadjacent
+    equity:conversion  2 X @ 3 EUR
+    a  -1 EUR
+    equity:conversion  -5 EUR
+
+2026-01-04 balanced-virtual pair priced
+    a  1 EUR
+    [equity:conversion]  -1 EUR
+    [equity:conversion]  1 EUR
+    b  -1 EUR

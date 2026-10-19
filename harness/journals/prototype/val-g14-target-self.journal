@@ -1,0 +1,8 @@
+; target amounts untouched, no-path amounts untouched, commodity-less stays
+P 2026-01-01 X 2 EUR
+
+2026-01-01 t
+    (p1)  1 EUR
+    (p2)  1 Y
+    (p3)  3
+    (p4)  1 X
