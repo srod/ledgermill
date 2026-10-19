@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  WASM_BINDGEN_VERSION: 0.2.129
+  HLEDGER_VERSION: 1.52.4
+  # Brotli-compressed wasm, in bytes.
+  WASM_SIZE_BUDGET: 1500000
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the wasm
+        run: cargo build --release --target wasm32-unknown-unknown -p ledgermill-wasm
+
+      - name: Cache wasm-bindgen-cli
+        id: wasm-bindgen-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/wasm-bindgen
+          key: wasm-bindgen-cli-${{ env.WASM_BINDGEN_VERSION }}-${{ runner.os }}
+      - name: Install wasm-bindgen-cli
+        if: steps.wasm-bindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked wasm-bindgen-cli@${{ env.WASM_BINDGEN_VERSION }}
+      - name: Run wasm-bindgen
+        run: wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/release/ledgermill_wasm.wasm
+
+      - name: Size budget
+        run: |
+          sudo apt-get install -y --no-install-recommends brotli
+          size=$(brotli -q 11 -c pkg/ledgermill_wasm_bg.wasm | wc -c)
+          echo "wasm size, brotli -q 11: $size bytes (budget $WASM_SIZE_BUDGET)" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$size" -gt "$WASM_SIZE_BUDGET" ]; then
+            echo "::error::wasm is over the size budget"
+            exit 1
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+      - name: Cache hledger
+        id: hledger-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/hledger-bin
+          key: hledger-${{ env.HLEDGER_VERSION }}-linux-x64
+      - name: Download hledger (reference tool, binary only)
+        if: steps.hledger-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/hledger-bin
+          curl -fsSL "https://github.com/simonmichael/hledger/releases/download/${HLEDGER_VERSION}/hledger-linux-x64.tar.gz" \
+            | tar -xz -C ~/hledger-bin hledger
+      - name: Put hledger on PATH
+        run: echo "$HOME/hledger-bin" >> "$GITHUB_PATH"
+      - name: Check the hledger version
+        run: hledger --version | grep -F "hledger $HLEDGER_VERSION"
+      - run: bun test harness/lib.test.ts
+      - run: bun harness/compare.ts --quiet
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --target aarch64-apple-ios -p ledgermill
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Point cargo at the preinstalled NDK
+        run: |
+          bin="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+      - run: cargo build --release --target aarch64-linux-android -p ledgermill
+
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Every commit is signed off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          status=0
+          for commit in $(git log --no-merges --format=%H "$BASE..$HEAD"); do
+            if ! git show -s --format=%B "$commit" | grep -Eq '^Signed-off-by: .+ <.+>$'; then
+              echo "::error::commit $commit has no Signed-off-by line (use git commit -s)"
+              status=1
+            fi
+          done
+          exit $status
