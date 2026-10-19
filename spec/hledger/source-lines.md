@@ -14,12 +14,18 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
   was given.
 - An empty file, or one with only comments, gives no transactions and no error.
 
-ledgermill refuses tabs and unusual whitespace anywhere but in the indentation, and a lone `\r`.
+- **A last line made only of spaces, with no newline after it, is a parse error** ("unexpected end
+  of input"), even after a complete transaction or in a file of one such line. With a newline
+  after it the same line is fine (an ordinary blank line).
+
+ledgermill refuses tabs and unusual whitespace anywhere but in the indentation, a lone `\r`, and
+a last line of only spaces with no newline (`spaces-at-end-of-file`).
 
 ## Probe
 
 `probes/tab-indent.journal`, `probes/crlf.journal`, `probes/bom.journal`,
-`probes/no-final-newline.journal`, `probes/empty.journal`
+`probes/no-final-newline.journal`, `probes/empty.journal`,
+`probes/spaces-only-last-line-no-newline.journal`, `probes/spaces-only-last-line-with-newline.journal`
 
 Command:
 
@@ -29,6 +35,8 @@ spec/hledger/show.sh spec/hledger/probes/crlf.journal
 spec/hledger/show.sh spec/hledger/probes/bom.journal
 spec/hledger/show.sh spec/hledger/probes/no-final-newline.journal
 spec/hledger/show.sh spec/hledger/probes/empty.journal
+hledger -f spec/hledger/probes/spaces-only-last-line-no-newline.journal print -O json
+spec/hledger/show.sh spec/hledger/probes/spaces-only-last-line-with-newline.journal
 ```
 
 ## Output
@@ -47,4 +55,15 @@ spec/hledger/show.sh spec/hledger/probes/empty.journal
 {"date":"2026-01-01","status":"Unmarked","code":"","description":"no final newline","comment":"","line":1,"postings":[{"account":"a","type":"RegularPosting","comment":"","amounts":[["",1,0]]},{"account":"b","type":"RegularPosting","comment":"","amounts":[["",-1,0]]}]}
 ```
 ```text
+```
+```text
+hledger: Error: spec/hledger/probes/spaces-only-last-line-no-newline.journal:4:3:
+  |
+4 |   
+  |   ^
+unexpected end of input
+(exit status 1)
+```
+```text
+{"date":"2026-01-01","status":"Unmarked","code":"","description":"t","comment":"","line":1,"postings":[{"account":"a","type":"RegularPosting","comment":"","amounts":[["",1,0]]},{"account":"b","type":"RegularPosting","comment":"","amounts":[["",-1,0]]}]}
 ```

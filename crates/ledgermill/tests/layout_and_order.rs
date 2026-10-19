@@ -80,3 +80,15 @@ fn the_same_file_given_twice_is_read_twice() {
     let a = file("a.journal", include_str!("../../../spec/hledger/probes/order-file-a.journal"));
     assert_eq!(load(&[a.clone(), a]).transactions().len(), 2);
 }
+
+#[test]
+fn a_last_line_of_only_spaces_without_a_newline_is_refused() {
+    let bad = include_str!("../../../spec/hledger/probes/spaces-only-last-line-no-newline.journal");
+    let f = findings("s.journal", bad);
+    assert_eq!(f[0]["details"]["construct"], "spaces-at-end-of-file");
+    assert_eq!(f[0]["line"], 4);
+    // With the newline it is an ordinary blank line, and hledger reads the transaction.
+    let fine = include_str!("../../../spec/hledger/probes/spaces-only-last-line-with-newline.journal");
+    assert_eq!(findings("s.journal", fine), json!([]));
+    assert_eq!(transactions("s.journal", fine).as_array().unwrap().len(), 1);
+}

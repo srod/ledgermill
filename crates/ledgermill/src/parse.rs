@@ -18,6 +18,8 @@ enum Construct {
     HeaderSyntax,
     Code,
     ControlCharacter,
+    SpacesAtEndOfFile,
+    PostingDate,
     IndentedLine,
     ElidedAmount,
     AccountName,
@@ -35,6 +37,8 @@ impl Construct {
             Construct::HeaderSyntax => "header-syntax",
             Construct::Code => "transaction-code",
             Construct::ControlCharacter => "control-character",
+            Construct::SpacesAtEndOfFile => "spaces-at-end-of-file",
+            Construct::PostingDate => "posting-date",
             Construct::IndentedLine => "indented-line",
             Construct::ElidedAmount => "elided-amount",
             Construct::AccountName => "account-name",
@@ -52,6 +56,8 @@ impl Construct {
             Construct::HeaderSyntax => "This transaction header form is not supported yet.",
             Construct::Code => "Transaction codes are not supported yet.",
             Construct::ControlCharacter => "Tabs and unusual whitespace are only supported in indentation.",
+            Construct::SpacesAtEndOfFile => "A last line of only spaces with no newline after it is not supported.",
+            Construct::PostingDate => "Dates inside posting comments are only supported as date:YYYY-MM-DD.",
             Construct::IndentedLine => "An indented line outside a transaction is not supported.",
             Construct::ElidedAmount => "Postings without an amount are not supported yet.",
             Construct::AccountName => "This account name form is not supported yet.",
@@ -104,9 +110,16 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
     let mut parser = FileParser { file_index, file, out };
     let text = file.content.strip_prefix('\u{feff}').unwrap_or(&file.content);
     let mut state = State::Top;
+    let last = text.split('\n').count() - 1;
     for (i, raw) in text.split('\n').enumerate() {
         let line_no = i as u32 + 1;
         let line = raw.strip_suffix('\r').unwrap_or(raw);
+        // The reference tool fails on a final line of only blanks that has no newline after it.
+        if i == last && !raw.is_empty() && line.bytes().all(|b| b == b' ') {
+            parser.refuse(line_no, line, 0, Construct::SpacesAtEndOfFile, None);
+            parser.finish(state);
+            return;
+        }
         state = parser.line(state, line_no, line);
     }
     parser.finish(state);
@@ -141,6 +154,20 @@ fn valid_date(text: &str) -> bool {
         _ => return false,
     };
     (1000..=9999).contains(&year) && (1..=days).contains(&day)
+}
+
+/// The reference tool reads `date:` and `date2:` tags and `[...]` dates in *posting* comments and
+/// fails on a bad one. Only well-formed tags are accepted here; they change nothing we report.
+fn posting_comment_ok(comment: &str) -> bool {
+    if comment.contains('[') {
+        return false;
+    }
+    ["date:", "date2:"].iter().all(|tag| {
+        comment.match_indices(tag).all(|(at, _)| {
+            let value = comment[at + tag.len()..].trim_start_matches(' ');
+            valid_date(value.split([' ', ',']).next().unwrap_or(""))
+        })
+    })
 }
 
 /// Join comment lines the way the reference tool reports them, then trim.
@@ -277,6 +304,10 @@ impl FileParser<'_> {
                 if let Some(comment) = content.strip_prefix(';') {
                     let comment = comment.trim().to_string();
                     match tx.postings.last_mut() {
+                        Some(_) if !posting_comment_ok(&comment) => {
+                            self.refuse(line_no, line, indent, Construct::PostingDate, None);
+                            tx.refused = true;
+                        }
                         Some(posting) => posting.comment_lines.push(comment),
                         None => tx.comment_lines.push(comment),
                     }
@@ -318,6 +349,11 @@ impl FileParser<'_> {
             None => (rest.trim_end_matches(' '), None),
         };
         let amount_at = line.len() - rest.len();
+        if comment.as_deref().is_some_and(|c| !posting_comment_ok(c)) {
+            self.refuse(line_no, line, indent, Construct::PostingDate, None);
+            tx.refused = true;
+            return;
+        }
         if amount_text.is_empty() {
             self.refuse(line_no, line, indent, Construct::ElidedAmount, None);
             tx.refused = true;

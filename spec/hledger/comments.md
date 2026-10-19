@@ -18,12 +18,20 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
   line after it is no longer a posting of that transaction (hledger fails on the probes below).
 - Tags written in comments (`date:2026-02-01`, `tag: v`) change nothing here: the comment text
   is reported as written and the transaction date is unchanged.
+- **But posting comments are read for dates**: a `date:` or `date2:` tag whose value is not a
+  valid date, and a bracketed `[...]` date that is not valid, make hledger fail on the whole
+  journal (`date:2026-02-30`, `[2026-13-45]`). The same text in a *transaction* comment is never
+  checked. Valid tags and brackets are fine and change nothing in the output. ledgermill accepts
+  `date:`/`date2:` in a posting comment only when the value is a valid `YYYY-MM-DD`, refuses any
+  `[` in a posting comment (`posting-date`), and does not check transaction comments.
 
 ## Probe
 
 `probes/comments.journal`, `probes/comment-tags-do-nothing.journal`,
 `probes/comments-col0-ends-transaction.journal`, `probes/comments-blank-ends-transaction.journal`,
-`probes/comments-spaces-only-line-ends-transaction.journal`
+`probes/comments-spaces-only-line-ends-transaction.journal`,
+`probes/posting-comment-date-tag-invalid.journal`, `probes/posting-comment-bracket-date-invalid.journal`,
+`probes/posting-comment-date-tags-ok-and-tx-unchecked.journal`
 
 Command:
 
@@ -33,6 +41,9 @@ spec/hledger/show.sh spec/hledger/probes/comment-tags-do-nothing.journal
 hledger -f spec/hledger/probes/comments-col0-ends-transaction.journal print -O json
 hledger -f spec/hledger/probes/comments-blank-ends-transaction.journal print -O json
 hledger -f spec/hledger/probes/comments-spaces-only-line-ends-transaction.journal print -O json
+hledger -f spec/hledger/probes/posting-comment-date-tag-invalid.journal print -O json
+hledger -f spec/hledger/probes/posting-comment-bracket-date-invalid.journal print -O json
+spec/hledger/show.sh spec/hledger/probes/posting-comment-date-tags-ok-and-tx-unchecked.journal
 ```
 
 ## Output
@@ -69,4 +80,23 @@ hledger: Error: spec/hledger/probes/comments-spaces-only-line-ends-transaction.j
   |   ^
 unexpected 'b'
 (exit status 1)
+```
+```text
+hledger: Error: spec/hledger/probes/posting-comment-date-tag-invalid.journal:2:15:
+  |
+2 |   a  1 ; date:2026-02-30
+  |               ^^^^^^^^^^
+
+(exit status 1)
+```
+```text
+hledger: Error: spec/hledger/probes/posting-comment-bracket-date-invalid.journal:3:12:
+  |
+3 |   b  -1 ; [2026-13-45]
+  |            ^^^^^^^^^^
+
+(exit status 1)
+```
+```text
+{"date":"2026-01-01","status":"Unmarked","code":"","description":"t","comment":"date:2026-02-30 [2026-13-45]\n","line":1,"postings":[{"account":"a","type":"RegularPosting","comment":"[2026-02-01] [=2026-01-02] date2:2026-03-01\n","amounts":[["",1,0]]},{"account":"b","type":"RegularPosting","comment":"","amounts":[["",-1,0]]}]}
 ```
