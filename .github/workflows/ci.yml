@@ -30,6 +30,17 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace
 
+  # Dependency licences and advisories (deny.toml), unused dependencies, spelling (_typos.toml).
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+      - uses: bnjbvr/cargo-machete@v0.9.2
+      - uses: crate-ci/typos@v1.51.1
+
   wasm:
     runs-on: ubuntu-latest
     steps:

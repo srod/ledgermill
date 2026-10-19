@@ -1,0 +1,4 @@
+# typos: spelling in code, spec notes and docs.
+# Journals are test data with made-up words on purpose, so they are not checked.
+[files]
+extend-exclude = ["*.journal", "LICENSE-*"]

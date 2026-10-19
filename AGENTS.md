@@ -47,6 +47,10 @@ the mechanical ones are enforced by `[workspace.lints]` in `Cargo.toml`.
 ## Checks before you finish
 
 - `cargo fmt --check` and `cargo clippy --workspace --all-targets --locked -- -D warnings`
+- `cargo deny check` (licences: permissive only, no GPL/LGPL/AGPL; advisories; sources),
+  `cargo machete` (unused dependencies) and `typos` (spelling). Install: `cargo install
+  --locked cargo-deny cargo-machete typos-cli`. A new dependency's licence must be in
+  `deny.toml`'s allow-list; never widen the list to admit a copyleft licence.
 - `cargo test --workspace`
 - the harness (`harness/README.md`)
 - builds for wasm32, `aarch64-apple-ios` and `aarch64-linux-android`, and the size budget
