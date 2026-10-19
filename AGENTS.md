@@ -14,7 +14,8 @@ engines. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; its clean-room rules bin
 - Learn behaviour only by running the reference tools (`hledger`, `bean-check`, `bean-query`,
   `bean-format`) on journals you write, and record it as a spec note in `spec/`.
 - Never copy test journals from upstream. Write your own.
-- Commits: `git commit -s`, plus an `Assisted-by: <tool and model>` trailer.
+- Commits: `git commit -s`, plus an `Assisted-by: <tool> (<model>, <vendor>)` trailer, e.g.
+  `Assisted-by: pi (Claude, Anthropic)`.
 
 ## Layout
 
