@@ -36,11 +36,17 @@ impl Decimal {
             return None;
         }
         let mantissa = format!("{int}{frac}").parse().ok()?;
-        Some(Decimal { mantissa, places: frac.len() as u32 })
+        Some(Decimal {
+            mantissa,
+            places: frac.len() as u32,
+        })
     }
 
     pub(crate) fn negated(self) -> Decimal {
-        Decimal { mantissa: -self.mantissa, ..self }
+        Decimal {
+            mantissa: -self.mantissa,
+            ..self
+        }
     }
 
     pub(crate) fn is_zero(self) -> bool {

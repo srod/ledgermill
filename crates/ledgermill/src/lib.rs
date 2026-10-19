@@ -30,12 +30,19 @@ impl Ledger {
 
 /// Parse the given files, in order.
 pub fn load(files: &[SourceFile]) -> Ledger {
-    let mut out = parse::Output { transactions: Vec::new(), findings: Vec::new() };
+    let mut out = parse::Output {
+        transactions: Vec::new(),
+        findings: Vec::new(),
+    };
     for (index, file) in files.iter().enumerate() {
         parse::parse_file(index, file, &mut out);
     }
     // Both sorts are stable: same date keeps file order, then line order.
     out.transactions.sort_by(|a, b| a.date.cmp(&b.date));
-    out.findings.sort_by_key(|(file, finding)| (*file, finding.line));
-    Ledger { transactions: out.transactions, findings: out.findings.into_iter().map(|(_, f)| f).collect() }
+    out.findings
+        .sort_by_key(|(file, finding)| (*file, finding.line));
+    Ledger {
+        transactions: out.transactions,
+        findings: out.findings.into_iter().map(|(_, f)| f).collect(),
+    }
 }

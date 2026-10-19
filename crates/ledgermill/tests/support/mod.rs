@@ -5,7 +5,10 @@ use ledgermill::{SourceFile, load};
 use serde_json::Value;
 
 pub fn file(name: &str, content: &str) -> SourceFile {
-    SourceFile { name: name.into(), content: content.into() }
+    SourceFile {
+        name: name.into(),
+        content: content.into(),
+    }
 }
 
 pub fn transactions(name: &str, content: &str) -> Value {
@@ -25,7 +28,11 @@ pub fn amounts(name: &str, content: &str) -> Value {
             let postings: Vec<Value> = t
                 .postings
                 .iter()
-                .flat_map(|p| p.amounts.iter().map(move |a| serde_json::json!([p.account, a.commodity, a.quantity])))
+                .flat_map(|p| {
+                    p.amounts
+                        .iter()
+                        .map(move |a| serde_json::json!([p.account, a.commodity, a.quantity]))
+                })
                 .collect();
             serde_json::json!([t.source.line, postings])
         })
@@ -40,8 +47,15 @@ pub fn headers(name: &str, content: &str) -> Value {
         .iter()
         .map(|t| {
             let status = serde_json::to_value(t.status).unwrap();
-            let posting_comments: Vec<&str> = t.postings.iter().map(|p| p.comment.as_str()).collect();
-            serde_json::json!([t.source.line, status, t.description, t.comment, posting_comments])
+            let posting_comments: Vec<&str> =
+                t.postings.iter().map(|p| p.comment.as_str()).collect();
+            serde_json::json!([
+                t.source.line,
+                status,
+                t.description,
+                t.comment,
+                posting_comments
+            ])
         })
         .collect();
     Value::Array(rows)

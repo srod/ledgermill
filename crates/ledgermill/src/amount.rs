@@ -63,5 +63,8 @@ pub(crate) fn parse_amount(text: &str) -> Option<ParsedAmount> {
 
     let number = Decimal::parse_unsigned(number_text)?;
     let number = if negative { number.negated() } else { number };
-    Some(ParsedAmount { commodity: commodity.to_string(), number })
+    Some(ParsedAmount {
+        commodity: commodity.to_string(),
+        number,
+    })
 }

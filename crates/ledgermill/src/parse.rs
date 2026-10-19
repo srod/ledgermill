@@ -5,7 +5,9 @@
 //! half-reported.
 
 use crate::amount::{ParsedAmount, parse_amount};
-use crate::model::{Amount, Finding, Posting, PostingKind, Severity, Source, SourceFile, Status, Transaction};
+use crate::model::{
+    Amount, Finding, Posting, PostingKind, Severity, Source, SourceFile, Status, Transaction,
+};
 use crate::number::Decimal;
 use serde_json::json;
 
@@ -50,19 +52,31 @@ impl Construct {
 
     fn message(self) -> &'static str {
         match self {
-            Construct::Directive => "Directives and other non-transaction lines are not supported yet.",
-            Construct::PeriodicOrAutoTransaction => "Periodic and auto-posting rules are not supported yet.",
+            Construct::Directive => {
+                "Directives and other non-transaction lines are not supported yet."
+            }
+            Construct::PeriodicOrAutoTransaction => {
+                "Periodic and auto-posting rules are not supported yet."
+            }
             Construct::Date => "Only valid dates written YYYY-MM-DD are supported.",
             Construct::HeaderSyntax => "This transaction header form is not supported yet.",
             Construct::Code => "Transaction codes are not supported yet.",
-            Construct::ControlCharacter => "Tabs and unusual whitespace are only supported in indentation.",
-            Construct::SpacesAtEndOfFile => "A last line of only spaces with no newline after it is not supported.",
-            Construct::PostingDate => "Dates inside posting comments are only supported as date:YYYY-MM-DD.",
+            Construct::ControlCharacter => {
+                "Tabs and unusual whitespace are only supported in indentation."
+            }
+            Construct::SpacesAtEndOfFile => {
+                "A last line of only spaces with no newline after it is not supported."
+            }
+            Construct::PostingDate => {
+                "Dates inside posting comments are only supported as date:YYYY-MM-DD."
+            }
             Construct::IndentedLine => "An indented line outside a transaction is not supported.",
             Construct::ElidedAmount => "Postings without an amount are not supported yet.",
             Construct::AccountName => "This account name form is not supported yet.",
             Construct::Amount => "This amount form is not supported yet.",
-            Construct::MultipleCommodities => "Several commodities in one transaction are not supported yet.",
+            Construct::MultipleCommodities => {
+                "Several commodities in one transaction are not supported yet."
+            }
             Construct::NumberTooLarge => "This number is too large to handle exactly.",
         }
     }
@@ -107,8 +121,15 @@ struct FileParser<'a> {
 }
 
 pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output) {
-    let mut parser = FileParser { file_index, file, out };
-    let text = file.content.strip_prefix('\u{feff}').unwrap_or(&file.content);
+    let mut parser = FileParser {
+        file_index,
+        file,
+        out,
+    };
+    let text = file
+        .content
+        .strip_prefix('\u{feff}')
+        .unwrap_or(&file.content);
     let mut state = State::Top;
     let last = text.split('\n').count() - 1;
     for (i, raw) in text.split('\n').enumerate() {
@@ -140,7 +161,11 @@ fn valid_date(text: &str) -> bool {
     }
     let digits = |r: std::ops::Range<usize>| -> Option<u32> {
         let s = &text[r];
-        if s.bytes().all(|b| b.is_ascii_digit()) { s.parse().ok() } else { None }
+        if s.bytes().all(|b| b.is_ascii_digit()) {
+            s.parse().ok()
+        } else {
+            None
+        }
     };
     let (Some(year), Some(month), Some(day)) = (digits(0..4), digits(5..7), digits(8..10)) else {
         return false;
@@ -177,12 +202,27 @@ fn join_comment(lines: &[String]) -> String {
 
 impl FileParser<'_> {
     /// Refuse the text at `byte_offset` of `line`.
-    fn refuse(&mut self, line_no: u32, line: &str, byte_offset: usize, construct: Construct, text: Option<&str>) {
-        let column = line.get(..byte_offset).map(|s| s.chars().count() as u32 + 1);
+    fn refuse(
+        &mut self,
+        line_no: u32,
+        line: &str,
+        byte_offset: usize,
+        construct: Construct,
+        text: Option<&str>,
+    ) {
+        let column = line
+            .get(..byte_offset)
+            .map(|s| s.chars().count() as u32 + 1);
         self.refuse_at(line_no, column, construct, text);
     }
 
-    fn refuse_at(&mut self, line_no: u32, column: Option<u32>, construct: Construct, text: Option<&str>) {
+    fn refuse_at(
+        &mut self,
+        line_no: u32,
+        column: Option<u32>,
+        construct: Construct,
+        text: Option<&str>,
+    ) {
         let mut details = json!({ "construct": construct.id() });
         if let Some(text) = text {
             details["text"] = json!(text);
@@ -244,7 +284,10 @@ impl FileParser<'_> {
     }
 
     fn header(&mut self, line_no: u32, line: &str) -> Result<TxDraft, (usize, Construct)> {
-        let date = line.get(..10).filter(|d| valid_date(d)).ok_or((0, Construct::Date))?;
+        let date = line
+            .get(..10)
+            .filter(|d| valid_date(d))
+            .ok_or((0, Construct::Date))?;
         let rest = &line[10..];
         if let Some(at) = odd_char(rest) {
             return Err((10 + at, Construct::ControlCharacter));
@@ -259,7 +302,11 @@ impl FileParser<'_> {
             if !after.is_empty() && !after.starts_with(' ') {
                 return Err((line.len() - body.len(), Construct::HeaderSyntax));
             }
-            status = if mark == '*' { Status::Cleared } else { Status::Pending };
+            status = if mark == '*' {
+                Status::Cleared
+            } else {
+                Status::Pending
+            };
             body = after.trim_start_matches(' ');
         }
         if body.starts_with('(') {
@@ -284,11 +331,23 @@ impl FileParser<'_> {
         let content = line.trim_start_matches([' ', '\t']);
         let indent = line.len() - content.len();
         if content.is_empty() {
-            self.refuse(line_no, line, indent.saturating_sub(1), Construct::ControlCharacter, None);
+            self.refuse(
+                line_no,
+                line,
+                indent.saturating_sub(1),
+                Construct::ControlCharacter,
+                None,
+            );
             return self.mark_refused(state);
         }
         if let Some(at) = odd_char(content) {
-            self.refuse(line_no, line, indent + at, Construct::ControlCharacter, None);
+            self.refuse(
+                line_no,
+                line,
+                indent + at,
+                Construct::ControlCharacter,
+                None,
+            );
             return self.mark_refused(state);
         }
         match state {
@@ -336,16 +395,23 @@ impl FileParser<'_> {
             None => (content, ""),
         };
         let valid_account = account.chars().next().is_some_and(char::is_alphanumeric)
-            && account
-                .chars()
-                .all(|c| c.is_alphanumeric() || matches!(c, ':' | '-' | '_' | '.' | '&' | '\'' | '/' | ',' | '+' | ' '));
+            && account.chars().all(|c| {
+                c.is_alphanumeric()
+                    || matches!(
+                        c,
+                        ':' | '-' | '_' | '.' | '&' | '\'' | '/' | ',' | '+' | ' '
+                    )
+            });
         if !valid_account {
             self.refuse(line_no, line, indent, Construct::AccountName, None);
             tx.refused = true;
             return;
         }
         let (amount_text, comment) = match rest.split_once(';') {
-            Some((amount, comment)) => (amount.trim_end_matches(' '), Some(comment.trim().to_string())),
+            Some((amount, comment)) => (
+                amount.trim_end_matches(' '),
+                Some(comment.trim().to_string()),
+            ),
             None => (rest.trim_end_matches(' '), None),
         };
         let amount_at = line.len() - rest.len();
@@ -379,10 +445,16 @@ impl FileParser<'_> {
 
     /// End of a transaction: check it and, if nothing was refused, keep it.
     fn finish(&mut self, state: State) {
-        let State::InTransaction(mut tx) = state else { return };
+        let State::InTransaction(mut tx) = state else {
+            return;
+        };
 
         // One commodity per transaction in this slice.
-        let first = tx.postings.first().and_then(|p| p.amount.as_ref()).map(|a| a.commodity.clone());
+        let first = tx
+            .postings
+            .first()
+            .and_then(|p| p.amount.as_ref())
+            .map(|a| a.commodity.clone());
         if let Some(first) = first {
             let offending: Vec<u32> = tx
                 .postings
@@ -399,14 +471,23 @@ impl FileParser<'_> {
             return;
         }
 
-        let numbers: Vec<Decimal> = tx.postings.iter().filter_map(|p| p.amount.as_ref().map(|a| a.number)).collect();
+        let numbers: Vec<Decimal> = tx
+            .postings
+            .iter()
+            .filter_map(|p| p.amount.as_ref().map(|a| a.number))
+            .collect();
         match Decimal::sum(&numbers) {
             None => {
                 self.refuse_at(tx.line, None, Construct::NumberTooLarge, None);
                 return;
             }
             Some(residual) if !residual.is_zero() => {
-                let commodity = tx.postings.first().and_then(|p| p.amount.as_ref()).map(|a| a.commodity.clone()).unwrap_or_default();
+                let commodity = tx
+                    .postings
+                    .first()
+                    .and_then(|p| p.amount.as_ref())
+                    .map(|a| a.commodity.clone())
+                    .unwrap_or_default();
                 self.out.findings.push((
                     self.file_index,
                     Finding {
@@ -432,7 +513,10 @@ impl FileParser<'_> {
                     account: p.account,
                     kind: PostingKind::Regular,
                     comment: join_comment(&p.comment_lines),
-                    amounts: vec![Amount { commodity: amount.commodity, quantity: amount.number.to_string() }],
+                    amounts: vec![Amount {
+                        commodity: amount.commodity,
+                        quantity: amount.number.to_string(),
+                    }],
                 }
             })
             .collect();
@@ -441,7 +525,10 @@ impl FileParser<'_> {
             status: tx.status,
             description: tx.description,
             comment: join_comment(&tx.comment_lines),
-            source: Source { file: self.file.name.clone(), line: tx.line },
+            source: Source {
+                file: self.file.name.clone(),
+                line: tx.line,
+            },
             postings,
         });
     }
