@@ -1,103 +1,44 @@
 //! Line-by-line reading of one source file into transactions and findings.
 //!
-//! The rule that shapes everything here: a line is either understood exactly, or it produces an
-//! `unsupported-syntax` finding. A transaction with any refused line is dropped, never
-//! half-reported.
+//! A line is either understood exactly, or it produces a finding: `parse-error` when the
+//! reference tool rejects it too, `unsupported-syntax` when it is something ledgermill does not
+//! read yet. A transaction with any such line is dropped, never half-reported.
 
-use crate::amount::{ParsedAmount, parse_amount};
+use crate::alias::{Alias, parse_alias};
+use crate::amount::{Default, Styles, read_amount, read_symbol};
+use crate::balance::{Draft, Unbalanced, balance};
+use crate::chars::{is_blank, trim_blank};
+use crate::cursor::Cursor;
+use crate::date::{Date, parse_date};
 use crate::model::{
-    Amount, Finding, Posting, PostingKind, Severity, Source, SourceFile, Status, Transaction,
+    Amount, Cost, Finding, Lot, Posting, PostingKind, Quantity, Severity, Source, SourceFile,
+    Status, Transaction,
 };
-use crate::number::Decimal;
+use crate::number::Mark;
+use crate::posting::{CostKind, WrittenAmount, parse_posting};
+use crate::problem::{Parsed, Problem, Unsupported, invalid};
+use crate::tags::{check_posting_comment, tags};
+use regex_lite::Regex;
 use serde_json::json;
-
-/// What was refused, as a stable machine name plus a short sentence.
-#[derive(Debug, Clone, Copy)]
-enum Construct {
-    Directive,
-    PeriodicOrAutoTransaction,
-    Date,
-    HeaderSyntax,
-    Code,
-    ControlCharacter,
-    SpacesAtEndOfFile,
-    PostingDate,
-    IndentedLine,
-    ElidedAmount,
-    AccountName,
-    Amount,
-    MultipleCommodities,
-    NumberTooLarge,
-}
-
-impl Construct {
-    fn id(self) -> &'static str {
-        match self {
-            Construct::Directive => "directive",
-            Construct::PeriodicOrAutoTransaction => "periodic-or-auto-transaction",
-            Construct::Date => "date",
-            Construct::HeaderSyntax => "header-syntax",
-            Construct::Code => "transaction-code",
-            Construct::ControlCharacter => "control-character",
-            Construct::SpacesAtEndOfFile => "spaces-at-end-of-file",
-            Construct::PostingDate => "posting-date",
-            Construct::IndentedLine => "indented-line",
-            Construct::ElidedAmount => "elided-amount",
-            Construct::AccountName => "account-name",
-            Construct::Amount => "amount",
-            Construct::MultipleCommodities => "multiple-commodities",
-            Construct::NumberTooLarge => "number-too-large",
-        }
-    }
-
-    fn message(self) -> &'static str {
-        match self {
-            Construct::Directive => {
-                "Directives and other non-transaction lines are not supported yet."
-            }
-            Construct::PeriodicOrAutoTransaction => {
-                "Periodic and auto-posting rules are not supported yet."
-            }
-            Construct::Date => "Only valid dates written YYYY-MM-DD are supported.",
-            Construct::HeaderSyntax => "This transaction header form is not supported yet.",
-            Construct::Code => "Transaction codes are not supported yet.",
-            Construct::ControlCharacter => {
-                "Tabs and unusual whitespace are only supported in indentation."
-            }
-            Construct::SpacesAtEndOfFile => {
-                "A last line of only spaces with no newline after it is not supported."
-            }
-            Construct::PostingDate => {
-                "Dates inside posting comments are only supported as date:YYYY-MM-DD."
-            }
-            Construct::IndentedLine => "An indented line outside a transaction is not supported.",
-            Construct::ElidedAmount => "Postings without an amount are not supported yet.",
-            Construct::AccountName => "This account name form is not supported yet.",
-            Construct::Amount => "This amount form is not supported yet.",
-            Construct::MultipleCommodities => {
-                "Several commodities in one transaction are not supported yet."
-            }
-            Construct::NumberTooLarge => "This number is too large to handle exactly.",
-        }
-    }
-}
+use std::sync::OnceLock;
 
 pub(crate) struct Output {
-    pub transactions: Vec<Transaction>,
+    /// `(transaction, file index, date)`; sorted by the caller.
+    pub transactions: Vec<(Transaction, Date)>,
     /// `(index of the file in load order, finding)`; sorted by the caller.
     pub findings: Vec<(usize, Finding)>,
 }
 
 struct PostingDraft {
-    line: u32,
     account: String,
+    kind: PostingKind,
     comment_lines: Vec<String>,
-    amount: ParsedAmount,
+    amount: Option<WrittenAmount>,
 }
 
 struct TxDraft {
     line: u32,
-    date: String,
+    date: Date,
     status: Status,
     description: String,
     comment_lines: Vec<String>,
@@ -107,17 +48,69 @@ struct TxDraft {
 }
 
 enum State {
-    /// Between transactions.
     Top,
     InTransaction(TxDraft),
-    /// Inside the indented lines of a refused column-0 line; they belong to it.
-    Refused,
+    /// The indented lines after a directive: only comments, plus `format` under `commodity`
+    /// and `type:` tags under `account`.
+    InDirective(DirectiveBody),
+    /// Inside the indented lines of something refused or ignored; they belong to it.
+    Skipping,
+    /// Between `comment` and `end comment`.
+    CommentBlock,
 }
+
+enum DirectiveBody {
+    Plain,
+    Account(String),
+    Commodity(String),
+}
+
+/// What a file has set up so far; directives reach only the lines after them in their file.
+#[derive(Default)]
+struct FileState {
+    styles: Styles,
+    year: Option<u32>,
+    aliases: Vec<Alias>,
+    parents: Vec<String>,
+    /// Accounts declared with type `V` (Conversion).
+    conversion_accounts: Vec<String>,
+}
+
+/// Conversion accounts by name, used while the file declares none.
+fn conversion_name() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        #[expect(clippy::expect_used, reason = "the pattern is a constant")]
+        Regex::new(r"(?i)^equity:(conversion|trades?|trading)(:|$)").expect("valid regex")
+    })
+}
+
+const ACCOUNT_TYPES: [&str; 18] = [
+    "a",
+    "l",
+    "e",
+    "r",
+    "x",
+    "c",
+    "v",
+    "g",
+    "u",
+    "asset",
+    "liability",
+    "equity",
+    "revenue",
+    "expense",
+    "cash",
+    "conversion",
+    "gain",
+    "unrealisedgain",
+];
 
 struct FileParser<'a> {
     file_index: usize,
     file: &'a SourceFile,
     out: &'a mut Output,
+    st: FileState,
 }
 
 pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output) {
@@ -125,20 +118,27 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
         file_index,
         file,
         out,
+        st: FileState::default(),
     };
     let text = file
         .content
         .strip_prefix('\u{feff}')
         .unwrap_or(&file.content);
     let mut state = State::Top;
-    let last = text.split('\n').count() - 1;
-    for (i, raw) in text.split('\n').enumerate() {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let last = lines.len() - 1;
+    for (i, raw) in lines.iter().enumerate() {
         let line_no = u32::try_from(i + 1).unwrap_or(u32::MAX);
         let line = raw.strip_suffix('\r').unwrap_or(raw);
         // The reference tool fails on a final line of only blanks that has no newline after it.
-        if i == last && !raw.is_empty() && line.bytes().all(|b| b == b' ') {
-            parser.refuse(line_no, line, 0, Construct::SpacesAtEndOfFile, None);
+        if i == last && !raw.is_empty() && line.chars().all(|c| c == ' ' || c == '\t') {
             parser.finish(state);
+            parser.report(
+                line_no,
+                None,
+                Problem::Invalid("The file ends inside a line."),
+                None,
+            );
             return;
         }
         state = parser.line(state, line_no, line);
@@ -146,234 +146,465 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
     parser.finish(state);
 }
 
-/// Byte offset of the first character that is a control character or whitespace other than a
-/// plain space.
-fn odd_char(text: &str) -> Option<usize> {
-    text.char_indices()
-        .find(|&(_, c)| c.is_control() || (c.is_whitespace() && c != ' '))
-        .map(|(i, _)| i)
-}
-
-fn valid_date(text: &str) -> bool {
-    let b = text.as_bytes();
-    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
-        return false;
+fn finding(
+    file: &str,
+    line: u32,
+    column: Option<u32>,
+    problem: Problem,
+    text: Option<&str>,
+) -> Finding {
+    let (code, details, message) = match problem {
+        Problem::Invalid(reason) => ("parse-error", json!({}), reason),
+        Problem::Unsupported(u) => (
+            "unsupported-syntax",
+            json!({ "construct": u.id() }),
+            u.message(),
+        ),
+    };
+    let mut details = details;
+    if let Some(text) = text {
+        details["text"] = json!(text);
     }
-    let digits = |r: std::ops::Range<usize>| -> Option<u32> {
-        let s = &text[r];
-        if s.bytes().all(|b| b.is_ascii_digit()) {
-            s.parse().ok()
-        } else {
-            None
-        }
-    };
-    let (Some(year), Some(month), Some(day)) = (digits(0..4), digits(5..7), digits(8..10)) else {
-        return false;
-    };
-    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 if leap => 29,
-        2 => 28,
-        _ => return false,
-    };
-    (1000..=9999).contains(&year) && (1..=days).contains(&day)
-}
-
-/// The reference tool reads `date:` and `date2:` tags and `[...]` dates in *posting* comments and
-/// fails on a bad one. Only well-formed tags are accepted here; they change nothing we report.
-fn posting_comment_ok(comment: &str) -> bool {
-    if comment.contains('[') {
-        return false;
+    Finding {
+        code: code.into(),
+        severity: Severity::Error,
+        file: file.into(),
+        line,
+        column,
+        details,
+        message: message.into(),
     }
-    ["date:", "date2:"].iter().all(|tag| {
-        comment.match_indices(tag).all(|(at, _)| {
-            let value = comment[at + tag.len()..].trim_start_matches(' ');
-            valid_date(value.split([' ', ',']).next().unwrap_or(""))
-        })
-    })
 }
 
 /// Join comment lines the way the reference tool reports them, then trim.
 fn join_comment(lines: &[String]) -> String {
-    lines.join("\n").trim().to_string()
+    trim_blank(&lines.join("\n")).to_string()
+}
+
+fn to_quantity(commodity: &str, value: &crate::decimal::Decimal) -> Quantity {
+    Quantity {
+        commodity: commodity.to_string(),
+        quantity: value.output(),
+    }
 }
 
 impl FileParser<'_> {
-    /// Refuse the text at `byte_offset` of `line`.
-    fn refuse(
-        &mut self,
-        line_no: u32,
-        line: &str,
-        byte_offset: usize,
-        construct: Construct,
-        text: Option<&str>,
-    ) {
-        let column = line
-            .get(..byte_offset)
-            .map(|s| u32::try_from(s.chars().count() + 1).unwrap_or(u32::MAX));
-        self.refuse_at(line_no, column, construct, text);
-    }
-
-    fn refuse_at(
-        &mut self,
-        line_no: u32,
-        column: Option<u32>,
-        construct: Construct,
-        text: Option<&str>,
-    ) {
-        let mut details = json!({ "construct": construct.id() });
-        if let Some(text) = text {
-            details["text"] = json!(text);
-        }
+    fn report(&mut self, line_no: u32, column: Option<u32>, problem: Problem, text: Option<&str>) {
         self.out.findings.push((
             self.file_index,
-            Finding {
-                code: "unsupported-syntax".into(),
-                severity: Severity::Error,
-                file: self.file.name.clone(),
-                line: line_no,
-                column,
-                details,
-                message: construct.message().into(),
-            },
+            finding(&self.file.name, line_no, column, problem, text),
         ));
     }
 
     fn line(&mut self, state: State, line_no: u32, line: &str) -> State {
-        // Blank line: ends a transaction.
-        if line.bytes().all(|b| b == b' ') {
+        if let State::CommentBlock = state {
+            return if trim_end(line) == "end comment" {
+                State::Top
+            } else {
+                State::CommentBlock
+            };
+        }
+        // Blank line: ends a transaction or a directive's indented lines.
+        if line.chars().all(|c| c == ' ' || c == '\t') {
             self.finish(state);
             return State::Top;
         }
-        let first = line.as_bytes()[0];
-
-        // Column-0 comment: ignored, and ends a transaction.
-        if matches!(first, b';' | b'#' | b'*') {
+        let first = line.chars().next().unwrap_or(' ');
+        if matches!(first, ';' | '#' | '*') {
             self.finish(state);
-            if let Some(at) = line.find('\r') {
-                self.refuse(line_no, line, at, Construct::ControlCharacter, None);
-            }
             return State::Top;
         }
-
-        if first == b' ' || first == b'\t' {
+        if first == ' ' || first == '\t' {
             return self.indented(state, line_no, line);
         }
-
-        // Any other column-0 line starts something new.
         self.finish(state);
+        if line.contains('\r') {
+            self.report(
+                line_no,
+                None,
+                Problem::Unsupported(Unsupported::ControlCharacter),
+                None,
+            );
+            return State::Skipping;
+        }
         if first.is_ascii_digit() {
-            match Self::header(line_no, line) {
+            return match self.header(line_no, line) {
                 Ok(draft) => State::InTransaction(draft),
-                Err((at, construct)) => {
-                    self.refuse(line_no, line, at, construct, None);
-                    State::Refused
+                Err(p) => {
+                    self.report(line_no, None, p, None);
+                    State::Skipping
                 }
-            }
-        } else {
-            let construct = if first == b'~' || first == b'=' {
-                Construct::PeriodicOrAutoTransaction
-            } else {
-                Construct::Directive
             };
-            self.refuse(line_no, line, 0, construct, None);
-            State::Refused
+        }
+        match self.directive(line) {
+            Ok(body) => match body {
+                Some(body) => State::InDirective(body),
+                None => State::CommentBlock,
+            },
+            Err(p) => {
+                self.report(line_no, None, p, None);
+                State::Skipping
+            }
         }
     }
 
-    fn header(line_no: u32, line: &str) -> Result<TxDraft, (usize, Construct)> {
-        let date = line
-            .get(..10)
-            .filter(|d| valid_date(d))
-            .ok_or((0, Construct::Date))?;
-        let rest = &line[10..];
-        if let Some(at) = odd_char(rest) {
-            return Err((10 + at, Construct::ControlCharacter));
+    fn header(&self, line_no: u32, line: &str) -> Parsed<TxDraft> {
+        let mut cur = Cursor::new(line);
+        let date = parse_date(&mut cur, self.st.year)?;
+        if cur.eat('=') {
+            parse_date(&mut cur, Some(date.year()))?;
         }
-        if !rest.is_empty() && !rest.starts_with(' ') {
-            return Err((10, Construct::HeaderSyntax));
+        if !cur.at_end() && !cur.peek().is_some_and(is_blank) {
+            return invalid("Unexpected text after the date.");
         }
-        let mut body = rest.trim_start_matches(' ');
+        cur.take_while(is_blank);
         let mut status = Status::Unmarked;
-        if let Some(mark) = body.chars().next().filter(|c| matches!(c, '*' | '!')) {
-            let after = &body[1..];
-            if !after.is_empty() && !after.starts_with(' ') {
-                return Err((line.len() - body.len(), Construct::HeaderSyntax));
-            }
+        if let Some(mark) = cur.peek().filter(|c| matches!(c, '*' | '!')) {
+            cur.bump();
             status = if mark == '*' {
                 Status::Cleared
             } else {
                 Status::Pending
             };
-            body = after.trim_start_matches(' ');
+            cur.take_while(is_blank);
         }
-        if body.starts_with('(') {
-            return Err((line.len() - body.len(), Construct::Code));
+        if cur.eat('(') {
+            let code = cur.take_while(|c| c != ')');
+            if !cur.eat(')') {
+                return invalid("A transaction code is not closed.");
+            }
+            let _ = code;
+            cur.take_while(is_blank);
         }
-        let (description, comment) = match body.split_once(';') {
-            Some((description, comment)) => (description, Some(comment.trim().to_string())),
-            None => (body, None),
+        let rest = cur.rest();
+        let (description, comment) = match rest.split_once(';') {
+            Some((d, c)) => (d, Some(trim_blank(c).to_string())),
+            None => (rest, None),
         };
         Ok(TxDraft {
             line: line_no,
-            date: date.to_string(),
+            date,
             status,
-            description: description.trim_end_matches(' ').to_string(),
+            description: description.trim_end_matches(is_blank).to_string(),
             comment_lines: comment.into_iter().collect(),
             postings: Vec::new(),
             refused: false,
         })
     }
 
+    /// A column-0 line that is not a transaction or a comment. `Ok(None)` opens a comment block.
+    fn directive(&mut self, line: &str) -> Parsed<Option<DirectiveBody>> {
+        let (word, rest) = match line.find(is_blank) {
+            Some(i) => (&line[..i], &line[i..]),
+            None => (line, ""),
+        };
+        let arg = trim_blank(rest);
+        match word {
+            "comment" if arg.is_empty() => Ok(None),
+            "include" | "!include" => Err(Problem::Unsupported(Unsupported::Include)),
+            "~" | "=" => Err(Problem::Unsupported(Unsupported::Directive)),
+            "P" => self
+                .price_directive(rest)
+                .map(|()| Some(DirectiveBody::Plain)),
+            w if w.starts_with('P') && w[1..].starts_with(|c: char| c.is_ascii_digit()) => self
+                .price_directive(&line[1..])
+                .map(|()| Some(DirectiveBody::Plain)),
+            "D" => self
+                .default_commodity(rest)
+                .map(|()| Some(DirectiveBody::Plain)),
+            "decimal-mark" => {
+                let mark = arg.chars().next().and_then(Mark::of);
+                let Some(mark) = mark else {
+                    return invalid("decimal-mark takes `.` or `,`.");
+                };
+                self.st.styles.decimal_mark = Some(mark);
+                Ok(Some(DirectiveBody::Plain))
+            }
+            "commodity" => self.commodity(rest),
+            "account" => self.account(rest),
+            "alias" => {
+                let alias = parse_alias(rest)?;
+                self.st.aliases.push(alias);
+                Ok(Some(DirectiveBody::Plain))
+            }
+            "end" => match arg {
+                "aliases" => {
+                    self.st.aliases.clear();
+                    Ok(Some(DirectiveBody::Plain))
+                }
+                "apply account" => {
+                    if self.st.parents.pop().is_none() {
+                        return invalid("end apply account without apply account.");
+                    }
+                    Ok(Some(DirectiveBody::Plain))
+                }
+                "apply tag" | "apply fixed" | "tag" | "apply year" => {
+                    Ok(Some(DirectiveBody::Plain))
+                }
+                _ => invalid("Unknown end directive."),
+            },
+            "apply" => self.apply(arg),
+            "Y" | "year" => self.year(arg),
+            w if w.starts_with('Y') && w[1..].starts_with(|c: char| c.is_ascii_digit()) => {
+                self.year(&line[1..])
+            }
+            "payee" | "tag" if arg.is_empty() => invalid("This directive needs an argument."),
+            "payee" | "tag" | "N" | "C" | "A" | "bucket" | "assert" | "capture" | "check"
+            | "define" | "expr" | "eval" | "python" | "value" | "--" => {
+                Ok(Some(DirectiveBody::Plain))
+            }
+            _ => invalid("This line is not a transaction or a directive."),
+        }
+    }
+
+    fn year(&mut self, arg: &str) -> Parsed<Option<DirectiveBody>> {
+        let arg = trim_blank(arg.split(';').next().unwrap_or(""));
+        if arg.len() < 4 || !arg.chars().all(|c| c.is_ascii_digit()) {
+            return invalid("Y takes a year of at least four digits.");
+        }
+        self.st.year = Some(arg.parse().or(invalid("Y takes a year."))?);
+        Ok(Some(DirectiveBody::Plain))
+    }
+
+    fn apply(&mut self, arg: &str) -> Parsed<Option<DirectiveBody>> {
+        if let Some(name) = arg.strip_prefix("account") {
+            let name = trim_blank(name);
+            if name.is_empty() {
+                return invalid("apply account needs an account.");
+            }
+            if name.contains("  ") {
+                return invalid("Unexpected text after the account.");
+            }
+            let full = self.full_account(name);
+            self.st.parents.push(full);
+            return Ok(Some(DirectiveBody::Plain));
+        }
+        if let Some(year) = arg.strip_prefix("year") {
+            return self.year(year);
+        }
+        Ok(Some(DirectiveBody::Plain))
+    }
+
+    /// `P DATE [TIME] COMMODITY AMOUNT`: checked only; prices change nothing raw output shows.
+    fn price_directive(&self, rest: &str) -> Parsed<()> {
+        let mut cur = Cursor::new(rest);
+        cur.take_while(is_blank);
+        parse_date(&mut cur, self.st.year)?;
+        if cur.take_while(is_blank).is_empty() {
+            return invalid("A space was expected after the date.");
+        }
+        if cur.peek().is_some_and(|c| c.is_ascii_digit()) {
+            time_of_day(&mut cur)?;
+            if cur.take_while(is_blank).is_empty() {
+                return invalid("A space was expected after the time.");
+            }
+        }
+        let Some(symbol) = read_symbol(&mut cur).transpose()? else {
+            return invalid("A commodity symbol was expected.");
+        };
+        let _ = symbol;
+        if !cur.peek().is_some_and(is_blank) {
+            return invalid("A space was expected after the commodity.");
+        }
+        cur.take_while(is_blank);
+        read_amount(&mut cur, &self.st.styles, Default::Apply)?;
+        Ok(())
+    }
+
+    /// The sample amount of a `commodity` or `D` directive. It is read like any amount, so the
+    /// marks already in force decide a lone `.`/`,`; it must end up with a decimal mark.
+    fn sample_mark(&self, text: &str) -> Parsed<(String, Option<Mark>)> {
+        let mut cur = Cursor::new(text);
+        cur.take_while(is_blank);
+        let amount = read_amount(&mut cur, &self.st.styles, Default::Ignore)?;
+        if amount.mark.is_none() {
+            return invalid("A commodity directive's number needs a decimal mark.");
+        }
+        let after = trim_blank(cur.rest());
+        if !(after.is_empty() || after.starts_with(';')) {
+            return invalid("Unexpected text after the amount.");
+        }
+        Ok((amount.commodity, amount.mark))
+    }
+
+    fn default_commodity(&mut self, rest: &str) -> Parsed<()> {
+        let text = rest.split(';').next().unwrap_or("");
+        let (commodity, mark) = self.sample_mark(text)?;
+        self.st.styles.default_commodity = Some((commodity, mark));
+        Ok(())
+    }
+
+    fn commodity(&mut self, rest: &str) -> Parsed<Option<DirectiveBody>> {
+        let text = rest.split(';').next().unwrap_or("");
+        let arg = trim_blank(text);
+        if arg.is_empty() {
+            return invalid("commodity needs a symbol or an amount.");
+        }
+        let starts_number =
+            arg.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '-' | '+' | '.' | ','));
+        let quoted_then_number = {
+            let mut c = Cursor::new(arg);
+            matches!(read_symbol(&mut c), Some(Ok(_))) && {
+                c.take_while(is_blank);
+                !c.at_end()
+            }
+        };
+        if starts_number || quoted_then_number {
+            let (commodity, mark) = self.sample_mark(arg)?;
+            if let Some(mark) = mark {
+                self.st.styles.commodity_marks.insert(commodity, mark);
+            }
+            return Ok(Some(DirectiveBody::Plain));
+        }
+        let mut cur = Cursor::new(arg);
+        let symbol = read_symbol(&mut cur)
+            .transpose()?
+            .ok_or(Problem::Invalid("commodity needs a symbol."))?;
+        Ok(Some(DirectiveBody::Commodity(symbol)))
+    }
+
+    fn account(&mut self, rest: &str) -> Parsed<Option<DirectiveBody>> {
+        let rest = rest.trim_start_matches(is_blank);
+        if rest.is_empty() {
+            return invalid("account needs a name.");
+        }
+        let (name, after) = match find_double_blank(rest) {
+            Some(i) => (&rest[..i], trim_blank(&rest[i..])),
+            None => (rest, ""),
+        };
+        let name = self.full_account(trim_blank(name));
+        if !after.is_empty() {
+            let Some(comment) = after.strip_prefix(';') else {
+                return invalid("Unexpected text after the account name.");
+            };
+            self.account_comment(&name, comment)?;
+        }
+        Ok(Some(DirectiveBody::Account(name)))
+    }
+
+    /// `type:` tags on an account: the first one counts; its value must be a known type.
+    fn account_comment(&mut self, account: &str, comment: &str) -> Parsed<()> {
+        let Some((_, value)) = tags(comment).into_iter().find(|(n, _)| *n == "type") else {
+            return Ok(());
+        };
+        let lower = value.to_lowercase();
+        if !ACCOUNT_TYPES.contains(&lower.as_str()) {
+            return invalid("This account type is not one the reference tool knows.");
+        }
+        if (lower == "v" || lower == "conversion")
+            && !self.st.conversion_accounts.iter().any(|a| a == account)
+        {
+            self.st.conversion_accounts.push(account.to_string());
+        }
+        Ok(())
+    }
+
+    /// The account with `apply account` parents and aliases applied (aliases see the parents).
+    fn full_account(&self, name: &str) -> String {
+        let mut full = match self.st.parents.last() {
+            Some(parent) => format!("{parent}:{name}"),
+            None => name.to_string(),
+        };
+        for alias in self.st.aliases.iter().rev() {
+            if let Ok(next) = alias.apply(&full) {
+                full = next;
+            }
+        }
+        full
+    }
+
     fn indented(&mut self, state: State, line_no: u32, line: &str) -> State {
-        let content = line.trim_start_matches([' ', '\t']);
-        let indent = line.len() - content.len();
+        let content = line.trim_start_matches(is_blank);
         if content.is_empty() {
-            self.refuse(
+            // Only blanks, but some are not spaces or tabs: the reference tool rejects it.
+            self.report(
                 line_no,
-                line,
-                indent.saturating_sub(1),
-                Construct::ControlCharacter,
+                None,
+                Problem::Invalid("A line of only blanks."),
                 None,
             );
             return Self::mark_refused(state);
         }
-        if let Some(at) = odd_char(content) {
-            self.refuse(
+        if line.contains('\r') {
+            self.report(
                 line_no,
-                line,
-                indent + at,
-                Construct::ControlCharacter,
+                None,
+                Problem::Unsupported(Unsupported::ControlCharacter),
                 None,
             );
             return Self::mark_refused(state);
         }
         match state {
-            State::Refused => State::Refused,
+            State::Skipping | State::CommentBlock => state,
             State::Top => {
-                // An indented comment outside a transaction is ignored; anything else is out of place.
                 if !content.starts_with(';') {
-                    self.refuse(line_no, line, indent, Construct::IndentedLine, None);
+                    self.report(
+                        line_no,
+                        None,
+                        Problem::Invalid("An indented line outside a transaction."),
+                        None,
+                    );
                 }
                 State::Top
             }
+            State::InDirective(body) => self.directive_line(body, line_no, content),
             State::InTransaction(mut tx) => {
                 if let Some(comment) = content.strip_prefix(';') {
-                    let comment = comment.trim().to_string();
                     match tx.postings.last_mut() {
-                        Some(_) if !posting_comment_ok(&comment) => {
-                            self.refuse(line_no, line, indent, Construct::PostingDate, None);
-                            tx.refused = true;
+                        Some(posting) => {
+                            if let Err(p) = check_posting_comment(comment, tx.date.year()) {
+                                self.report(line_no, None, p, None);
+                                tx.refused = true;
+                            }
+                            posting.comment_lines.push(trim_blank(comment).to_string());
                         }
-                        Some(posting) => posting.comment_lines.push(comment),
-                        None => tx.comment_lines.push(comment),
+                        None => tx.comment_lines.push(trim_blank(comment).to_string()),
                     }
                 } else {
-                    self.posting(&mut tx, line_no, line, indent);
+                    self.posting(&mut tx, line_no, content);
                 }
                 State::InTransaction(tx)
+            }
+        }
+    }
+
+    fn directive_line(&mut self, body: DirectiveBody, line_no: u32, content: &str) -> State {
+        if let Some(comment) = content.strip_prefix(';') {
+            if let DirectiveBody::Account(name) = &body {
+                let name = name.clone();
+                if let Err(p) = self.account_comment(&name, comment) {
+                    self.report(line_no, None, p, None);
+                }
+            }
+            return State::InDirective(body);
+        }
+        if let (DirectiveBody::Commodity(symbol), Some(format)) =
+            (&body, content.strip_prefix("format"))
+        {
+            match self.sample_mark(format) {
+                Ok((commodity, Some(mark))) if &commodity == symbol => {
+                    self.st.styles.commodity_marks.insert(commodity, mark);
+                }
+                Ok(_) => self.report(
+                    line_no,
+                    None,
+                    Problem::Invalid("The format's commodity differs from the directive's."),
+                    None,
+                ),
+                Err(p) => self.report(line_no, None, p, None),
+            }
+            return State::InDirective(body);
+        }
+        match body {
+            DirectiveBody::Account(_) | DirectiveBody::Commodity(_) => State::InDirective(body),
+            DirectiveBody::Plain => {
+                self.report(
+                    line_no,
+                    None,
+                    Problem::Invalid("This directive takes no indented lines."),
+                    None,
+                );
+                State::Skipping
             }
         }
     }
@@ -388,136 +619,212 @@ impl FileParser<'_> {
         }
     }
 
-    fn posting(&mut self, tx: &mut TxDraft, line_no: u32, line: &str, indent: usize) {
-        let content = &line[indent..];
-        let (account, rest) = match content.find("  ") {
-            Some(at) => (&content[..at], content[at..].trim_start_matches(' ')),
-            None => (content, ""),
+    fn posting(&mut self, tx: &mut TxDraft, line_no: u32, content: &str) {
+        let parsed = parse_posting(content, &self.st.styles, tx.date.year());
+        let p = match parsed {
+            Ok(p) => p,
+            Err(problem) => {
+                self.report(line_no, None, problem, Some(content));
+                tx.refused = true;
+                return;
+            }
         };
-        let valid_account = account.chars().next().is_some_and(char::is_alphanumeric)
-            && account.chars().all(|c| {
-                c.is_alphanumeric()
-                    || matches!(
-                        c,
-                        ':' | '-' | '_' | '.' | '&' | '\'' | '/' | ',' | '+' | ' '
-                    )
-            });
-        if !valid_account {
-            self.refuse(line_no, line, indent, Construct::AccountName, None);
+        if let Some(Err(problem)) = p
+            .comment
+            .as_deref()
+            .map(|c| check_posting_comment(c, tx.date.year()))
+        {
+            self.report(line_no, None, problem, None);
             tx.refused = true;
-            return;
         }
-        let (amount_text, comment) = match rest.split_once(';') {
-            Some((amount, comment)) => (
-                amount.trim_end_matches(' '),
-                Some(comment.trim().to_string()),
-            ),
-            None => (rest.trim_end_matches(' '), None),
-        };
-        let amount_at = line.len() - rest.len();
-        if comment.as_deref().is_some_and(|c| !posting_comment_ok(c)) {
-            self.refuse(line_no, line, indent, Construct::PostingDate, None);
-            tx.refused = true;
-            return;
-        }
-        if amount_text.is_empty() {
-            self.refuse(line_no, line, indent, Construct::ElidedAmount, None);
-            tx.refused = true;
-            return;
-        }
-        let Some(amount) = parse_amount(amount_text) else {
-            let construct = if amount_text.bytes().filter(u8::is_ascii_digit).count() > 15 {
-                Construct::NumberTooLarge
-            } else {
-                Construct::Amount
-            };
-            self.refuse(line_no, line, amount_at, construct, Some(amount_text));
-            tx.refused = true;
-            return;
-        };
+        let account = self.full_account(&p.account);
         tx.postings.push(PostingDraft {
-            line: line_no,
-            account: account.to_string(),
-            comment_lines: comment.into_iter().collect(),
-            amount,
+            account,
+            kind: p.kind,
+            comment_lines: p
+                .comment
+                .map(|c| trim_blank(&c).to_string())
+                .into_iter()
+                .collect(),
+            amount: p.amount,
         });
     }
 
-    /// End of a transaction: check it and, if nothing was refused, keep it.
+    fn is_conversion_account(&self, account: &str) -> bool {
+        if self.st.conversion_accounts.is_empty() {
+            return conversion_name().is_match(account);
+        }
+        self.st.conversion_accounts.iter().any(|a| {
+            account == a
+                || account
+                    .strip_prefix(a.as_str())
+                    .is_some_and(|r| r.starts_with(':'))
+        })
+    }
+
+    /// End of a transaction: balance it and, if nothing was refused, keep it.
     fn finish(&mut self, state: State) {
-        let State::InTransaction(mut tx) = state else {
+        let State::InTransaction(tx) = state else {
             return;
         };
-
-        // One commodity per transaction in this slice.
-        let first = tx.postings.first().map(|p| p.amount.commodity.clone());
-        if let Some(first) = first {
-            let offending: Vec<u32> = tx
-                .postings
-                .iter()
-                .filter(|p| p.amount.commodity != first)
-                .map(|p| p.line)
-                .collect();
-            for line_no in offending {
-                self.refuse_at(line_no, None, Construct::MultipleCommodities, None);
-                tx.refused = true;
-            }
-        }
         if tx.refused {
             return;
         }
-
-        let numbers: Vec<Decimal> = tx.postings.iter().map(|p| p.amount.number).collect();
-        match Decimal::sum(&numbers) {
-            None => {
-                self.refuse_at(tx.line, None, Construct::NumberTooLarge, None);
+        let mut drafts: Vec<Draft> = tx
+            .postings
+            .iter()
+            .map(|p| Draft {
+                kind: p.kind,
+                conversion_account: self.is_conversion_account(&p.account),
+                amounts: p.amount.clone().map(|a| vec![a]),
+            })
+            .collect();
+        if let Err(u) = balance(&mut drafts) {
+            let dropped = matches!(u, Unbalanced::UnsupportedConversion);
+            let finding = match u {
+                Unbalanced::UnsupportedConversion => finding(
+                    &self.file.name,
+                    tx.line,
+                    None,
+                    Problem::Unsupported(Unsupported::ConversionPostings),
+                    None,
+                ),
+                Unbalanced::ConversionWithCost => Finding {
+                    code: "unbalanced-transaction".into(),
+                    severity: Severity::Error,
+                    file: self.file.name.clone(),
+                    line: tx.line,
+                    column: None,
+                    details: json!({ "reason": "conversion-posting-with-cost" }),
+                    message: "Conversion postings must not have a price.".into(),
+                },
+                Unbalanced::TwoElided { group } => Finding {
+                    code: "unbalanced-transaction".into(),
+                    severity: Severity::Error,
+                    file: self.file.name.clone(),
+                    line: tx.line,
+                    column: None,
+                    details: json!({ "reason": "two-elided-amounts", "group": group.id() }),
+                    message: "At most one posting per group may leave out its amount.".into(),
+                },
+                Unbalanced::Residual { group, residual } => Finding {
+                    code: "unbalanced-transaction".into(),
+                    severity: Severity::Error,
+                    file: self.file.name.clone(),
+                    line: tx.line,
+                    column: None,
+                    details: json!({
+                        "group": group.id(),
+                        "residual": residual
+                            .iter()
+                            .map(|(c, q)| json!({ "commodity": c, "quantity": q }))
+                            .collect::<Vec<_>>(),
+                    }),
+                    message: "The postings do not add up to zero.".into(),
+                },
+            };
+            self.out.findings.push((self.file_index, finding));
+            if dropped {
                 return;
             }
-            Some(residual) if !residual.is_zero() => {
-                let commodity = tx
-                    .postings
-                    .first()
-                    .map(|p| p.amount.commodity.clone())
-                    .unwrap_or_default();
-                self.out.findings.push((
-                    self.file_index,
-                    Finding {
-                        code: "unbalanced-transaction".into(),
-                        severity: Severity::Error,
-                        file: self.file.name.clone(),
-                        line: tx.line,
-                        column: None,
-                        details: json!({ "commodity": commodity, "residual": residual.to_string() }),
-                        message: "The postings do not add up to zero.".into(),
-                    },
-                ));
-            }
-            Some(_) => {}
         }
-
         let postings = tx
             .postings
             .into_iter()
-            .map(|p| Posting {
+            .zip(drafts)
+            .map(|(p, d)| Posting {
                 account: p.account,
-                kind: PostingKind::Regular,
+                kind: p.kind,
                 comment: join_comment(&p.comment_lines),
-                amounts: vec![Amount {
-                    commodity: p.amount.commodity,
-                    quantity: p.amount.number.to_string(),
-                }],
+                amounts: d
+                    .amounts
+                    .unwrap_or_default()
+                    .iter()
+                    .map(report_amount)
+                    .collect(),
             })
             .collect();
-        self.out.transactions.push(Transaction {
-            date: tx.date,
-            status: tx.status,
-            description: tx.description,
-            comment: join_comment(&tx.comment_lines),
-            source: Source {
-                file: self.file.name.clone(),
-                line: tx.line,
+        self.out.transactions.push((
+            Transaction {
+                date: tx.date.to_string(),
+                status: tx.status,
+                description: tx.description,
+                comment: join_comment(&tx.comment_lines),
+                source: Source {
+                    file: self.file.name.clone(),
+                    line: tx.line,
+                },
+                postings,
             },
-            postings,
-        });
+            tx.date,
+        ));
     }
+}
+
+fn report_amount(a: &WrittenAmount) -> Amount {
+    Amount {
+        commodity: a.commodity.clone(),
+        quantity: a.quantity.output(),
+        cost: a.cost.as_ref().map(|c| {
+            let rounded = c.value.rounded(crate::decimal::OUTPUT_PLACES);
+            // An inferred unit price loses its trailing zeros when its exact value fits in ten
+            // places; otherwise it keeps all ten (inferred-prices.md).
+            let exact = c.value.normalized().places() <= crate::decimal::OUTPUT_PLACES;
+            let value = if c.inferred_unit && exact {
+                rounded.normalized()
+            } else {
+                rounded
+            };
+            let amount = Quantity {
+                commodity: c.commodity.clone(),
+                quantity: value.to_string(),
+            };
+            match c.kind {
+                CostKind::Unit => Cost::Unit { amount },
+                CostKind::Total => Cost::Total { amount },
+            }
+        }),
+        lot: a.lot.as_ref().map(|l| Lot {
+            cost: l.cost.as_ref().map(|c| to_quantity(&c.commodity, &c.value)),
+            date: l.date.clone(),
+            label: l.label.clone(),
+        }),
+    }
+}
+
+/// `HH:MM` or `HH:MM:SS`, 24-hour, two digits each.
+fn time_of_day(cur: &mut Cursor) -> Parsed<()> {
+    fn part(cur: &mut Cursor, max: u32) -> Parsed<()> {
+        let digits = cur.take_while(|c| c.is_ascii_digit());
+        match digits.parse::<u32>() {
+            Ok(v) if digits.len() == 2 && v <= max => Ok(()),
+            _ => invalid("This is not a valid time."),
+        }
+    }
+    part(cur, 23)?;
+    if !cur.eat(':') {
+        return invalid("This is not a valid time.");
+    }
+    part(cur, 59)?;
+    if cur.eat(':') {
+        part(cur, 59)?;
+    }
+    Ok(())
+}
+
+fn trim_end(line: &str) -> &str {
+    line.trim_end_matches(is_blank)
+}
+
+/// Byte offset of the first of two blanks in a row (blanks may be several bytes long).
+fn find_double_blank(text: &str) -> Option<usize> {
+    let mut previous: Option<usize> = None;
+    for (i, c) in text.char_indices() {
+        match (is_blank(c), previous) {
+            (true, Some(start)) => return Some(start),
+            (true, None) => previous = Some(i),
+            (false, _) => previous = None,
+        }
+    }
+    None
 }

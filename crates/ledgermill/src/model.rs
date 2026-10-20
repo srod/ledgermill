@@ -26,17 +26,49 @@ pub struct Source {
     pub line: u32,
 }
 
+/// `(account)` postings are virtual and never balanced; `[account]` postings are balanced among
+/// themselves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum PostingKind {
     Regular,
+    Virtual,
+    BalancedVirtual,
 }
 
-/// `quantity` is an exact decimal string that keeps the decimal places as written, e.g. `"-12.50"`.
+/// A commodity and an exact quantity: a decimal string that keeps its decimal places, e.g.
+/// `"-12.50"`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Quantity {
+    pub commodity: String,
+    pub quantity: String,
+}
+
+/// The price written (or inferred) for an amount: `@` gives a unit price, `@@` a total.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Cost {
+    Unit { amount: Quantity },
+    Total { amount: Quantity },
+}
+
+/// A lot annotation: `{cost}` (a total `{{T}}` is reported per unit), `[date]` and `(label)`.
+/// `cost` is `None` for `{}` or when only a date or label is written.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Lot {
+    pub cost: Option<Quantity>,
+    pub date: Option<String>,
+    pub label: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Amount {
     pub commodity: String,
     pub quantity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<Cost>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lot: Option<Lot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

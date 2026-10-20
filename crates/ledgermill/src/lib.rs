@@ -2,10 +2,19 @@
 //!
 //! Portable by design: no file access, no JS types. `load` never fails; problems become findings.
 
+mod alias;
 mod amount;
+mod balance;
+mod chars;
+mod cursor;
+mod date;
+mod decimal;
 mod model;
 mod number;
 mod parse;
+mod posting;
+mod problem;
+mod tags;
 
 pub use model::*;
 
@@ -38,11 +47,11 @@ pub fn load(files: &[SourceFile]) -> Ledger {
         parse::parse_file(index, file, &mut out);
     }
     // Both sorts are stable: same date keeps file order, then line order.
-    out.transactions.sort_by(|a, b| a.date.cmp(&b.date));
+    out.transactions.sort_by_key(|(_, date)| *date);
     out.findings
         .sort_by_key(|(file, finding)| (*file, finding.line));
     Ledger {
-        transactions: out.transactions,
+        transactions: out.transactions.into_iter().map(|(t, _)| t).collect(),
         findings: out.findings.into_iter().map(|(_, f)| f).collect(),
     }
 }
