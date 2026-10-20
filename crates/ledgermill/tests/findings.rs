@@ -1,5 +1,6 @@
-//! What ledgermill must refuse, and how it says so. hledger 1.52.4 accepts most of these journals
-//! (see the notes under spec/hledger/); the point is that ledgermill never answers for them.
+//! What ledgermill reports instead of figures, and how. Expected verdicts: hledger 1.52.4 on the
+//! named probes (see the notes under spec/hledger/): it rejects every `parse-error` and
+//! `unbalanced-transaction` journal here and accepts every `unsupported-syntax` one.
 // Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -24,25 +25,29 @@ fn refused(line: u32, construct: &str) -> Value {
     json!([line, "unsupported-syntax", construct])
 }
 
+fn invalid(line: u32) -> Value {
+    json!([line, "parse-error", null])
+}
+
 #[test]
 fn a_finding_has_the_documented_shape() {
-    let f = findings("x.journal", "2026-01-01 t\n  a  1 EUR extra\n  b  -1\n");
+    let f = findings("x.journal", "2026-01-01 t\n  a  1 EUR = 1 EUR\n  b  -1\n");
     assert_eq!(
         f,
         json!([{
             "code": "unsupported-syntax", "severity": "error", "file": "x.journal", "line": 2,
-            "column": 6, "details": { "construct": "amount", "text": "1 EUR extra" },
-            "message": "This amount form is not supported yet."
+            "details": { "construct": "balance-assertion", "text": "a  1 EUR = 1 EUR" },
+            "message": "Balance assertions and assignments are not supported yet."
         }])
     );
 }
 
 #[test]
 fn a_transaction_with_a_refused_line_is_not_returned_but_its_neighbours_are() {
-    let journal = "2026-01-01 before\n  a  1\n  b  -1\n\n2026-01-02 refused\n  a  1\n  b\n\n2026-01-03 after\n  a  2\n  b  -2\n";
+    let journal = "2026-01-01 before\n  a  1\n  b  -1\n\n2026-01-02 refused\n  a  1 = 1\n  b\n\n2026-01-03 after\n  a  2\n  b  -2\n";
     assert_eq!(
         short("x.journal", journal),
-        json!([refused(7, "elided-amount")])
+        json!([refused(6, "balance-assertion")])
     );
     let lines: Vec<Value> = transactions("x.journal", journal)
         .as_array()
@@ -54,255 +59,136 @@ fn a_transaction_with_a_refused_line_is_not_returned_but_its_neighbours_are() {
 }
 
 #[test]
-fn postings_in_unsupported_forms_are_refused() {
-    let cases = [
-        ("posting-elided-amount", refused(4, "elided-amount")),
+fn lines_hledger_rejects_are_parse_errors() {
+    let cases: [(&str, &str, Value); 12] = [
         (
-            "posting-single-space-before-amount",
-            refused(3, "elided-amount"),
-        ),
-        ("posting-indented-header-line", refused(4, "elided-amount")),
-        ("posting-status", refused(2, "account-name")),
-        ("posting-virtual", refused(2, "account-name")),
-        ("posting-price", refused(2, "amount")),
-        ("posting-assertion", refused(2, "amount")),
-        ("posting-junk-after-amount", refused(3, "amount")),
-    ];
-    let probes: [(&str, &str); 8] = [
-        (
-            "posting-elided-amount",
-            include_str!("../../../spec/hledger/probes/posting-elided-amount.journal"),
+            "numbers-invalid-separators",
+            include_str!("../../../spec/hledger/probes/numbers-invalid-separators.journal"),
+            invalid(2),
         ),
         (
-            "posting-single-space-before-amount",
-            include_str!("../../../spec/hledger/probes/posting-single-space-before-amount.journal"),
+            "numbers-groups-and-exponent",
+            include_str!("../../../spec/hledger/probes/numbers-groups-and-exponent.journal"),
+            invalid(2),
         ),
         (
-            "posting-indented-header-line",
-            include_str!("../../../spec/hledger/probes/posting-indented-header-line.journal"),
+            "directive-commodity-needs-mark",
+            include_str!("../../../spec/hledger/probes/directive-commodity-needs-mark.journal"),
+            invalid(1),
         ),
         (
-            "posting-status",
-            include_str!("../../../spec/hledger/probes/posting-status.journal"),
+            "directive-price-invalid",
+            include_str!("../../../spec/hledger/probes/directive-price-invalid.journal"),
+            invalid(1),
         ),
         (
-            "posting-virtual",
-            include_str!("../../../spec/hledger/probes/posting-virtual.journal"),
+            "directive-price-no-amount",
+            include_str!("../../../spec/hledger/probes/directive-price-no-amount.journal"),
+            invalid(1),
         ),
         (
-            "posting-price",
-            include_str!("../../../spec/hledger/probes/posting-price.journal"),
+            "header-date-mixed-separators",
+            include_str!("../../../spec/hledger/probes/header-date-mixed-separators.journal"),
+            invalid(1),
         ),
         (
-            "posting-assertion",
-            include_str!("../../../spec/hledger/probes/posting-assertion.journal"),
+            "header-status-glued-to-date",
+            include_str!("../../../spec/hledger/probes/header-status-glued-to-date.journal"),
+            invalid(1),
+        ),
+        (
+            "date-invalid",
+            include_str!("../../../spec/hledger/probes/date-invalid.journal"),
+            invalid(1),
+        ),
+        (
+            "conversion-type-invalid",
+            include_str!("../../../spec/hledger/probes/conversion-type-invalid.journal"),
+            invalid(1),
+        ),
+        (
+            "comment-date-invalid",
+            include_str!("../../../spec/hledger/probes/comment-date-invalid.journal"),
+            invalid(2),
         ),
         (
             "posting-junk-after-amount",
             include_str!("../../../spec/hledger/probes/posting-junk-after-amount.journal"),
+            invalid(3),
+        ),
+        (
+            "an unknown word in column 0",
+            "x\n2026-01-01 t\n  a  1\n  b\n",
+            invalid(1),
         ),
     ];
-    for ((name, expected), (probe_name, content)) in cases.iter().zip(probes) {
-        assert_eq!(*name, probe_name);
+    for (name, content, expected) in cases {
         assert_eq!(short(name, content), json!([expected]), "{name}");
-        assert_eq!(
-            transactions(name, content),
-            json!([]),
-            "{name}: transaction must be dropped"
-        );
     }
-}
-
-#[test]
-fn number_forms_hledger_accepts_are_refused() {
-    let probe =
-        include_str!("../../../spec/hledger/probes/number-forms-accepted-by-hledger.journal");
+    // The posting after the comment is out of place; what came before is then incomplete.
+    let ended = include_str!("../../../spec/hledger/probes/comments-col0-ends-transaction.journal");
     assert_eq!(
-        short("n.journal", probe),
-        json!([2, 6, 7, 10, 11, 14, 18].map(|line| refused(line, "amount")))
-    );
-    assert_eq!(transactions("n.journal", probe), json!([]));
-}
-
-#[test]
-fn other_number_forms_are_refused() {
-    for amount in [
-        "1,000.00",
-        "1 000",
-        "1,5",
-        "1.5.3",
-        "1e2",
-        "1E-2",
-        "1.",
-        "2.5%",
-        "٣",
-        "1_000",
-        "--1",
-        "- 1",
-        "$ -$1",
-        "EUR 1 EUR",
-        "1  EUR",
-        "\"AB C\" 1",
-        "1.12345678901 EUR",
-    ] {
-        let journal = format!("2026-01-01 t\n  a  {amount}\n  b  -1\n");
-        assert_eq!(
-            short("n.journal", &journal),
-            json!([refused(2, "amount")]),
-            "{amount}"
-        );
-        assert_eq!(transactions("n.journal", &journal), json!([]), "{amount}");
-    }
-    let too_large = findings(
-        "n.journal",
-        "2026-01-01 t\n  a  1234567890123456\n  b  -1\n",
-    );
-    assert_eq!(too_large[0]["details"]["construct"], "number-too-large");
-}
-
-#[test]
-fn headers_hledger_accepts_in_other_forms_are_refused() {
-    let probe =
-        include_str!("../../../spec/hledger/probes/header-unusual-accepted-by-hledger.journal");
-    assert_eq!(
-        short("h.journal", probe),
-        json!([
-            refused(1, "transaction-code"),
-            refused(5, "header-syntax"),
-            refused(9, "header-syntax"),
-            refused(13, "date")
-        ])
-    );
-    assert_eq!(transactions("h.journal", probe), json!([]));
-
-    let glued = include_str!("../../../spec/hledger/probes/header-status-glued-to-date.journal");
-    assert_eq!(
-        short("h.journal", glued),
-        json!([refused(1, "header-syntax")])
-    );
-    let invalid = include_str!("../../../spec/hledger/probes/date-invalid.journal");
-    assert_eq!(short("h.journal", invalid), json!([refused(1, "date")]));
-    let years = include_str!("../../../spec/hledger/probes/date-year-zero-and-five-digits.journal");
-    assert_eq!(
-        short("h.journal", years),
-        json!([refused(1, "date"), refused(5, "date")])
-    );
-    let leap = include_str!("../../../spec/hledger/probes/date-leap.journal");
-    assert_eq!(short("h.journal", leap), json!([]));
-
-    for date in [
-        "2026/01/05",
-        "26-01-05",
-        "20260105",
-        "2026-13-01",
-        "2026-00-10",
-        "2026-04-31",
-        "2025-02-29",
-    ] {
-        let journal = format!("{date} t\n  a  1\n  b  -1\n");
-        assert_eq!(
-            short("h.journal", &journal),
-            json!([refused(1, "date")]),
-            "{date}"
-        );
-    }
-}
-
-#[test]
-fn directives_and_rules_are_refused_with_their_indented_lines() {
-    let journal = "account assets:cash\ncommodity 1,000.00 EUR\n  format 1,000.00 EUR\n\ninclude other.journal\nP 2026-01-01 EUR 1.1 USD\nD 1,000.00 EUR\nalias a = b\nY 2026\ncomment\nend comment\n~ monthly\n  a  1\n  b  -1\n= expenses\n  a  1\n";
-    assert_eq!(
-        short("d.journal", journal),
-        json!([
-            refused(1, "directive"),
-            refused(2, "directive"),
-            refused(5, "directive"),
-            refused(6, "directive"),
-            refused(7, "directive"),
-            refused(8, "directive"),
-            refused(9, "directive"),
-            refused(10, "directive"),
-            refused(11, "directive"),
-            refused(12, "periodic-or-auto-transaction"),
-            refused(15, "periodic-or-auto-transaction"),
-        ])
-    );
-    assert_eq!(transactions("d.journal", journal), json!([]));
-}
-
-#[test]
-fn indented_lines_outside_a_transaction_are_refused_but_indented_comments_are_not() {
-    let journal = "; top\n  ; fine\n  a  1\n\n2026-01-01 t\n  a  1\n  b  -1\n# ends it\n  b  1\n  ; ignored\n";
-    assert_eq!(
-        short("i.journal", journal),
-        json!([refused(3, "indented-line"), refused(9, "indented-line")])
-    );
-    assert_eq!(
-        transactions("i.journal", journal).as_array().unwrap().len(),
-        1
+        short("c.journal", ended),
+        json!([[1, "unbalanced-transaction", null], invalid(4)])
     );
 }
 
 #[test]
-fn tabs_and_unusual_whitespace_outside_the_indentation_are_refused() {
-    for (what, journal) in [
-        ("tab in description", "2026-01-01 a\tb\n  a  1\n  b  -1\n"),
-        ("tab as separator", "2026-01-01 t\n  a\t1\n  b  -1\n"),
-        ("tab in comment", "2026-01-01 t\n  a  1 ; x\ty\n  b  -1\n"),
+fn what_ledgermill_does_not_read_yet_is_refused_at_its_line() {
+    let cases: [(&str, Value); 6] = [
         (
-            "carriage return inside a line",
-            "2026-01-01 t\n  a  1\r  b  -1\n",
+            "2026-01-01 t\n  a  1 = 1\n  b  -1\n",
+            refused(2, "balance-assertion"),
         ),
-        ("no-break space", "2026-01-01 t\u{a0}x\n  a  1\n  b  -1\n"),
-        ("tab-only line", "2026-01-01 t\n  a  1\n\t\n  b  -1\n"),
-    ] {
-        let f = findings("w.journal", journal);
-        assert!(!f.as_array().unwrap().is_empty(), "{what}");
-        assert_eq!(f[0]["details"]["construct"], "control-character", "{what}");
-        assert_eq!(transactions("w.journal", journal), json!([]), "{what}");
+        ("include other.journal\n", refused(1, "include")),
+        ("~ monthly\n  a  1\n  b\n", refused(1, "directive")),
+        ("= expenses\n  (budget)  *1\n", refused(1, "directive")),
+        (
+            include_str!("../../../spec/hledger/probes/directive-date-without-year.journal"),
+            refused(1, "date-without-year"),
+        ),
+        (
+            "2026-01-01 t\n  a  1\r  b  -1\n",
+            refused(2, "control-character"),
+        ),
+    ];
+    for (content, expected) in cases {
+        assert_eq!(short("u.journal", content), json!([expected]), "{content}");
+        assert_eq!(transactions("u.journal", content), json!([]), "{content}");
     }
 }
 
 #[test]
-fn account_names_outside_the_supported_form_are_refused() {
-    for account in [
-        "a;x",
-        "a(b)",
-        "a=b",
-        "*a",
-        "!a",
-        "(a)",
-        "[a]",
-        "-a",
-        "a\u{2003}b",
-    ] {
-        let journal = format!("2026-01-01 t\n  {account}  1\n  b  -1\n");
-        assert!(
-            !findings("a.journal", &journal)
-                .as_array()
-                .unwrap()
-                .is_empty(),
-            "{account}"
-        );
-        assert_eq!(transactions("a.journal", &journal), json!([]), "{account}");
-    }
-    let ok =
-        "2026-01-01 t\n  Assets:Bank Account  1\n  Expenses:Food & Drink, Café_2-b.c/d'e+f  -1\n";
-    assert_eq!(findings("a.journal", ok), json!([]));
-}
-
-#[test]
-fn several_commodities_in_a_transaction_are_refused_at_the_posting_that_differs() {
-    for probe in [
-        include_str!("../../../spec/hledger/probes/balance-two-commodities.journal"),
-        include_str!("../../../spec/hledger/probes/balance-commodity-less-and-symbol.journal"),
-        include_str!("../../../spec/hledger/probes/balance-case-differs.journal"),
+fn conversion_shapes_whose_rule_is_not_pinned_down_are_refused() {
+    for journal in [
+        // several priced postings, one right after an odd run of conversion postings that
+        // opens the transaction
+        "2026-01-01 t\n  equity:conversion  -3 X\n  a  3 X @ 2 EUR\n  b  4 Y @ 1 EUR\n  equity:conversion  1 EUR\n  equity:conversion  1 EUR\n  c  -6 EUR\n",
+        // the same after a priced posting
+        "2026-01-01 t\n  b  4 Y @ 1 EUR\n  equity:conversion  -3 X\n  a  3 X @ 2 EUR\n  equity:conversion  1 EUR\n  equity:conversion  1 EUR\n  c  -6 EUR\n",
+        // a priced posting on a conversion account next to a pair
+        "2026-01-01 t\n  equity:conversion  -3 X\n  equity:conversion  6 EUR\n  equity:conversion  3 X @ 2 EUR\n  c  -12 EUR\n  c  3 X\n",
     ] {
         assert_eq!(
-            short("m.journal", probe),
-            json!([refused(3, "multiple-commodities")])
+            short("c.journal", journal),
+            json!([refused(1, "conversion-postings")]),
+            "{journal}"
         );
-        assert_eq!(transactions("m.journal", probe), json!([]));
+        assert_eq!(transactions("c.journal", journal), json!([]), "{journal}");
+    }
+}
+
+#[test]
+fn conversion_pairs_that_hledger_does_not_match_leave_the_transaction_unbalanced() {
+    for probe in [
+        include_str!("../../../spec/hledger/probes/conversion-pair-places-off.journal"),
+        include_str!("../../../spec/hledger/probes/conversion-several-same-numbers.journal"),
+    ] {
+        assert_eq!(
+            short("c.journal", probe),
+            json!([[1, "unbalanced-transaction", null]]),
+            "{probe}"
+        );
     }
 }
 
@@ -313,7 +199,7 @@ fn an_unbalanced_transaction_is_reported_on_its_header_and_still_returned() {
         findings("u.journal", probe),
         json!([{
             "code": "unbalanced-transaction", "severity": "error", "file": "u.journal", "line": 1,
-            "details": { "commodity": "EUR", "residual": "0.004" },
+            "details": { "group": "real", "residual": [{ "commodity": "EUR", "quantity": "0.004" }] },
             "message": "The postings do not add up to zero."
         }])
     );
@@ -321,26 +207,64 @@ fn an_unbalanced_transaction_is_reported_on_its_header_and_still_returned() {
         transactions("u.journal", probe).as_array().unwrap().len(),
         1
     );
+}
 
-    let single = include_str!("../../../spec/hledger/probes/balance-single-posting.journal");
+#[test]
+fn hledger_rejections_after_parsing_are_unbalanced_transactions() {
+    let cases: [(&str, &str); 6] = [
+        (
+            include_str!("../../../spec/hledger/probes/balance-single-posting.journal"),
+            "group",
+        ),
+        (
+            include_str!("../../../spec/hledger/probes/tolerance-fails.journal"),
+            "group",
+        ),
+        (
+            include_str!("../../../spec/hledger/probes/inferred-prices-same-sign.journal"),
+            "group",
+        ),
+        (
+            include_str!("../../../spec/hledger/probes/conversion-names.journal"),
+            "group",
+        ),
+        (
+            include_str!("../../../spec/hledger/probes/elided-two.journal"),
+            "reason",
+        ),
+        (
+            include_str!("../../../spec/hledger/probes/conversion-with-cost.journal"),
+            "reason",
+        ),
+    ];
+    for (content, key) in cases {
+        let f = findings("u.journal", content);
+        assert_eq!(f[0]["code"], "unbalanced-transaction", "{content}");
+        assert!(f[0]["details"].get(key).is_some(), "{content}");
+    }
+    let elided = include_str!("../../../spec/hledger/probes/conversion-elided-with-pair.journal");
     assert_eq!(
-        short("u.journal", single),
-        json!([[1, "unbalanced-transaction", null]])
+        findings("u.journal", elided)[0]["code"],
+        "unbalanced-transaction"
     );
 }
 
 #[test]
 fn balanced_forms_hledger_accepts_raise_no_finding() {
-    let mixed = include_str!("../../../spec/hledger/probes/balance-ok-mixed-places.journal");
-    assert_eq!(findings("b.journal", mixed), json!([]));
-    let zero = include_str!("../../../spec/hledger/probes/balance-single-zero-posting.journal");
-    assert_eq!(findings("b.journal", zero), json!([]));
-    assert_eq!(transactions("b.journal", zero).as_array().unwrap().len(), 1);
+    for probe in [
+        include_str!("../../../spec/hledger/probes/balance-ok-mixed-places.journal"),
+        include_str!("../../../spec/hledger/probes/balance-single-zero-posting.journal"),
+        include_str!("../../../spec/hledger/probes/tolerance.journal"),
+        include_str!("../../../spec/hledger/probes/conversion.journal"),
+        include_str!("../../../spec/hledger/probes/directive-ignored.journal"),
+    ] {
+        assert_eq!(findings("b.journal", probe), json!([]), "{probe}");
+    }
 }
 
 #[test]
 fn findings_are_ordered_by_file_then_line_and_name_their_file() {
-    let a = file("a.journal", "2026-01-01 t\n  a  1\n  b\n\ninclude x\n");
+    let a = file("a.journal", "2026-01-01 t\n  a  1 = 1\n  b\n\ninclude x\n");
     let b = file("b.journal", "2026-01-01 t\n  a  1 EUR\n  b  -2 EUR\n");
     let all: Vec<(String, u32, String)> = load(&[a, b])
         .check()
@@ -351,7 +275,7 @@ fn findings_are_ordered_by_file_then_line_and_name_their_file() {
     assert_eq!(
         all,
         vec![
-            s("a.journal", 3, "unsupported-syntax"),
+            s("a.journal", 2, "unsupported-syntax"),
             s("a.journal", 5, "unsupported-syntax"),
             s("b.journal", 1, "unbalanced-transaction")
         ]

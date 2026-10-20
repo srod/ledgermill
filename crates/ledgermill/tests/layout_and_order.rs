@@ -128,10 +128,10 @@ fn the_same_file_given_twice_is_read_twice() {
 }
 
 #[test]
-fn a_last_line_of_only_spaces_without_a_newline_is_refused() {
+fn a_last_line_of_only_spaces_without_a_newline_is_a_parse_error() {
     let bad = include_str!("../../../spec/hledger/probes/spaces-only-last-line-no-newline.journal");
     let f = findings("s.journal", bad);
-    assert_eq!(f[0]["details"]["construct"], "spaces-at-end-of-file");
+    assert_eq!(f[0]["code"], "parse-error");
     assert_eq!(f[0]["line"], 4);
     // With the newline it is an ordinary blank line, and hledger reads the transaction.
     let fine =

@@ -104,11 +104,7 @@ fn well_formed_date_tags_in_comments_are_fine_and_transaction_comments_are_not_c
     let probe = include_str!(
         "../../../spec/hledger/probes/posting-comment-date-tags-ok-and-tx-unchecked.journal"
     );
-    // `[2026-02-01]` and `[=2026-01-02]` are valid for hledger but ledgermill does not read brackets.
-    assert_eq!(
-        findings("p.journal", probe)[0]["details"]["construct"],
-        "posting-date"
-    );
+    assert_eq!(findings("p.journal", probe), json!([]));
     let ok = "2026-01-01 t ; date:2026-02-30 [2026-13-45]\n  a  1 ; date2:2026-03-01 x\n  b  -1 ; date:2026-04-01,k:v\n";
     assert_eq!(findings("p.journal", ok), json!([]));
     assert_eq!(
@@ -124,7 +120,7 @@ fn well_formed_date_tags_in_comments_are_fine_and_transaction_comments_are_not_c
 }
 
 #[test]
-fn a_posting_comment_hledger_cannot_read_is_refused() {
+fn a_posting_comment_with_an_invalid_date_is_a_parse_error() {
     for probe in [
         include_str!("../../../spec/hledger/probes/posting-comment-date-tag-invalid.journal"),
         include_str!("../../../spec/hledger/probes/posting-comment-bracket-date-invalid.journal"),
@@ -132,7 +128,7 @@ fn a_posting_comment_hledger_cannot_read_is_refused() {
         "2026-01-01 t\n  a  1 ; x date:2026-02-01,date:bad\n  b  -1\n",
     ] {
         let found = findings("p.journal", probe);
-        assert_eq!(found[0]["details"]["construct"], "posting-date", "{probe}");
+        assert_eq!(found[0]["code"], "parse-error", "{probe}");
         assert_eq!(transactions("p.journal", probe), json!([]), "{probe}");
     }
 }
