@@ -22,6 +22,7 @@ Rebuild both steps after changing the Rust code: the harness loads `pkg/`.
 ```sh
 bun harness/compare.ts            # every corpus journal and pair, one line each
 bun harness/compare.ts --quiet    # only the lines that are not PASS
+bun harness/fuzz.ts [N] [SEED]    # N random journals (default 500); CI runs 1,000 with a new seed each run
 bun harness/real.ts FILE...       # your own journals (several files: each alone, then all together)
 bun test harness/lib.test.ts      # the harness's own checks
 ```
@@ -43,10 +44,15 @@ The last line is `N pass, N fail, N skip`.
 
 How a case is compared: hledger's `print -O json` is projected onto our `Transaction` shape (date,
 status, description, comment trimmed, source file and line, postings with account, kind, comment
-trimmed and amounts). Quantities are exact decimal strings built with `BigInt` from hledger's
-`decimalMantissa` and `decimalPlaces`, so places and big numbers survive. `source.file` is compared
-by basename. If hledger reports a cost or lot on an amount and we return no `unsupported-syntax`
-finding, the difference shows up as a FAIL, so equality cannot hide it.
+trimmed and amounts, each with its price and lot). Quantities are exact decimal strings built
+with `BigInt` from hledger's `decimalMantissa` and `decimalPlaces`, so places and big numbers
+survive (very large mantissas come in floating notation and are read back exactly).
+`source.file` is compared by basename.
+
+The fuzzer (`fuzz.ts`) writes random, mostly valid journals covering number forms and marks,
+directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
+and big numbers, about a third of them invalid on purpose (they must fail in both). Same seed,
+same journals; a FAIL prints the journal.
 
 ## Corpus
 

@@ -1,4 +1,5 @@
-// Shared by compare.ts and real.ts: run hledger and our wasm on the same files and diff typed values.
+// Shared by compare.ts, fuzz.ts and real.ts: run hledger and our wasm on the same files and diff
+// typed values.
 import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
@@ -12,7 +13,10 @@ const wasm = await import(join(ROOT, "pkg/ledgermill_wasm.js")).catch((error: un
 wasm.initSync({ module: readFileSync(join(ROOT, "pkg/ledgermill_wasm_bg.wasm")) });
 
 // ───────────── our typed shape (crates/ledgermill/src/model.rs) ─────────────
-export type Amount = { commodity: string; quantity: string; cost?: unknown };
+export type Quantity = { commodity: string; quantity: string };
+export type Cost = { kind: "unit" | "total"; amount: Quantity };
+export type Lot = { cost: Quantity | null; date: string | null; label: string | null };
+export type Amount = { commodity: string; quantity: string; cost?: Cost; lot?: Lot };
 export type Posting = { account: string; kind: string; comment: string; amounts: Amount[] };
 export type Transaction = {
   date: string;
@@ -53,15 +57,31 @@ const STATUS = { Unmarked: "", Pending: "!", Cleared: "*" } as const;
 // biome-ignore lint/suspicious/noExplicitAny: foreign JSON
 type J = any;
 
-function projectAmount(a: J): Amount {
-  const out: Amount = {
+function projectQuantity(a: J): Quantity {
+  return {
     commodity: a.acommodity,
     quantity: decimalString(exactInteger(a.aquantity.decimalMantissa), a.aquantity.decimalPlaces),
   };
-  // Our shape has no costs yet: surface them so a claimed equality can't hide one.
-  if (a.acost || a.acostbasis) out.cost = { cost: a.acost, basis: a.acostbasis };
+}
+
+function projectAmount(a: J): Amount {
+  const out: Amount = projectQuantity(a);
+  if (a.acost) {
+    const kind = a.acost.tag === "UnitCost" ? "unit" : a.acost.tag === "TotalCost" ? "total" : `?${a.acost.tag}`;
+    out.cost = { kind: kind as Cost["kind"], amount: projectQuantity(a.acost.contents) };
+  }
+  if (a.acostbasis) {
+    const b = a.acostbasis;
+    out.lot = { cost: b.cbCost ? projectQuantity(b.cbCost) : null, date: b.cbDate ?? null, label: b.cbLabel ?? null };
+  }
   return out;
 }
+
+const KIND: Record<string, string> = {
+  RegularPosting: "regular",
+  VirtualPosting: "virtual",
+  BalancedVirtualPosting: "balanced-virtual",
+};
 
 /** Project `hledger print -O json` onto our Transaction shape. */
 export function projectHledger(text: string): Transaction[] {
@@ -76,7 +96,7 @@ export function projectHledger(text: string): Transaction[] {
     postings: t.tpostings.map(
       (p: J): Posting => ({
         account: p.paccount,
-        kind: String(p.ptype).replace(/Posting$/, "").toLowerCase(),
+        kind: KIND[p.ptype] ?? `?${p.ptype}`,
         comment: (p.pcomment ?? "").trim(),
         amounts: p.pamount.map(projectAmount),
       }),
@@ -136,6 +156,7 @@ export function firstDiff(a: unknown, b: unknown, path = ""): string | null {
     }
     return null;
   }
+  // Our JSON leaves out an absent cost or lot; hledger's projection sets neither then.
   return Object.is(a, b) ? null : `${path}: hledger=${JSON.stringify(a)} ours=${JSON.stringify(b)}`;
 }
 
@@ -157,11 +178,9 @@ export async function compareCase(paths: string[]): Promise<Verdict> {
     return { status: "FAIL", note: `hledger fails (${ref.message}), ours reports no error` };
   }
   if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
-  const unbalanced = ours.findings.find((f) => f.code === "unbalanced-transaction");
-  if (unbalanced) return { status: "FAIL", note: `ours reports unbalanced-transaction at line ${unbalanced.line}, hledger accepts` };
+  if (errors[0]) return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, hledger accepts` };
   const diff = firstDiff(withBasenames(ref.transactions), withBasenames(ours.transactions));
   if (diff) return { status: "FAIL", note: diff };
-  if (errors[0]) return { status: "FAIL", note: `ours reports error ${errors[0].code} at line ${errors[0].line}, hledger accepts` };
   return { status: "PASS", note: "" };
 }
 

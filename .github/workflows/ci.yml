@@ -93,6 +93,8 @@ jobs:
         run: hledger --version | grep -F "hledger $HLEDGER_VERSION"
       - run: bun test harness/lib.test.ts
       - run: bun harness/compare.ts --quiet
+      - name: Random journals
+        run: bun harness/fuzz.ts 1000 "$GITHUB_RUN_NUMBER"
 
   ios:
     runs-on: macos-latest
