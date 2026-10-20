@@ -1,0 +1,12 @@
+2026-01-01 checked to the places written: 0.44 rounds to 0.4
+  a  1 X @ 0.44 EUR
+  b  -0.4 EUR
+
+2026-01-02 half to even: 0.45 rounds to 0.4
+  a  1 X @ 0.45 EUR
+  b  -0.4 EUR
+
+2026-01-03 places of a virtual posting count too
+  a  3 X @ 0.334 EUR
+  b  -1.00 EUR
+  (v)  1.0 EUR

@@ -16,8 +16,9 @@ commodity `""`.
   case sensitive: `eur` and `EUR` are different commodities. A lone `E` is a symbol, not an exponent.
 - The quantity is the same whichever form was used.
 
-ledgermill reads exactly these forms (one optional space between number and symbol, at most one
-minus sign) and refuses everything else.
+More forms (signs, quotes, separators, exponents) are in [numbers](numbers.md). A symbol is a run
+of characters other than digits, blanks (space, tab, newline) and `-+.@;"{}=*`; a no-break space
+or a carriage return after it is part of it. `"quoted"` symbols may hold anything but `"`.
 
 ## Probe
 

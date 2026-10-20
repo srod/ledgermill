@@ -1,0 +1,15 @@
+2026-01-01 a unit price is reported as written
+  a  2 X @ 3.50 EUR
+  b  -7 EUR
+
+2026-01-02 a total takes the sign of the quantity and loses trailing zeros
+  a  -2 X @@ 100.00 EUR
+  b  100 EUR
+
+2026-01-03 glued
+  a  2X@@3EUR
+  b
+
+2026-01-04 a price without commodity
+  a  2 X @ 3
+  b

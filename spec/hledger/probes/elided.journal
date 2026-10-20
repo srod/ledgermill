@@ -1,0 +1,30 @@
+2026-01-01 one commodity
+  a  1.50 EUR
+  b  -1.5 EUR
+  c
+
+2026-01-02 several commodities, one amount each, sorted
+  a  1 bb
+  b  1 ZZ
+  c  1 AA
+  d
+
+2026-01-03 a zero sum is kept when the posting has other amounts
+  a  1 EUR
+  b  -1 EUR
+  c  1.0 USD
+  d
+
+2026-01-04 summing onto a zero keeps the other term places
+  a  1.25 C
+  b  3 C
+  c  -1.25 C
+  d
+
+2026-01-05 alone: no amount
+  e
+
+2026-01-06 an elided virtual posting gets a zero
+  a  1
+  b  -1
+  (v)

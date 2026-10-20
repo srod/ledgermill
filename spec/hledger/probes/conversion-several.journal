@@ -1,0 +1,26 @@
+2026-01-01 two priced postings, each with its pair
+    a                    3 X @ 2 EUR
+    equity:conversion           -3 X
+    equity:conversion          6 EUR
+    b                   4 Y @@ 7 EUR
+    equity:conversion           -4 Y
+    equity:conversion          7 EUR
+    c                        -13 EUR
+
+2026-01-02 the pairs need not sit next to their priced posting
+    a                    3 X @ 2 EUR
+    equity:conversion           -4 Y
+    equity:conversion          7 EUR
+    b                   4 Y @@ 7 EUR
+    equity:conversion           -3 X
+    equity:conversion          6 EUR
+    c                        -13 EUR
+
+2026-01-03 a pair no priced posting fits changes nothing
+    a                    3 X @ 2 EUR
+    equity:conversion           -3 X
+    equity:conversion          6 EUR
+    b                   4 Y @@ 7 EUR
+    equity:conversion          1 EUR
+    equity:conversion         -1 EUR
+    c                        -13 EUR

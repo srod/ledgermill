@@ -1,0 +1,24 @@
+2026-01-01 one posting in the first commodity: a total
+  a  1 X
+  b  -2.50 Y
+
+2026-01-02 several: a unit price, rounded to ten places
+  a  1 X
+  b  2 X
+  c  -1 Y
+
+2026-01-03 exact unit prices lose trailing zeros
+  a  1 X
+  b  1 X
+  c  -3.00 Y
+
+2026-01-04 the first posting holding one of the two commodities gets the price
+  a  0 Z
+  b  -2 Y
+  c  1 X
+
+2026-01-05 a commodity that sums to zero is left out
+  a  1 X
+  b  -2 Y
+  c  1 Z
+  d  -1 Z

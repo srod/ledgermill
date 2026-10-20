@@ -1,0 +1,13 @@
+account assets:bank  ; a comment
+  ; more
+payee Shop
+tag t
+commodity EUR
+  note euros
+P 2026-01-01 X 2 EUR
+P 2026-01-02 10:00 X 2,5 EUR ; a comment
+P2026-01-03 "X Y" EUR 3
+
+2026-01-01 t
+  a  1 X
+  b

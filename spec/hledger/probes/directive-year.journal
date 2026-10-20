@@ -1,0 +1,15 @@
+Y 2025
+
+01-02 a date without a year takes Y
+  a  1
+  b
+
+2026-01-03=02-01 a secondary date takes the primary date year
+  a  1
+  b
+
+apply year 2024
+
+02-29 apply year is Y
+  a  1
+  b

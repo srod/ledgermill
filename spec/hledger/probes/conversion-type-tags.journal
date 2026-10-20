@@ -1,0 +1,9 @@
+account a  ; type: A, type: V
+account b  ; foo: 1, type: V
+account c  ; x:y type: V
+
+2026-01-01 b is a conversion account; a and c are not
+  p  2 X @ 3 EUR
+  b  -2 X
+  b  6 EUR
+  q  -6 EUR

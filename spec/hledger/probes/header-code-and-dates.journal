@@ -1,0 +1,19 @@
+2026/01/05 * (42) slashes
+  a  1
+  b
+
+2026.1.6 ! (a b) dots, unpadded
+  a  1
+  b
+
+2026-01-07=2026-01-09 secondary date
+  a  1
+  b
+
+2026-01-08  *  (x)y  spacing
+  a  1
+  b
+
+0026-01-10 a four-digit year with zeros
+  a  1
+  b

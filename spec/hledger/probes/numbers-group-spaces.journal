@@ -1,0 +1,7 @@
+2026-01-01 no-break space and narrow no-break space group digits
+  a  1 000
+  b  -1 000
+
+2026-01-02 a thin space too
+  a  1 000
+  b  -1 000

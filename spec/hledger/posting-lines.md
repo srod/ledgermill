@@ -10,16 +10,15 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
   of the account name: `a b  1` is account `a b`; `b -1` is an account named `b -1` with no
   amount.
 - Account names may hold anything else too: `é:ü`, a leading colon, even `;` (`a;x  1`).
-  ledgermill only reads names that start with a letter or digit and hold letters, digits and
-  ``: - _ . & ' / , +`` and single spaces; other names are `unsupported-syntax` (`account-name`).
-- A posting with **no amount gets one anyway**: balancing fills it in (`0` here, in the
-  commodity-less form). ledgermill refuses these (`elided-amount`), as it does a name with only
-  one space before its "amount".
+- A posting with **no amount gets one anyway**: balancing fills it in (see
+  [elided-amounts](elided-amounts.md)), as it does for a name with only one space before its
+  "amount".
 - An indented line that is not a comment is a posting whatever it looks like: an indented
   `2026-01-02 u` becomes an account with an amount of `0`.
 - A leading `*` or `!` is the posting's status; `(a)` makes a virtual posting, which is left out of
-  balancing; `@` gives a price; `= 1` a balance assertion; extra text after the amount is
-  an error. All refused by ledgermill.
+  balancing (see [postings](postings.md)); `@` gives a price (see [prices-and-lots](prices-and-lots.md));
+  `= 1` a balance assertion, not read yet (`balance-assertion`); extra text after the amount is
+  an error.
 
 ## Probe
 

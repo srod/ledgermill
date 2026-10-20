@@ -1,0 +1,16 @@
+alias exp = expenses
+alias /^(a)ssets:(.*)$/ = \2:\1
+alias /FOOD/ = grub
+
+2026-01-01 t
+  exp:food  1
+  exp:x  1
+  expenses  1
+  exposed  1
+  assets:bank  -4
+
+end aliases
+
+2026-01-02 cleared
+  exp:food  1
+  assets:bank  -1

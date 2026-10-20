@@ -1,0 +1,9 @@
+2026-01-01 both pairs fit both priced postings: neither balances by quantity
+    a                    3 X @ 2 EUR
+    equity:conversion           -3 X
+    equity:conversion          6 EUR
+    b                   3 Y @@ 6 USD
+    equity:conversion           -3 Y
+    equity:conversion          6 USD
+    c                         -6 EUR
+    c                         -6 USD

@@ -1,0 +1,10 @@
+2026-01-01 equal unit prices are grouped by value before converting
+  a  1.5 AB @ 1 X
+  b  -1.5 AB @ 1.00 X
+  c  1 AB @@ 1 X
+  d
+
+2026-01-02 totals are summed after dropping their trailing zeros
+  a  1 X @@ 1.50 Y
+  b  1 X @@ 1.50 Y
+  c

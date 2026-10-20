@@ -1,0 +1,5 @@
+2026-01-01 equity:conversions is not a conversion account
+  a  2 X @ 3 EUR
+  equity:conversions  -2 X
+  equity:conversions  6 EUR
+  b  -6 EUR

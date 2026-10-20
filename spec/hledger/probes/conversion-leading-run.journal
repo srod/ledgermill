@@ -1,0 +1,48 @@
+2026-01-01 an odd run of conversion postings opens the transaction: by quantity
+    equity:conversion           -3 X
+    a                    3 X @ 2 EUR
+    equity:conversion          1 EUR
+    equity:conversion          1 EUR
+    b                         -2 EUR
+
+2026-01-02 a run of three opens it: by quantity, the amounts play no part
+    equity:conversion          1 EUR
+    equity:conversion          1 EUR
+    equity:conversion           -3 X
+    a                    3 X @ 2 EUR
+    b                         -2 EUR
+
+2026-01-03 a posting repeats the quantity: by cost
+    equity:conversion           -3 X
+    a                    3 X @ 2 EUR
+    equity:conversion          1 EUR
+    equity:conversion          1 EUR
+    b                         -8 EUR
+    c                            3 X
+
+2026-01-04 at the quantity's places, 3.05 repeats 3.0: by cost
+    equity:conversion         -3.0 X
+    a                  3.0 X @ 2 EUR
+    equity:conversion          1 EUR
+    equity:conversion          1 EUR
+    b                         -8 EUR
+    c                           3 X
+    d                         3.05 Y
+    d                        -3.05 Y
+
+2026-01-05 3.051 does not repeat 3.0: by quantity
+    equity:conversion         -3.0 X
+    a                  3.0 X @ 2 EUR
+    equity:conversion          1 EUR
+    equity:conversion          1 EUR
+    b                         -2 EUR
+    d                        3.051 Y
+    d                       -3.051 Y
+
+2026-01-06 the odd run does not open the transaction: by cost, the matching pair is ignored
+    b                        -12 EUR
+    equity:conversion           -3 X
+    a                   3 X @@ 6 EUR
+    equity:conversion           -3 X
+    equity:conversion          6 EUR
+    c                            6 X

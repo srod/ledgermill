@@ -1,0 +1,19 @@
+2026-01-01 each pair amount is read at its own places: 6.2 is 6.25
+    a                2.5 X @ 2.5 EUR
+    equity:conversion         -2.5 X
+    equity:conversion        6.2 EUR
+    b                       -6.2 EUR
+
+2026-01-02 8 is 7.5
+    a                  3 X @ 2.5 EUR
+    equity:conversion           -3 X
+    equity:conversion          8 EUR
+    b                         -8 EUR
+
+2026-01-03 a pair matches on numbers only
+    a                    3 X @ 2 EUR
+    equity:conversion           -3 Y
+    equity:conversion          6 USD
+    b                          3 Y
+    b                         -6 USD
+    b                           -3 X

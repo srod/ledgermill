@@ -11,9 +11,8 @@ The quantity keeps exactly the decimal places written: `12.50` is mantissa 1250 
 Postings of one transaction may use different numbers of places and still balance when the exact
 sum is zero (see [balancing](balancing.md)).
 
-More than ten decimal places are rounded to ten (a second probe, below). ledgermill refuses numbers
-with more than ten places, and numbers with more than 15 digits in total (see
-[big-numbers](big-numbers.md)).
+More than ten decimal places are reported rounded to ten (a second probe, below); the exact value
+is what balancing uses (see [numbers](numbers.md)).
 
 ## Probe
 

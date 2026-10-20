@@ -1,0 +1,5 @@
+2026-01-01 7.0 is not 7.5: the pair does not match
+    a                  3 X @ 2.5 EUR
+    equity:conversion           -3 X
+    equity:conversion        7.0 EUR
+    b                       -7.0 EUR

@@ -1,0 +1,7 @@
+2026-01-01 t
+  a  0.000000000044 EUR
+  b  -0.000000000044 EUR
+
+2026-01-02 kept exactly, reported to ten places
+  a  1.123456789049 EUR
+  b  -1.123456789049 EUR

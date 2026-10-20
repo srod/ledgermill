@@ -1,0 +1,14 @@
+account x  ; type: V
+
+2026-01-01 a declared conversion account turns the names off
+  a  2 X @ 3 EUR
+  x:sub  -2 X
+  x  6 EUR
+  b  -6 EUR
+
+2026-01-02 equity:conversion is now an ordinary account
+  a  2 X @ 3 EUR
+  equity:conversion  -2 X
+  equity:conversion  6 EUR
+  b  -12 EUR
+  c  2 X

@@ -1,0 +1,18 @@
+commodity 1.000,00 EUR
+commodity USD
+  format 1,000.00 USD
+
+2026-01-01 per commodity
+  a  1.000 EUR
+  b  -1,000 USD
+  c  1,000 X
+  d
+
+2026-01-02 the declared mark wins even without three digits
+  a  1,5 EUR
+  b  -15,0 EUR
+  c  13,5 EUR
+
+2026-01-03 but space groups make a lone mark the decimal mark
+  a  1 000.50 EUR
+  b  -1000,50 EUR

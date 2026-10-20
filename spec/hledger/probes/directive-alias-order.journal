@@ -1,0 +1,6 @@
+alias b = c
+alias a = b
+
+2026-01-01 the latest alias first, each once
+  a  1
+  b  -1

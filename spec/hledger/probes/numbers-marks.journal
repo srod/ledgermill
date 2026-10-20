@@ -1,0 +1,19 @@
+2026-01-01 two different separators: the last is the decimal mark
+  a  1,000.5
+  b  -1.000,5
+
+2026-01-02 one separator used twice groups digits
+  a  1,000,000
+  b  -1.000.000
+
+2026-01-03 spaces always group
+  a  1 000,5
+  b  -1 000.5
+
+2026-01-04 a lone separator not followed by three digits is the decimal mark
+  a  1,5
+  b  -1.5
+
+2026-01-05 a lone separator followed by three digits, nothing declared: decimal mark
+  a  1,000
+  b  -1.000

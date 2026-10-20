@@ -6,8 +6,8 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
 
 `DATE [STATUS] [DESCRIPTION] [; COMMENT]`
 
-- The date is `YYYY-MM-DD`; reported as written. An impossible date (`2026-02-30`, month 13) is an
-  error in hledger; `2024-02-29` is fine.
+- The date is reported as `YYYY-MM-DD` (more forms in [dates](dates.md)); years may be 0 or have
+  five digits. An impossible date (`2026-02-30`, month 13) is an error; `2024-02-29` is fine.
 - Status is `*` (reported `Cleared`) or `!` (`Pending`), alone or followed by a space, otherwise
   none (`Unmarked`). Any number of spaces may separate the parts.
 - The description is the rest of the line up to the first `;`, without leading or trailing
@@ -16,10 +16,9 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
   transaction comment.
 - A transaction may have no postings at all; `postings` is then empty.
 
-hledger also accepts a code `(x)` after the status, a second date `DATE=DATE2`, dates like
-`2026-1-4` and `!x` with no space after the status. A status glued to the date
-(`2026-01-03!x`) is an error. ledgermill refuses all of those as `unsupported-syntax`
-(constructs `transaction-code`, `header-syntax`, `date`), as it does for years outside 1000-9999.
+A code `(x)` may follow the status, a second date `DATE=DATE2` the date, and other date forms are
+accepted (see [dates](dates.md)). A status needs no space after it (`!x` is Pending, `x`). A status
+glued to the date (`2026-01-03!x`) is an error. Neither code nor secondary date is reported.
 
 ## Probe
 

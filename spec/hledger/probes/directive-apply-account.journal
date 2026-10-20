@@ -1,0 +1,21 @@
+apply account top
+apply account mid
+
+2026-01-01 t
+  a  1
+  (v)  1
+  [bv]  1
+  [bw]  -1
+  b
+
+end apply account
+
+2026-01-02 t
+  a  1
+  b
+
+end apply account
+
+2026-01-03 t
+  a  1
+  b

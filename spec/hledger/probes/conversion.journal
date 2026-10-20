@@ -1,0 +1,24 @@
+2026-01-01 a matching pair: the priced posting balances by its quantity
+  a  2 X @ 3 EUR
+  equity:conversion  -2 X
+  equity:conversion  6 EUR
+  b  -6 EUR
+
+2026-01-02 the pair matches on amounts only, in either order
+  a  2 X @ 3 EUR
+  Equity:Trades:x  6 Y
+  equity:trading  -2 Z
+  c  -6 Y
+  d  2 Z
+  e  -2 X
+
+2026-01-03 a pair that does not match changes nothing
+  a  2 X @ 3 EUR
+  equity:conversion  1 EUR
+  equity:conversion  -1 EUR
+  b  -6 EUR
+
+2026-01-04 a pair with an elided amount never matches
+  a  2 X @ 1 EUR
+  equity:trading  4 EUR
+  equity:trade

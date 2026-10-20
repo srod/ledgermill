@@ -18,8 +18,8 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
   of input"), even after a complete transaction or in a file of one such line. With a newline
   after it the same line is fine (an ordinary blank line).
 
-ledgermill refuses tabs and unusual whitespace anywhere but in the indentation, a lone `\r`, and
-a last line of only spaces with no newline (`spaces-at-end-of-file`).
+A carriage return inside a line (not before its newline) is refused by ledgermill
+(`control-character`).
 
 ## Probe
 

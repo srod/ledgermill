@@ -18,12 +18,8 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
   line after it is no longer a posting of that transaction (hledger fails on the probes below).
 - Tags written in comments (`date:2026-02-01`, `tag: v`) change nothing here: the comment text
   is reported as written and the transaction date is unchanged.
-- **But posting comments are read for dates**: a `date:` or `date2:` tag whose value is not a
-  valid date, and a bracketed `[...]` date that is not valid, make hledger fail on the whole
-  journal (`date:2026-02-30`, `[2026-13-45]`). The same text in a *transaction* comment is never
-  checked. Valid tags and brackets are fine and change nothing in the output. ledgermill accepts
-  `date:`/`date2:` in a posting comment only when the value is a valid `YYYY-MM-DD`, refuses any
-  `[` in a posting comment (`posting-date`), and does not check transaction comments.
+- **But posting comments are read for dates**: an invalid `date:`/`date2:` tag or bracketed date
+  makes hledger fail on the whole journal. See [comment-dates](comment-dates.md).
 
 ## Probe
 

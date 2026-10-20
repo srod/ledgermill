@@ -1,0 +1,11 @@
+D 1.000,00 EUR
+
+2026-01-01 amounts without a commodity get it
+  a  5
+  b
+
+2026-01-02 its mark decides for every commodity
+  a  1.000 USD
+  b  -1.000 USD
+  c  1,000 USD
+  d  -1,000 USD

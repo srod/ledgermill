@@ -1,0 +1,4 @@
+decimal-mark ,
+D 1,00 EUR
+alias a = renamed
+apply account top

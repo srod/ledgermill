@@ -1,0 +1,24 @@
+2026-01-01 a lot cost, date and label
+  a  2 X {3 EUR} [2026-01-02] (label)
+  b  -2 X
+
+2026-01-02 a total lot cost is reported per unit
+  a  3 X {{10 EUR}}
+  b  -3 X
+
+2026-01-03 per unit, signed by the quantity
+  a  -4 X {{10.0 EUR}}
+  b  4 X
+
+2026-01-04 a lot alone does not convert: the elided amount keeps the lot
+  a  1 X {1 EUR}
+  b
+
+2026-01-05 a lot and a price: the price converts
+  a  1 X {2 EUR} @ 3 EUR
+  b
+
+2026-01-06 empty and fixed lots
+  a  1 X {}
+  b  1 X {=2 EUR}
+  c  -2 X
