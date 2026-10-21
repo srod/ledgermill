@@ -1,0 +1,29 @@
+option "operating_currency" "EUR"
+
+2026-01-01 open Assets:BTC
+2026-01-01 open Assets:CAD
+2026-01-01 open Assets:CHF
+2026-01-01 open Equity:BTC
+2026-01-01 open Equity:CAD
+2026-01-01 open Equity:CHF
+
+2026-06-30 price BTC 0.70 EUR
+2026-07-01 price BTC 0.80 EUR
+2026-07-01 price BTC 0.85 EUR
+2026-07-02 price BTC 0.90 EUR
+2026-07-01 price CAD 2 USD
+2026-07-01 price USD 0.50 EUR
+2026-07-05 price USD 0.40 EUR
+2026-07-01 price EUR 2 CHF
+
+2026-06-15 * "Holdings"
+  Assets:BTC 2 BTC
+  Equity:BTC -2 BTC
+
+2026-06-15 * "Other holdings"
+  Assets:CAD 3 CAD
+  Equity:CAD -3 CAD
+
+2026-06-15 * "Inverse holding"
+  Assets:CHF 4 CHF
+  Equity:CHF -4 CHF

@@ -1,0 +1,10 @@
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-04 * "Unit price"
+  Assets:Btc    1 BTC @  100.00 EUR
+  Assets:Bank  -100.00 EUR
+
+2026-01-05 * "Total price"
+  Assets:Btc    2 BTC @@   201.00 EUR
+  Assets:Bank  -201.00 EUR

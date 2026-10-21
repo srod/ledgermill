@@ -1,0 +1,28 @@
+; Conversion may bridge through a lot's cost CURRENCY, never its numeric cost.
+; A price-only annotation does not authorize that bridge for Position values.
+2026-01-01 open Assets:Lot
+2026-01-01 open Assets:Price
+2026-01-01 open Assets:Inverse
+2026-01-01 open Assets:Zero
+2026-01-01 open Equity:Other
+2026-07-01 price BTC 10 USD
+2026-07-01 price USD 2 EUR
+2026-07-01 price AAA 2 EUR
+2026-07-02 price EUR 4 AAA
+2026-07-01 price ZERO 0 EUR
+
+2026-06-15 * "Lot bridge"
+  Assets:Lot 2 BTC {3 USD}
+  Equity:Other -6 USD
+
+2026-06-15 * "No price bridge"
+  Assets:Price 2 BTC @ 3 USD
+  Equity:Other -6 USD
+
+2026-06-15 * "Direction history"
+  Assets:Inverse 2 AAA
+  Equity:Other -2 AAA
+
+2026-06-15 * "Zero market price"
+  Assets:Zero 3 ZERO
+  Equity:Other -3 ZERO

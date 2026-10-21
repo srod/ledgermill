@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-04 * "Price"
+  Assets:Btc   1 BTC @ 100 EUR
+  Assets:Bank

@@ -1,0 +1,27 @@
+; Refutes treating Beancount @/@@ as inventory cost.
+2026-01-01 open Assets:Unit
+2026-01-01 open Assets:Total
+2026-01-01 open Assets:Lot
+2026-01-01 open Assets:Combined
+2026-01-01 open Assets:Native
+2026-01-01 open Equity:Other
+
+2026-06-15 * "Unit price"
+  Assets:Unit 2 BTC @ 100 EUR
+  Equity:Other -200 EUR
+
+2026-06-15 * "Total sale"
+  Assets:Total -2 BTC @@ 100 EUR
+  Equity:Other 100 EUR
+
+2026-06-15 * "Lot only"
+  Assets:Lot 2 BTC {80 EUR}
+  Equity:Other -160 EUR
+
+2026-06-15 * "Lot and price"
+  Assets:Combined 2 BTC {80 EUR} @ 100 EUR
+  Equity:Other -160 EUR
+
+2026-06-15 * "Native"
+  Assets:Native 10 EUR
+  Equity:Other -10 EUR

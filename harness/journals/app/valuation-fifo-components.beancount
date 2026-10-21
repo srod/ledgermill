@@ -1,0 +1,16 @@
+2026-01-01 open Assets:Stock USD "FIFO"
+2026-01-01 open Assets:Bank EUR
+2026-01-01 open Income:Gains EUR
+
+2026-01-02 * "First lot"
+  Assets:Stock 1 USD {10 EUR}
+  Assets:Bank -10 EUR
+2026-01-03 * "Second lot"
+  Assets:Stock 1 USD {20 EUR}
+  Assets:Bank -20 EUR
+2026-01-04 * "Sell both"
+  Assets:Stock -2 USD {} @ 30 EUR
+  Assets:Bank 60 EUR
+  Income:Gains
+
+2026-02-01 price USD 30 EUR

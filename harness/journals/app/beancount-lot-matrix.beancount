@@ -1,0 +1,37 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Empty
+2026-01-01 open Assets:Date
+2026-01-01 open Assets:Label
+2026-01-01 open Income:Gain
+
+2026-01-02 * "Combined lot and price"
+  Assets:Btc    1 BTC {80 EUR} @ 100 EUR
+  Assets:Bank -80 EUR
+
+2026-01-02 * "Buy empty selector lot"
+  Assets:Empty  1 BTC {100 EUR}
+  Assets:Bank -100 EUR
+
+2026-01-03 * "Buy dated lot"
+  Assets:Date   1 BTC {100 EUR}
+  Assets:Bank -100 EUR
+
+2026-01-04 * "Buy labelled lot"
+  Assets:Label  1 BTC {100 EUR, "lot;a"}
+  Assets:Bank -100 EUR
+
+2026-01-10 * "Empty selector"
+  Assets:Empty -1 BTC {}
+  Assets:Bank  120 EUR
+  Income:Gain
+
+2026-01-10 * "Date selector"
+  Assets:Date -1 BTC {2026-01-03}
+  Assets:Bank  120 EUR
+  Income:Gain
+
+2026-01-10 * "Label selector"
+  Assets:Label -1 BTC {"lot;a"} ; selector comment
+  Assets:Bank  120 EUR
+  Income:Gain

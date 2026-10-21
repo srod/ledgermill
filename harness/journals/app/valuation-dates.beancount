@@ -1,0 +1,12 @@
+option "operating_currency" "EUR"
+
+2026-01-01 open Assets:USD
+2026-01-01 open Assets:Bank
+2026-01-01 open Equity:Opening-Balances
+
+2026-07-31 price USD 0.80 EUR
+2026-08-01 price USD 0.90 EUR
+
+2026-07-15 * "Buy dollars"
+  Assets:USD 100 USD @ 0.80 EUR
+  Assets:Bank -80 EUR
