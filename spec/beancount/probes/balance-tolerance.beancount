@@ -4,7 +4,7 @@
 2026-01-02 * "residual under half the last place"
   Assets:A  10.00 EUR
   Assets:B  -10.004 EUR
-2026-01-03 * "residual exactly half the last place of the finest amount"
+2026-01-03 * "residual exactly half the last place of the coarsest amount"
   Assets:A  10.00 EUR
   Assets:B  -10.005 EUR
 2026-01-05 * "a price and its units balance by their product"

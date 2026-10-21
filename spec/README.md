@@ -21,6 +21,14 @@ Each note has:
 - `hledger/prototype-observations.md` – the notes of our earlier TypeScript prototype, kept as a
   starting point. They are our own text, written from running hledger.
 
+- `beancount/` – notes on Beancount. The commands use `beancount/show.sh`, which prints what
+  `bean-check` says and, from `bean-query -f csv`, one row per transaction and one per posting
+  (the two queries the harness uses). Postings are `id,account,posting_flag,number,currency,
+  cost_number,cost_currency,cost_date,cost_label,price_number,price_currency,filename,lineno`;
+  `id` is shortened to 6 characters and shared by the postings of a transaction. A price is the
+  per-unit price, a cost the lot's cost per unit.
+- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses.
+
 ## Index (hledger 1.52.4)
 
 | Note | Behaviour |
@@ -45,6 +53,21 @@ Each note has:
 | [conversion](hledger/conversion.md) | conversion accounts, `type:` tags, pairs that balance by quantity |
 | [ordering](hledger/ordering.md) | output order, several files |
 
+## Index (Beancount 3.2.3)
+
+Reference: Beancount 3.2.3 and beanquery 0.2.0.
+
+| Note | Behaviour |
+|---|---|
+| [header-and-flags](beancount/header-and-flags.md) | flags, payee and narration, escapes, posting flags |
+| [numbers-and-interpolation](beancount/numbers-and-interpolation.md) | number forms, exponents, elided amounts, places, currency groups |
+| [prices](beancount/prices.md) | `@`, `@@`, per-unit prices, the weight of a total price |
+| [lots-and-booking](beancount/lots-and-booking.md) | `{}` costs, reductions, negative lots, booking methods |
+| [balancing](beancount/balancing.md) | tolerance, unbalanced transactions, two elided postings |
+| [source-lines-and-ordering](beancount/source-lines-and-ordering.md) | reported lines, output order |
+| [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
+| [refused](beancount/refused.md) | what ledgermill refuses, and what the reference says |
+
 ## ledgermill findings
 
 `parse-error` (error): hledger rejects this line too. ledgermill drops the transaction it belongs
@@ -60,3 +83,36 @@ to.
 two-elided-amounts`), or a conversion pair carries a price (`conversion-posting-with-cost`).
 hledger fails the whole command here; ledgermill reports the finding and still returns the
 transaction.
+
+### Beancount
+
+A `.beancount` or `.bean` file is read on its own (see [refused](beancount/refused.md)).
+
+`unsupported-syntax` (error): `details.construct` is one of
+
+- `include`, `plugin`: refused before the parser runs;
+- `option` (`details.name`): any option outside the harmless list (options-and-directives);
+- `number-expression` (arithmetic in a number) and `number-too-large` (more than 22 characters);
+- `pad` and `balance`: directives not built yet;
+- `inferred-price` (a price without its number or currency), `inferred-cost` (a new lot whose
+  cost is left to be worked out), `cost-merge` (`{..., *}`), `number-too-precise`;
+- `average-booking` (`details.account`): an account booked with AVERAGE;
+- `several-beancount-files` and `mixed-formats`: reported at line 1 of a file when `load` gets
+  several Beancount files, or Beancount and hledger files together.
+
+Any of them leaves the file with no transaction at all.
+
+`parse-error` (error): the parser rejects a line (`details.reason` is its message); the
+transactions are not returned.
+
+`booking-error` (error): bean-check rejects the transaction while booking it, and bean-query
+leaves it out; ledgermill does the same. `details.reason` is one of `ambiguous-lot-match`,
+`ambiguous-auto-posting`, `not-enough-lots`, `no-matching-lot`, `too-many-missing-numbers`,
+`cannot-determine-currency`, `cannot-infer-units`, `cannot-infer-currency`,
+`cannot-infer-anything`, `cannot-infer-price`, `cannot-infer-price-currency`,
+`several-cost-currencies-match`, `negative-cost`, `negative-price`, `unbalanced`,
+`unsupported-booking-method` or `auto-posting-with-several-currencies`.
+
+`unbalanced-transaction` (error): a currency group is outside the tolerance
+(`details.residual`: a `{commodity, quantity}` per group). bean-check reports it but bean-query
+still lists the transaction; ledgermill returns it too.
