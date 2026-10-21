@@ -1,0 +1,18 @@
+2026-03-01 * "last date, first in the file"
+  Assets:A  1 EUR
+  Assets:B
+2026-01-05 * "same date, written first"
+  Assets:A  1 EUR
+  Assets:B
+2026-01-05 * "same date, written second"
+  Assets:A  2 EUR
+  Assets:B
+2026-01-05 open Assets:A
+2026-01-05 open Assets:B
+2026-01-01 open Assets:C
+2026-01-01 * "earliest, but after the others in the file"
+  Assets:C  1 EUR
+  Assets:C  -1 EUR
+2026-01-05 * "same date as the opens, written last"
+  Assets:A  3 EUR
+  Assets:B

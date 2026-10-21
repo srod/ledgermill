@@ -1,0 +1,23 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "postings are grouped by currency, in order of first appearance"
+  Assets:A  1 USD
+  Assets:A  2 EUR
+  Assets:B  -1 USD
+  Assets:B  -2 EUR
+2026-01-03 * "an elided posting stays where it is within its currency"
+  Assets:B
+  Assets:A  1 USD
+  Assets:A  2 EUR
+  Assets:B  -2 EUR
+2026-01-04 * "a price puts the posting in the price currency's group"
+  Assets:A  2 BTC @ 100 USD
+  Assets:A  5 EUR
+  Assets:B  -200 USD
+  Assets:B  -5 EUR
+2026-01-05 * "a cost does the same"
+  Assets:A  5 EUR
+  Assets:A  2 BTC {100 USD}
+  Assets:B  -5 EUR
+  Assets:B  -200 USD

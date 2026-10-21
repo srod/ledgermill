@@ -1,0 +1,39 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "an exact quotient above the units' places is printed with an exponent"
+  Assets:A  0.5 BTC @@ 100 EUR
+  Assets:B
+2026-01-03 * "four hundred"
+  Assets:A  0.25 BTC @@ 100 EUR
+  Assets:B
+2026-01-04 * "the exponent follows the places of both numbers"
+  Assets:A  0.5 BTC @@ 105 EUR
+  Assets:B
+2026-01-05 * "more places"
+  Assets:A  0.05 BTC @@ 1000 EUR
+  Assets:B
+2026-01-06 * "a quotient that needs no exponent"
+  Assets:A  0.2 BTC @@ 3 EUR
+  Assets:B
+2026-01-07 * "a zero total"
+  Assets:A  0.5 BTC @@ 0 EUR
+  Assets:B
+2026-01-08 * "a total with a decimal place"
+  Assets:A  5 BTC @@ 50.0 EUR
+  Assets:B
+2026-01-09 * "a total cost, same rule"
+  Assets:A  0.5 ETH {{100 EUR}}
+  Assets:B
+2026-01-10 * "tiny numbers are printed with an exponent too"
+  Assets:A  1 BTC @ 0.0000001 EUR
+  Assets:B  -0.0000001 EUR
+2026-01-11 * "tiny cost"
+  Assets:A  1 BTC {0.0000001 EUR}
+  Assets:B  -0.0000001 EUR
+2026-01-12 * "tiny amount"
+  Assets:A  0.0000001 EUR
+  Assets:B  -0.0000001 EUR
+2026-01-13 * "large numbers stay plain"
+  Assets:A  10000000 STK {1000000000 EUR}
+  Assets:B  -10000000000000000 EUR

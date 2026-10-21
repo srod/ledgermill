@@ -1,0 +1,14 @@
+2026-01-01 open Assets:Stock BTC "STRICT_WITH_SIZE"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Stock  1 BTC {10 EUR}
+  Assets:Bank  -10 EUR
+2026-01-03 * "buy"
+  Assets:Stock  2 BTC {20 EUR}
+  Assets:Bank  -40 EUR
+2026-01-10 * "the sale equals one lot's size: that lot is used"
+  Assets:Stock  -2 BTC {}
+  Assets:Bank   50 EUR
+  Income:Gain

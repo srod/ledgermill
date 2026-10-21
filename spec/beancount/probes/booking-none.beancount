@@ -1,0 +1,16 @@
+2026-01-01 open Assets:Stock BTC "NONE"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Stock  1 BTC {10 EUR}
+  Assets:Bank  -10 EUR
+2026-01-03 * "buy"
+  Assets:Stock  1 BTC {30 EUR}
+  Assets:Bank  -30 EUR
+2026-01-10 * "a sale with a cost is another lot: no matching"
+  Assets:Stock  -1 BTC {15 EUR}
+  Assets:Bank   15 EUR
+2026-01-11 * "a sale without a cost"
+  Assets:Stock  -1 BTC @ 20 EUR
+  Assets:Bank   20 EUR

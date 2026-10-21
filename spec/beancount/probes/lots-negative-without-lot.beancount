@@ -1,0 +1,12 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:S
+
+2026-01-02 * "a negative posting with a cost, nothing held: it adds a negative lot"
+  Assets:A  -10 EUR {2 BTC}
+  Assets:S  20 BTC
+2026-01-03 * "the account holds another commodity: still a negative lot"
+  Assets:S  -5 EUR {4 BTC}
+  Assets:S  20 BTC
+2026-01-04 * "a positive posting reduces a negative lot"
+  Assets:A  4 EUR {2 BTC}
+  Assets:S  -8 BTC

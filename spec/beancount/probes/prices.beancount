@@ -1,0 +1,30 @@
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "unit price keeps its places"
+  Assets:Btc    1 BTC @  100.00 EUR
+  Assets:Bank  -100.00 EUR
+2026-01-03 * "total price is reported per unit"
+  Assets:Btc    2 BTC @@   201.00 EUR
+  Assets:Bank  -201.00 EUR
+2026-01-04 * "an exact quotient keeps as few places as it needs"
+  Assets:Btc    4 BTC @@ 10 EUR
+  Assets:Bank   -10 EUR
+2026-01-05 * "an inexact quotient has 28 digits"
+  Assets:Btc    3 BTC @@ 10.00 EUR
+  Assets:Bank   -10.00 EUR
+2026-01-06 * "a sale's total price is still positive per unit"
+  Assets:Btc   -2 BTC @@ 100 EUR
+  Assets:Bank   100 EUR
+2026-01-07 * "the weight of a total price comes from the per-unit price"
+  Assets:Btc    3 BTC @@ 10 EUR
+  Assets:Bank
+2026-01-08 * "seven"
+  Assets:Btc    7 BTC @@ 1 EUR
+  Assets:Bank
+2026-01-09 * "cost and price together"
+  Assets:Btc    2 BTC {10 EUR} @ 12.50 EUR
+  Assets:Bank
+2026-01-10 * "price in a lot-less sale"
+  Assets:Btc    2 BTC @ 0.5 EUR
+  Assets:Bank

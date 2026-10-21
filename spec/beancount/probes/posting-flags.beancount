@@ -1,0 +1,14 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a flag on one posting"
+  ! Assets:A  1 EUR
+  Assets:B
+2026-01-03 * "flags of several kinds"
+  * Assets:A  1 EUR
+  # Assets:B  1 EUR
+  P Assets:A  1 EUR
+  & Assets:B  -3 EUR
+2026-01-04 * "an elided posting with a flag"
+  Assets:A  2 EUR
+  ! Assets:B

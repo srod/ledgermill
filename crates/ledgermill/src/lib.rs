@@ -5,6 +5,7 @@
 mod alias;
 mod amount;
 mod balance;
+mod beancount;
 mod chars;
 mod cursor;
 mod date;
@@ -37,8 +38,48 @@ impl Ledger {
     }
 }
 
+/// A set of files ledgermill cannot read together yet: no transaction, one finding.
+fn refuse_set(construct: &str, at: &SourceFile) -> Ledger {
+    Ledger {
+        transactions: Vec::new(),
+        findings: vec![Finding {
+            code: "unsupported-syntax".into(),
+            severity: Severity::Error,
+            file: at.name.clone(),
+            line: 1,
+            column: None,
+            details: serde_json::json!({ "construct": construct }),
+            message: if construct == "mixed-formats" {
+                "hledger and Beancount files cannot be loaded together yet.".into()
+            } else {
+                "Several Beancount files cannot be loaded together yet.".into()
+            },
+        }],
+    }
+}
+
 /// Parse the given files, in order.
+///
+/// `.beancount` and `.bean` files are Beancount, everything else is hledger. One Beancount file
+/// is read on its own; several of them, or a mix of both formats, are refused.
 pub fn load(files: &[SourceFile]) -> Ledger {
+    let beancount: Vec<&SourceFile> = files
+        .iter()
+        .filter(|f| beancount::is_beancount(&f.name))
+        .collect();
+    if let Some(first) = beancount.first() {
+        if beancount.len() < files.len() {
+            return refuse_set("mixed-formats", first);
+        }
+        if let Some(second) = beancount.get(1) {
+            return refuse_set("several-beancount-files", second);
+        }
+        let loaded = beancount::load(first);
+        return Ledger {
+            transactions: loaded.transactions,
+            findings: loaded.findings,
+        };
+    }
     let mut out = parse::Output {
         transactions: Vec::new(),
         findings: Vec::new(),

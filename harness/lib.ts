@@ -17,10 +17,19 @@ export type Quantity = { commodity: string; quantity: string };
 export type Cost = { kind: "unit" | "total"; amount: Quantity };
 export type Lot = { cost: Quantity | null; date: string | null; label: string | null };
 export type Amount = { commodity: string; quantity: string; cost?: Cost; lot?: Lot };
-export type Posting = { account: string; kind: string; comment: string; amounts: Amount[] };
+export type Posting = {
+  account: string;
+  kind: string;
+  comment: string;
+  amounts: Amount[];
+  flag?: string; // Beancount only
+  line?: number; // Beancount only
+};
 export type Transaction = {
   date: string;
   status: "" | "!" | "*";
+  flag?: string; // Beancount only
+  payee?: string; // Beancount only
   description: string;
   comment: string;
   source: { file: string; line: number };
@@ -28,7 +37,8 @@ export type Transaction = {
 };
 type Finding = { code: string; severity: "error" | "warning"; file: string; line: number; details: { construct?: string } };
 
-export type Verdict = { status: "PASS" | "FAIL" | "SKIP"; note: string };
+/** `rejected` marks a SKIP where the reference tool rejects the journal and we report no error (`check()` comes later). */
+export type Verdict = { status: "PASS" | "FAIL" | "SKIP"; note: string; rejected?: boolean };
 
 // ───────────── hledger side ─────────────
 /** `-12.50` from mantissa -1250 and 2 places, exact (BigInt, never Number). */
@@ -163,8 +173,175 @@ export function firstDiff(a: unknown, b: unknown, path = ""): string | null {
 const withBasenames = (txs: Transaction[]): Transaction[] =>
   txs.map((t) => ({ ...t, source: { ...t.source, file: basename(t.source.file) } }));
 
+// ───────────── Beancount side ─────────────
+/**
+ * Decode bean-query's CSV: CRLF rows, fields in double quotes when they hold a comma, a quote or
+ * a newline (quotes doubled inside). Fields come back as written: the padding bean-query adds to
+ * numbers is for the caller to trim.
+ */
+export function decodeCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  let i = 0;
+  const endField = () => {
+    row.push(field);
+    field = "";
+  };
+  while (i < text.length) {
+    const c = text[i] as string;
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        quoted = false;
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      quoted = true;
+    } else if (c === ",") {
+      endField();
+    } else if (c === "\r" || c === "\n") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      endField();
+      rows.push(row);
+      row = [];
+    } else {
+      field += c;
+    }
+    i++;
+  }
+  if (field !== "" || row.length > 0) {
+    endField();
+    rows.push(row);
+  }
+  return rows;
+}
+
+const ENTRIES_QUERY =
+  "SELECT id, type, filename, lineno, date, flag, payee, narration FROM entries WHERE type = 'transaction'";
+const POSTINGS_QUERY =
+  "SELECT id, account, posting_flag, number, currency, cost_number, cost_currency, cost_date, cost_label, number(price), currency(price), filename, lineno FROM postings";
+
+/**
+ * Join the two query results on `id` (a transaction without postings stays) and project them onto our
+ * Transaction shape. bean-query prints its errors in front of the CSV, so decoding starts at the header.
+ */
+export function projectBeancount(entriesCsv: string, postingsCsv: string): Transaction[] {
+  const rows = (csv: string, header: string) => {
+    const at = csv.indexOf(header);
+    if (at < 0) throw new Error(`no CSV header "${header}" in: ${csv.slice(0, 200)}`);
+    const [names = [], ...data] = decodeCsv(csv.slice(at));
+    return data.map((cells) => Object.fromEntries(names.map((n, i) => [n, cells[i] ?? ""])) as Record<string, string>);
+  };
+  const postings = rows(postingsCsv, "id,account,posting_flag");
+  const byId = new Map<string, Record<string, string>[]>();
+  for (const p of postings) byId.set(p.id as string, [...(byId.get(p.id as string) ?? []), p]);
+  return rows(entriesCsv, "id,type,filename").map((e) => {
+    const flag = e.flag as string;
+    const tx: Transaction = {
+      date: e.date as string,
+      status: flag === "*" || flag === "!" ? flag : "",
+      flag,
+      description: e.narration as string,
+      comment: "",
+      source: { file: e.filename as string, line: Number(e.lineno) },
+      postings: (byId.get(e.id as string) ?? []).map((p): Posting => {
+        const amount: Amount = { commodity: p.currency as string, quantity: (p.number as string).trim() };
+        if (p["currency(price)"]) {
+          amount.cost = {
+            kind: "unit",
+            amount: { commodity: p["currency(price)"], quantity: (p["number(price)"] as string).trim() },
+          };
+        }
+        if (p.cost_number?.trim()) {
+          amount.lot = {
+            cost: { commodity: p.cost_currency as string, quantity: p.cost_number.trim() },
+            date: p.cost_date || null,
+            label: p.cost_label || null,
+          };
+        }
+        const posting: Posting = {
+          account: p.account as string,
+          kind: "regular",
+          comment: "",
+          amounts: [amount],
+          line: Number(p.lineno),
+        };
+        if (p.posting_flag) posting.flag = p.posting_flag;
+        return posting;
+      }),
+    };
+    // bean-query prints a missing payee as an empty field, like an empty one.
+    if (e.payee) tx.payee = e.payee;
+    return tx;
+  });
+}
+
+async function run(cmd: string[]): Promise<{ stdout: string; exitCode: number }> {
+  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
+  const [stdout, , exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { stdout, exitCode };
+}
+
+type BeancountReference = { ok: true; transactions: Transaction[] } | { ok: false; message: string };
+
+async function runBeancount(path: string): Promise<BeancountReference> {
+  // bean-query exits 0 even for an invalid journal, so bean-check decides.
+  const check = await Bun.spawn(["bean-check", path], { stdout: "pipe", stderr: "pipe" });
+  const [out, err, code] = await Promise.all([
+    new Response(check.stdout).text(),
+    new Response(check.stderr).text(),
+    check.exited,
+  ]);
+  if (code !== 0) return { ok: false, message: (out + err).split("\n").find((l) => l.trim()) ?? "" };
+  const [entries, postings] = await Promise.all([
+    run(["bean-query", "-f", "csv", path, ENTRIES_QUERY]),
+    run(["bean-query", "-f", "csv", path, POSTINGS_QUERY]),
+  ]);
+  return { ok: true, transactions: projectBeancount(entries.stdout, postings.stdout) };
+}
+
+/** What our side reports for a Beancount journal, in the shape the reference gives. */
+function normalizeOurs(txs: Transaction[]): Transaction[] {
+  return txs.map((t) => {
+    const { payee, ...rest } = t;
+    return payee ? { ...rest, payee } : rest;
+  });
+}
+
+async function compareBeancountCase(path: string): Promise<Verdict> {
+  const ref = await runBeancount(path);
+  const ours = runOurs([path]);
+  if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
+  const errors = ours.findings.filter((f) => f.severity === "error");
+  const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
+  if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
+  if (!ref.ok) {
+    if (errors.length > 0) return { status: "PASS", note: "both fail" };
+    return { status: "SKIP", note: `reference rejects (check() comes later): ${ref.message}`, rejected: true };
+  }
+  if (errors[0]) return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, bean-check accepts` };
+  const diff = firstDiff(withBasenames(ref.transactions), withBasenames(normalizeOurs(ours.transactions)));
+  if (diff) return { status: "FAIL", note: diff };
+  return { status: "PASS", note: "" };
+}
+
 // ───────────── the verdict ─────────────
+export const isBeancountPath = (path: string): boolean => /\.(beancount|bean)$/i.test(path);
+
 export async function compareCase(paths: string[]): Promise<Verdict> {
+  const [first] = paths;
+  if (first !== undefined && paths.length === 1 && isBeancountPath(first)) return compareBeancountCase(first);
   const ref = await runHledger(paths);
   const ours = runOurs(paths);
   if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
@@ -198,11 +375,21 @@ export async function runCases(cases: { name: string; paths: string[] }[], quiet
   };
   await Promise.all(Array.from({ length: JOBS }, worker));
 
-  const total = { PASS: 0, FAIL: 0, SKIP: 0 };
+  const totals = {
+    hledger: { PASS: 0, FAIL: 0, SKIP: 0, rejected: 0 },
+    beancount: { PASS: 0, FAIL: 0, SKIP: 0, rejected: 0 },
+  };
   for (const [i, v] of verdicts.entries()) {
-    total[v.status]++;
-    if (!quiet || v.status !== "PASS") console.log(`${v.status} ${(cases[i] as { name: string }).name}${v.note ? `  ${v.note}` : ""}`);
+    const c = cases[i] as { name: string; paths: string[] };
+    const t = totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"];
+    t[v.status]++;
+    if (v.rejected) t.rejected++;
+    if (!quiet || v.status !== "PASS") console.log(`${v.status} ${c.name}${v.note ? `  ${v.note}` : ""}`);
   }
-  console.log(`\n${total.PASS} pass, ${total.FAIL} fail, ${total.SKIP} skip`);
-  if (total.FAIL > 0) process.exitCode = 1;
+  const line = (t: { PASS: number; FAIL: number; SKIP: number; rejected: number }) =>
+    `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip${t.rejected ? ` (${t.rejected} of them: reference rejects, check() comes later)` : ""}`;
+  const { hledger: h, beancount: b } = totals;
+  if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${line(h)}\nbeancount: ${line(b)}`);
+  console.log(`\n${h.PASS + b.PASS} pass, ${h.FAIL + b.FAIL} fail, ${h.SKIP + b.SKIP} skip`);
+  if (h.FAIL + b.FAIL > 0) process.exitCode = 1;
 }

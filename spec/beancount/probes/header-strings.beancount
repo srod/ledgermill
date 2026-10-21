@@ -1,0 +1,35 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-01-02 * "Payee, with comma" "Narration with a \" quote"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-03 * "only narration"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-04 * "payee only has an empty narration" ""
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-05 * "" "empty payee"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-06 *
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-07 * "with tag and link" #holiday ^trip-2026
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-08 * "escaped \" quote and \\ backslash"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-09 * "é ünï 💶" "日本語"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-10 * "two
+lines" "narration over
+three lines"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-11 * "  padded  "
+  Expenses:Food  1 EUR
+  Assets:Bank

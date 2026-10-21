@@ -1,0 +1,25 @@
+2026-01-01 open Assets:Stock BTC "FIFO"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Stock  1 BTC {10 EUR, "first"}
+  Assets:Bank  -10 EUR
+2026-01-03 * "buy"
+  Assets:Stock  1 BTC {10 EUR, "second"}
+  Assets:Bank  -10 EUR
+2026-01-04 * "buy"
+  Assets:Stock  1 BTC {12 EUR}
+  Assets:Bank  -12 EUR
+2026-01-10 * "label selects the second lot"
+  Assets:Stock  -1 BTC {"second"}
+  Assets:Bank   15 EUR
+  Income:Gain
+2026-01-11 * "date selects the third"
+  Assets:Stock  -1 BTC {2026-01-04}
+  Assets:Bank   15 EUR
+  Income:Gain
+2026-01-12 * "a reduction with a price"
+  Assets:Stock  -1 BTC {} @ 20 EUR
+  Assets:Bank   20 EUR
+  Income:Gain

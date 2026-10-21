@@ -1,0 +1,21 @@
+2026-01-01 open Assets:Stock BTC "LIFO"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy cheap"
+  Assets:Stock  1 BTC {10 EUR}
+  Assets:Bank  -10 EUR
+2026-01-03 * "buy dear"
+  Assets:Stock  1 BTC {30 EUR}
+  Assets:Bank  -30 EUR
+2026-01-04 * "buy middle"
+  Assets:Stock  1 BTC {20 EUR}
+  Assets:Bank  -20 EUR
+2026-01-10 * "sell two, spanning two lots"
+  Assets:Stock  -2 BTC {}
+  Assets:Bank   100 EUR
+  Income:Gain
+2026-01-11 * "sell the rest"
+  Assets:Stock  -1 BTC {}
+  Assets:Bank   25 EUR
+  Income:Gain

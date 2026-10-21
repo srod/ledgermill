@@ -1,0 +1,30 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-01-02 * "star"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 ! "bang"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 txn "txn word reads as a star"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 # "hash"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 P "letter P"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 S "letter S"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 & "ampersand"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 ? "question mark"
+  Expenses:Food  1 EUR
+  Assets:Bank
+2026-01-02 % "percent"
+  Expenses:Food  1 EUR
+  Assets:Bank

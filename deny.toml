@@ -46,9 +46,12 @@ wildcards = "deny"
 allow-wildcard-paths = true
 
 [sources]
-# crates.io only; a git dependency (e.g. our future fork of the Beancount crates) must be
-# added here explicitly.
+# crates.io only, plus our two forks of the Beancount crates (GPL files removed), pinned by commit
+# in crates/ledgermill/Cargo.toml. Any other git dependency must be added here explicitly.
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = [
+  "https://github.com/srod/beancount-parser-lima",
+  "https://github.com/srod/limabean-booking",
+]

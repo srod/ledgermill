@@ -71,19 +71,47 @@ pub struct Amount {
     pub lot: Option<Lot>,
 }
 
+/// One posting.
+///
+/// `flag` and `line` are only set for Beancount, whose postings carry their own flag and are
+/// reported at their own source line; hledger gives neither. A Beancount posting has exactly one
+/// amount.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Posting {
     pub account: String,
     pub kind: PostingKind,
     pub comment: String,
     pub amounts: Vec<Amount>,
+    /// The posting's own flag (Beancount), e.g. `"!"`. Absent when the posting has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flag: Option<String>,
+    /// The line of the posting itself (Beancount). Several postings share a line when one posting
+    /// was booked against several lots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
 }
 
+/// One transaction, from either format.
+///
+/// A single type serves both formats on purpose: a caller reading transactions treats hledger and
+/// Beancount results the same way, and the shared fields mean the same thing in both. What only one
+/// format has is optional and left out of the JSON when absent (`payee`, `flag`, and the posting's
+/// `flag` and `line`), so the hledger JSON is unchanged. A tagged variant per format would make
+/// every caller branch before reading a date or an account.
+///
+/// For Beancount, `description` is the narration, `comment` is empty, and `status` follows the
+/// flag: `*` is cleared, `!` is pending, any other flag is unmarked (read the exact one in `flag`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Transaction {
     /// `YYYY-MM-DD`
     pub date: String,
     pub status: Status,
+    /// The exact transaction flag, one character (Beancount only); `txn` reads as `*`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flag: Option<String>,
+    /// The payee when the header has two strings (Beancount only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payee: Option<String>,
     pub description: String,
     pub comment: String,
     pub source: Source,

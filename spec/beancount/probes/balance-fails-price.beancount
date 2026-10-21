@@ -1,0 +1,6 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "price times units does not meet the other side"
+  Assets:A  1.5 STK @ 3.33 EUR
+  Assets:B  -5 EUR

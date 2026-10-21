@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Stock BTC "STRICT"
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "a merge marker"
+  Assets:Stock  1 BTC {10 EUR, *}
+  Assets:Bank  -10 EUR

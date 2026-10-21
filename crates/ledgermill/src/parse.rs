@@ -742,12 +742,16 @@ impl FileParser<'_> {
                     .iter()
                     .map(report_amount)
                     .collect(),
+                flag: None,
+                line: None,
             })
             .collect();
         self.out.transactions.push((
             Transaction {
                 date: tx.date.to_string(),
                 status: tx.status,
+                flag: None,
+                payee: None,
                 description: tx.description,
                 comment: join_comment(&tx.comment_lines),
                 source: Source {

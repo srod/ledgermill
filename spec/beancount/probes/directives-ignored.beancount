@@ -1,0 +1,14 @@
+pushtag #trip
+pushmeta category: "food"
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:C "NONE"
+2026-01-02 * "inside pushtag and pushmeta"
+  Assets:A  1 EUR
+  Assets:B
+poptag #trip
+popmeta category:
+2026-01-03 * "outside"
+  Assets:A  1 EUR
+  Assets:B
+2026-01-04 query "name" "SELECT 1"

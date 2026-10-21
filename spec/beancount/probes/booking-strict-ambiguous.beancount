@@ -1,0 +1,12 @@
+2026-01-01 open Assets:Stock BTC "STRICT"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Stock  1 BTC {10 EUR}
+  Assets:Stock  1 BTC {20 EUR}
+  Assets:Bank  -30 EUR
+2026-01-10 * "two lots match: rejected"
+  Assets:Stock  -1 BTC {}
+  Assets:Bank   15 EUR
+  Income:Gain

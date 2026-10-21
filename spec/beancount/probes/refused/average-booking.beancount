@@ -1,0 +1,11 @@
+2026-01-01 open Assets:Stock BTC "AVERAGE"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Stock  1 BTC {10 EUR}
+  Assets:Bank  -10 EUR
+2026-01-10 * "sell"
+  Assets:Stock  -1 BTC {}
+  Assets:Bank   15 EUR
+  Income:Gain

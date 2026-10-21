@@ -1,0 +1,24 @@
+; a comment first
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "plain"
+  Assets:A  1 EUR
+  Assets:B
+
+2026-01-03 * "with a comment line and metadata"
+  ; comment line
+  note: "metadata on the transaction"
+  Assets:A  1 EUR
+    kind: "metadata on a posting"
+  ; another comment
+  Assets:B
+
+2026-01-04 * "long header"
+  #tagged ^linked
+  Assets:A  1 EUR ; trailing comment
+  Assets:B
+
+2026-01-05 * "a posting reduced across lots shares one line"
+  Assets:A  1 EUR
+  Assets:B

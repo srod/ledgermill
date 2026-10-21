@@ -91,6 +91,14 @@ jobs:
         run: echo "$HOME/hledger-bin" >> "$GITHUB_PATH"
       - name: Check the hledger version
         run: hledger --version | grep -F "hledger $HLEDGER_VERSION"
+      # Reference tools for the Beancount side of the harness, pinned to the versions the spec notes record.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Beancount (reference tools)
+        run: pip install beancount==3.2.3 beanquery==0.2.0
+      - name: Check the Beancount versions
+        run: bean-query --version | grep -Fx "beanquery 0.2.0, beancount 3.2.3"
       - run: bun test harness/lib.test.ts
       - run: bun harness/compare.ts --quiet
       - name: Random journals
@@ -115,8 +123,11 @@ jobs:
       - name: Point cargo at the preinstalled NDK
         run: |
           bin="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang" >> "$GITHUB_ENV"
+          {
+            echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang"
+            echo "AR_aarch64_linux_android=$bin/llvm-ar"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang"
+          } >> "$GITHUB_ENV"
       - run: cargo build --release --target aarch64-linux-android -p ledgermill
 
   dco:

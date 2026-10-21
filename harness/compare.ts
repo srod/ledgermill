@@ -1,5 +1,6 @@
 // bun harness/compare.ts [--quiet]
-// Runs hledger and our wasm on every corpus journal and multi-file pair and diffs typed values.
+// Runs hledger (or bean-check and bean-query, for .beancount files) and our wasm on every corpus journal
+// and multi-file pair and diffs typed values.
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { runCases } from "./lib.ts";
@@ -8,9 +9,11 @@ const ROOT = join(import.meta.dir, "..");
 const PROTOTYPE = join(import.meta.dir, "journals/prototype");
 const APP = join(import.meta.dir, "journals/app");
 const DIRS = [
-  ["prototype", PROTOTYPE],
-  ["app", APP],
-  ["spec", join(ROOT, "spec/hledger/probes")],
+  ["prototype", PROTOTYPE, ".journal"],
+  ["app", APP, ".journal"],
+  ["spec", join(ROOT, "spec/hledger/probes"), ".journal"],
+  ["app", APP, ".beancount"],
+  ["spec-beancount", join(ROOT, "spec/beancount/probes"), ".beancount"],
 ] as const;
 
 // Files loaded together, in this order (names without `.journal`).
@@ -48,8 +51,8 @@ const fixturePairs: [string, string][] = [
 ];
 
 const cases: { name: string; paths: string[] }[] = [];
-for (const [label, dir] of DIRS)
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".journal")).sort())
+for (const [label, dir, extension] of DIRS)
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(extension)).sort())
     cases.push({ name: `${label}/${f}`, paths: [join(dir, f)] });
 for (const [dir, list] of [[PROTOTYPE, pairs], [APP, fixturePairs]] as const)
   for (const [a, b] of list)

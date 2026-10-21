@@ -1,0 +1,6 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "residual 0.011 with the coarsest amount at three places"
+  Assets:A  1.000 EUR
+  Assets:B  -1.011 EUR

@@ -1,0 +1,6 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "arithmetic in an amount"
+  Assets:A  (1 + 2) * 3 EUR
+  Assets:B  -9 EUR

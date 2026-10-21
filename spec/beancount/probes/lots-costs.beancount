@@ -1,0 +1,21 @@
+2026-01-01 open Assets:S
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "unit cost"
+  Assets:S  2 BTC {100 EUR}
+  Assets:Bank
+2026-01-03 * "total cost"
+  Assets:S  3 ETH {{ 300.00 EUR }}
+  Assets:Bank
+2026-01-04 * "total cost that does not divide"
+  Assets:S  3 XRP {{ 10 EUR }}
+  Assets:Bank
+2026-01-05 * "per unit and total together"
+  Assets:S  4 SOL {100 # 5 EUR}
+  Assets:Bank
+2026-01-06 * "date and label"
+  Assets:S  1 ADA {1.50 EUR, 2025-12-31, "lbl"}
+  Assets:Bank
+2026-01-07 * "label with a semicolon"
+  Assets:S  1 DOT {2 EUR, "a;b"}
+  Assets:Bank

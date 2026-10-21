@@ -1,0 +1,7 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Pay
+
+2026-01-02 * "pay"
+  Assets:Bank  500.00 EUR
+  Income:Pay
+2026-01-05 balance Assets:Bank  500.00 EUR

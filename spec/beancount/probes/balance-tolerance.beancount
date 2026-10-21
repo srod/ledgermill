@@ -1,0 +1,18 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "residual under half the last place"
+  Assets:A  10.00 EUR
+  Assets:B  -10.004 EUR
+2026-01-03 * "residual exactly half the last place of the finest amount"
+  Assets:A  10.00 EUR
+  Assets:B  -10.005 EUR
+2026-01-05 * "a price and its units balance by their product"
+  Assets:A  2.5 STK @ 100.25 EUR
+  Assets:B  -250.625 EUR
+2026-01-06 * "a cost balances by its product"
+  Assets:A  2 STK {1.005 EUR}
+  Assets:B  -2.01 EUR
+2026-01-07 * "integers alone are exact"
+  Assets:A  10 EUR
+  Assets:B  -10 EUR

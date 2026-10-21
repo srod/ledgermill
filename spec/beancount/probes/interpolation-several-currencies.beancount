@@ -1,0 +1,13 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "one elided posting balances every currency left over"
+  Assets:A  10.00 EUR
+  Assets:A  -3.3333 EUR
+  Assets:A  5.5 USD
+  Assets:B
+2026-01-03 * "a zero residual in one currency adds nothing"
+  Assets:A  10 EUR
+  Assets:B  -10 EUR
+  Assets:A  3 USD
+  Assets:A

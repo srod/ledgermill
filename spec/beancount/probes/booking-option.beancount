@@ -1,0 +1,22 @@
+option "booking_method" "LIFO"
+2026-01-01 open Assets:Stock BTC
+2026-01-01 open Assets:Other BTC "FIFO"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy in both"
+  Assets:Stock  1 BTC {10 EUR}
+  Assets:Other  1 BTC {10 EUR}
+  Assets:Bank  -20 EUR
+2026-01-03 * "buy in both"
+  Assets:Stock  1 BTC {30 EUR}
+  Assets:Other  1 BTC {30 EUR}
+  Assets:Bank  -60 EUR
+2026-01-10 * "the option applies to the account without a method: LIFO takes 30"
+  Assets:Stock  -1 BTC {}
+  Assets:Bank   35 EUR
+  Income:Gain
+2026-01-11 * "the open directive wins: FIFO takes 10"
+  Assets:Other  -1 BTC {}
+  Assets:Bank   35 EUR
+  Income:Gain

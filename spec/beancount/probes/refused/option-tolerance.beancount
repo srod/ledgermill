@@ -1,0 +1,9 @@
+option "inferred_tolerance_default" "EUR:0.01"
+option "infer_tolerance_from_cost" "TRUE"
+
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a looser tolerance for EUR"
+  Assets:A  10 EUR
+  Assets:B  -10.4 EUR

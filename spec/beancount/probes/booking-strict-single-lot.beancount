@@ -1,0 +1,22 @@
+2026-01-01 open Assets:Stock BTC "STRICT"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Stock  2 BTC {10 EUR}
+  Assets:Bank  -20 EUR
+2026-01-10 * "one lot matches, a partial sale is fine"
+  Assets:Stock  -1 BTC {}
+  Assets:Bank   15 EUR
+  Income:Gain
+2026-01-11 * "a selector picks one of two lots"
+  Assets:Stock  1 BTC {20 EUR}
+  Assets:Bank  -20 EUR
+2026-01-12 * "sell by cost"
+  Assets:Stock  -1 BTC {20 EUR}
+  Assets:Bank   25 EUR
+  Income:Gain
+2026-01-13 * "sell by date"
+  Assets:Stock  -1 BTC {2026-01-02}
+  Assets:Bank   25 EUR
+  Income:Gain
