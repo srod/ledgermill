@@ -4,13 +4,14 @@
 
 use crate::Ledger;
 use crate::date::Date;
-use crate::decimal::{DIVISION_PLACES, Decimal, OUTPUT_PLACES, ZeroTie};
+use crate::decimal::{DIVISION_PLACES, Decimal, ZeroTie};
 use crate::model::{Amount, Finding, Posting, Severity, Transaction};
 use crate::parse::report_amount;
-use crate::posting::WrittenAmount;
+use crate::posting::{CostKind, WrittenAmount, WrittenCost};
 use crate::prices::Graph;
 use crate::problem::unsupported_finding;
-use std::collections::{BTreeMap, HashMap};
+use std::cmp::Ordering;
+use std::collections::HashMap;
 
 /// The finding for a Beancount ledger, whose valuation is not built.
 pub(crate) fn beancount_refusal() -> Finding {
@@ -32,50 +33,93 @@ pub(crate) struct Term<'a> {
     pub original: Option<&'a WrittenAmount>,
 }
 
-/// What the terms of one posting that end in one commodity add up to.
+/// What the terms of one posting that are one amount to the reference tool add up to.
 struct Merged<'a> {
+    commodity: &'a str,
+    /// The cost the amounts share; a total cost is the sum of the totals.
+    cost: Option<WrittenCost>,
     sum: Decimal,
     /// How many terms went in.
     count: usize,
     original: Option<&'a WrittenAmount>,
 }
 
-/// The amounts a posting reports once its amounts are converted: the terms that end in the same
-/// commodity are summed in order (a zero gives the other term back with its places), a sum is
-/// rounded to ten places only here, and the list is ordered by commodity, the empty one first. A
-/// term left as it is stays whole, with its cost and lot, when nothing else joined it; a lot
-/// does not survive a sum.
+/// Two amounts are one when they end in the same commodity and have no cost, or the same kind
+/// of cost in the same commodity and, for a unit cost, the same value.
+fn same_cost(a: Option<&WrittenCost>, b: Option<&WrittenCost>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(x), Some(y)) => {
+            x.kind == y.kind
+                && x.commodity == y.commodity
+                && (x.kind == CostKind::Total || x.value.cmp_value(&y.value).is_eq())
+        }
+        _ => false,
+    }
+}
+
+/// The order amounts of one commodity are listed in: no cost first, then by the cost's
+/// commodity, a total cost before a unit cost, then by its value.
+fn cmp_cost(a: Option<&WrittenCost>, b: Option<&WrittenCost>) -> Ordering {
+    match (a, b) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Less,
+        (Some(_), None) => Ordering::Greater,
+        (Some(x), Some(y)) => {
+            let rank = |c: &WrittenCost| u8::from(c.kind == CostKind::Unit);
+            x.commodity
+                .cmp(&y.commodity)
+                .then(rank(x).cmp(&rank(y)))
+                .then_with(|| x.value.cmp_value(&y.value))
+        }
+    }
+}
+
+/// The amounts a posting reports once its amounts are converted: the terms that are one amount
+/// (see [`same_cost`]) are summed in order (a zero gives the other term back with its places),
+/// a sum is rounded to ten places only here, and the list is ordered by commodity, the empty one
+/// first, then by cost. A term left as it is stays whole, with its cost and lot, when nothing
+/// else joined it; a lot does not survive a sum.
 pub(crate) fn merge<'a>(terms: impl IntoIterator<Item = Term<'a>>) -> Vec<Amount> {
-    let mut merged: BTreeMap<&str, Merged> = BTreeMap::new();
+    let mut merged: Vec<Merged> = Vec::new();
     for t in terms {
-        match merged.get_mut(t.commodity) {
+        let cost = t.original.and_then(|a| a.cost.as_ref());
+        let same = |m: &Merged| m.commodity == t.commodity && same_cost(m.cost.as_ref(), cost);
+        match merged.iter_mut().find(|m| same(m)) {
             Some(m) => {
                 m.sum = m.sum.combine(&t.value, ZeroTie::KeepEarlier);
+                if let (Some(held), Some(c)) = (m.cost.as_mut(), cost)
+                    && held.kind == CostKind::Total
+                {
+                    held.value = held.value.combine(&c.value, ZeroTie::KeepEarlier);
+                }
                 m.count += 1;
                 m.original = None;
             }
-            None => {
-                merged.insert(
-                    t.commodity,
-                    Merged {
-                        sum: t.value,
-                        count: 1,
-                        original: t.original,
-                    },
-                );
-            }
+            None => merged.push(Merged {
+                commodity: t.commodity,
+                cost: cost.cloned(),
+                sum: t.value,
+                count: 1,
+                original: t.original,
+            }),
         }
     }
+    merged.sort_by(|a, b| {
+        a.commodity
+            .cmp(b.commodity)
+            .then_with(|| cmp_cost(a.cost.as_ref(), b.cost.as_ref()))
+    });
     merged
         .into_iter()
-        .map(|(commodity, m)| match m.original {
+        .map(|m| match m.original {
             Some(a) if m.count == 1 => report_amount(a),
-            _ => Amount {
-                commodity: commodity.to_string(),
-                quantity: m.sum.rounded(OUTPUT_PLACES).to_string(),
-                cost: None,
+            _ => report_amount(&WrittenAmount {
+                commodity: m.commodity.to_string(),
+                quantity: m.sum,
+                cost: m.cost,
                 lot: None,
-            },
+            }),
         })
         .collect()
 }

@@ -403,6 +403,27 @@ fn a_lot_stays_only_on_an_amount_alone_in_its_commodity_and_not_converted() {
     );
 }
 
+#[test]
+fn an_amount_left_as_it_is_keeps_its_cost_and_is_not_added_to_a_converted_one() {
+    let p = probe!("value-merge-costs");
+    assert_eq!(
+        value(p, "2026-01-05", "X"),
+        [
+            "2026-01-02  a:d: X 4 @@ USD 9 | a: X 6, X -4 @@ USD -9 | z: USD 9, X -6",
+            "2026-01-03  a:d: X 4 @ USD 2 | a: X -4 @ USD 2 | z: USD 8",
+            "2026-01-04  a:d: X 4 | a: X -4 | z: X 4",
+        ]
+    );
+    assert_eq!(
+        value(p, "2026-01-05", "EUR"),
+        [
+            "2026-01-02  a:d: EUR 2 | a: EUR 1 | z: EUR -3, USD 9",
+            "2026-01-03  a:d: EUR 2 | a: EUR -2 | z: USD 8",
+            "2026-01-04  a:d: EUR 2 | a: EUR -2 | z: EUR 2",
+        ]
+    );
+}
+
 // ───────────── what is valued ─────────────
 
 #[test]
