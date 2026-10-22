@@ -23,7 +23,10 @@ Each note has:
   assertion or assignment, and for a rejected one the file, line and kind of its first error.
 - `hledger/probe-verdicts.sh` prints hledger's verdict and first error (file, line, column) on probe journals
   (by default the `rule-*` ones); `hledger/period-verdicts.sh` does the same for period expressions, and
-  `hledger/period-forms.txt` is its output on a corpus of 474 of them.
+  `hledger/period-forms.txt` is its output on a corpus of 474 of them. `hledger/directive-verdicts.sh` does
+  it for directive lines (`hledger/directive-forms.txt`, 200 of them), and `hledger/check-vs-print.sh` compares
+  `hledger check` with `print` on the whole corpus.
+- `hledger/probes/refused/` holds the hledger probes ledgermill refuses (not run by the harness).
 - `hledger/prototype-observations.md` – the notes of our earlier TypeScript prototype, kept as a
   starting point. They are our own text, written from running hledger.
 
@@ -68,6 +71,8 @@ Each note has:
 | [assertion-failures](hledger/assertion-failures.md) | the line blamed, which failure and which error comes first, `-I` |
 | [assertion-verdicts](hledger/assertion-verdicts.md) | hledger's verdict and first error on every corpus journal with an assertion |
 | [rules-ignored](hledger/rules-ignored.md) | `=` and `~` rules: what is read, what is an error, period expressions, no effect on the rest |
+| [syntax](hledger/syntax.md) | every construct of the journal format: supported, ignored with a warning, or refused; where ledgermill differs today |
+| [check-vs-print](hledger/check-vs-print.md) | `hledger check` gives print's verdict and first error; which checks it runs by default |
 
 ## Index (Beancount 3.2.3)
 
