@@ -377,10 +377,38 @@ impl Balances {
                 // the whole less the account's own, which can give other places than their sum.
                 subtract(&mut held, &groups(&own));
             }
-            let pieces: Vec<Piece> = difference(target, &held)
-                .into_iter()
-                .filter(|p| !p.is_zero())
-                .collect();
+            let own_groups = groups(&own);
+            let below_groups = groups(&below);
+            // With a star and no price anywhere, the asserted commodity gets (asserted - the
+            // sub-accounts' sum) - own, which has other places than asserted - (own + sub-accounts)
+            // when the whole is zero (assignments.md).
+            let in_two_steps = inclusive
+                && asserted.cost.is_none()
+                && is_asserted
+                && own_groups
+                    .iter()
+                    .chain(&below_groups)
+                    .all(|g| g.price.is_none());
+            let after_subs = if in_two_steps {
+                match difference(target, &below_groups).as_slice() {
+                    [only] => Some(WrittenAmount {
+                        commodity: commodity.clone(),
+                        quantity: only.quantity.clone(),
+                        cost: None,
+                        lot: None,
+                    }),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            let pieces: Vec<Piece> = match &after_subs {
+                Some(left) => difference(Some(left), &own_groups),
+                None => difference(target, &held),
+            }
+            .into_iter()
+            .filter(|p| !p.is_zero())
+            .collect();
             let left: Vec<Entry> = if total || is_asserted {
                 // What the account itself holds afterwards: the asserted amount less what the
                 // sub-accounts hold (all of it, for `=` and `==`, which look at no sub-account).

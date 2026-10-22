@@ -70,6 +70,12 @@ For `=*`, the account's own balance becomes `B` minus the sub-accounts' sum, com
 also on a zero difference (`i` 1 and `i:b` 2.5, `i =* 3.5` gives nothing, and the own balance is
 now `3.5 - 2.5 = 1.0`, so `i = 2` gives `1.0`). The sub-accounts keep their balances.
 
+**Places of a `=*` amount.** With a star, the amount for the asserted commodity is worked out in two steps,
+`(B - sub-accounts' sum) - own`, which is also the account's balance afterwards less its own; the
+result is that of `B - (own + sub-accounts)` except in the places when the whole is zero. With `a` -3.00,
+`a:d` 3.00 and `a =* 1 EUR` the amount is `1.00` (`1 - 3.00` is `-2.00`, minus `-3.00`), where
+one step, `1 - 0.00`, would give `1` (probe `assign-inclusive-two-steps`, line 6: `a [1.00 EUR]`, `z [-1.00 EUR]`).
+
 **Other commodities with a star.** `=*` alone (no second `=`) also zeroes the commodities that
 sub-accounts hold, though not those held only by the account itself. For each commodity D other than
 the asserted one that some sub-account holds, the posting gets `-(sub-accounts' share of D)`, where the
@@ -104,7 +110,8 @@ name order and accept a difference of places in this case. The value is never af
 `probes/assign-basic.journal`, `probes/assign-diff-places.journal`,
 `probes/assign-sum-places.journal`, `probes/assign-total.journal`,
 `probes/assign-inclusive.journal`, `probes/assign-inclusive-order-names-bcd.journal`,
-`probes/assign-inclusive-order-names-x123.journal`, `probes/assign-inclusive-other.journal`
+`probes/assign-inclusive-order-names-x123.journal`, `probes/assign-inclusive-other.journal`,
+`probes/assign-inclusive-two-steps.journal`
 
 Command:
 
@@ -115,6 +122,7 @@ spec/hledger/show.sh spec/hledger/probes/assign-sum-places.journal
 spec/hledger/show.sh spec/hledger/probes/assign-total.journal
 spec/hledger/show.sh spec/hledger/probes/assign-inclusive.journal
 spec/hledger/show.sh spec/hledger/probes/assign-inclusive-other.journal
+spec/hledger/show.sh spec/hledger/probes/assign-inclusive-two-steps.journal
 spec/hledger/show.sh spec/hledger/probes/assign-inclusive-order-names-bcd.journal
 spec/hledger/show.sh spec/hledger/probes/assign-inclusive-order-names-x123.journal
 ```

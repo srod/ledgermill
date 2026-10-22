@@ -631,3 +631,16 @@ fn a_posting_dated_after_its_transaction_joins_the_balance_at_the_end_of_the_blo
         json!([[4, "assertion-failed"]])
     );
 }
+
+#[test]
+fn a_star_amount_is_asserted_less_the_sub_accounts_less_the_own_balance() {
+    // The whole is zero (-3.00 and 3.00): one step would give `1`, two steps give `1.00`.
+    let probe = include_str!("../../../spec/hledger/probes/assign-inclusive-two-steps.journal");
+    assert_eq!(
+        rows("x.journal", probe),
+        vec![
+            "1: a => -3.00 EUR | a:d => 3.00 EUR | z => 0.00 EUR",
+            "6: a => 1.00 EUR | z => -1.00 EUR"
+        ]
+    );
+}
