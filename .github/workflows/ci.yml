@@ -103,6 +103,8 @@ jobs:
       - run: bun harness/compare.ts --quiet
       - name: Random journals
         run: bun harness/fuzz.ts 1000 "$GITHUB_RUN_NUMBER"
+      - name: Random networks of prices
+        run: bun harness/fuzz.ts --graph 300 "$GITHUB_RUN_NUMBER"
 
   ios:
     runs-on: macos-latest

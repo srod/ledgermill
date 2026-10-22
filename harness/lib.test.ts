@@ -1,14 +1,21 @@
 // bun test harness/lib.test.ts (needs the wasm built into pkg/, like the harness itself)
 import { expect, test } from "bun:test";
+import { join } from "node:path";
 import {
+  type Comparison,
+  compareCost,
   compareFirstError,
   compareRejection,
+  compareValue,
   firstHledgerError,
   decimalString,
   decodeCsv,
   firstBeancountError,
   listsComparable,
   firstDiff,
+  priceLines,
+  summarize,
+  valueQueries,
   projectBeancount,
   projectFlatPostings,
   projectHledger,
@@ -226,4 +233,62 @@ test("withoutTrailingZeros keeps the value and drops only decimal zeros", () => 
   expect(withoutTrailingZeros("-0.50")).toBe("-0.5");
   expect(withoutTrailingZeros("100")).toBe("100");
   expect(withoutTrailingZeros("0.00")).toBe("0");
+});
+
+test("priceLines reads the date, the commodity priced and the commodity of the price", () => {
+  const text = [
+    "P 2026-01-05 X 2 EUR",
+    "P 2026/1/6 10:30 $ 1,000.50 USD",
+    'P 2026.01.07 "A B" 3 "C D"',
+    "P 2026-01-08 EUR 0.5 €",
+    "P 2026-01-09 Y 2",
+    "P 2026-02-30 X 2 EUR", // not a date
+    "P 01-05 X 2 EUR", // no year
+    "; P 2026-01-05 X 2 EUR",
+  ].join("\n");
+  expect(priceLines([text])).toEqual([
+    { date: "2026-01-05", from: "X", to: "EUR" },
+    { date: "2026-01-06", from: "$", to: "USD" },
+    { date: "2026-01-07", from: "A B", to: "C D" },
+    { date: "2026-01-08", from: "EUR", to: "€" },
+    { date: "2026-01-09", from: "Y", to: "" },
+  ]);
+});
+
+test("valueQueries asks the day before the first price, each price date and 30 days after the last, in four commodities", () => {
+  const queries = valueQueries(["P 2026-01-05 X 2 GBP\nP 2026-01-09 Y 3 EUR\n"]);
+  expect([...new Set(queries.map((q) => q.date))]).toEqual(["2026-01-04", "2026-01-05", "2026-01-09", "2026-02-08"]);
+  expect([...new Set(queries.map((q) => q.commodity))]).toEqual(["EUR", "USD", "GBP", "X"]);
+  expect(queries).toHaveLength(16);
+});
+
+test("valueQueries spreads six dates over many price dates, crosses a year and a leap day, and asks nothing without a price", () => {
+  const lines = Array.from({ length: 10 }, (_, i) => `P 2026-01-${String(i + 1).padStart(2, "0")} X 2 EUR`);
+  const dates = [...new Set(valueQueries([lines.join("\n")]).map((q) => q.date))];
+  expect(dates).toEqual(["2025-12-31", "2026-01-01", "2026-01-02", "2026-01-04", "2026-01-06", "2026-01-08", "2026-01-10", "2026-02-09"]);
+  const leap = [...new Set(valueQueries(["P 2024-02-29 X 2 EUR"]).map((q) => q.date))];
+  expect(leap).toEqual(["2024-02-28", "2024-02-29", "2024-03-30"]);
+  expect(valueQueries(["2026-01-05 t\n    a  1 X\n    b\n"])).toEqual([]);
+});
+
+const pass = { status: "PASS", note: "" } as const;
+test("summarize shows the worst verdict and says whether it came from --cost or --value", () => {
+  const all: Comparison = { raw: pass, cost: pass, values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: pass }] };
+  expect(summarize(all)).toEqual(pass);
+  const skipped: Comparison = { ...all, cost: { status: "SKIP", note: "unsupported: cost-conversion-postings" } };
+  expect(summarize(skipped)).toEqual({ status: "SKIP", note: "cost: unsupported: cost-conversion-postings" });
+  const failed: Comparison = {
+    ...skipped,
+    values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: { status: "FAIL", note: "[0].x: hledger=1 ours=2" } }],
+  };
+  expect(summarize(failed)).toEqual({ status: "FAIL", note: "value=2026-01-01,EUR: [0].x: hledger=1 ours=2" });
+  expect(summarize({ raw: { status: "FAIL", note: "raw difference" }, cost: null, values: [] })).toEqual({ status: "FAIL", note: "raw difference" });
+});
+
+// These two run hledger (on PATH, like the rest of the harness) on probes of the spec.
+const probe = (name: string) => join(import.meta.dir, "../spec/hledger/probes", `${name}.journal`);
+test("compareCost and compareValue pass on probes, and a refusal of ours is a SKIP", async () => {
+  expect((await compareCost([probe("cost-lots")])).status).toBe("PASS");
+  expect((await compareValue([probe("value-p-latest")], { date: "2026-01-05", commodity: "EUR" })).status).toBe("PASS");
+  expect(await compareCost([probe("conversion-several")])).toEqual({ status: "SKIP", note: "unsupported: cost-conversion-postings" });
 });

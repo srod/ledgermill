@@ -33,6 +33,7 @@ bean-query --version                       # beanquery 0.2.0, beancount 3.2.3
 bun harness/compare.ts            # every corpus journal and pair, one line each
 bun harness/compare.ts --quiet    # only the lines that are not PASS
 bun harness/fuzz.ts [N] [SEED]    # N random journals (default 500); CI runs 1,000 with a new seed each run
+bun harness/fuzz.ts --graph [N] [SEED]   # N random networks of prices, valued at random dates; CI runs 300
 bun harness/real.ts FILE...       # your own journals (several files: each alone, then all together)
 bun test harness/lib.test.ts      # the harness's own checks
 ```
@@ -43,15 +44,16 @@ Each case ends in one verdict:
 
 - **PASS**: both give the same transactions, or both fail with the same first error (see below).
 - **SKIP**: we report an `unsupported-syntax` finding (the line after `SKIP` says which construct):
-  not built. No SKIP is expected on the hledger corpus any more: the hledger journals ledgermill refuses
-  are kept apart (see Corpus). For Beancount, one journal is skipped, the one whose only error is a
+  not built. No SKIP is expected on the hledger corpus any more, apart from the `--cost` refusal below: the
+  hledger journals ledgermill refuses are kept apart (see Corpus). For Beancount, one journal is skipped, the one whose only error is a
   `document` file that does not exist: ledgermill does not look at files and warns instead.
 - **FAIL**: anything else. The line gives the first difference as a path, for example
   `[2].postings[0].amounts[0].quantity: hledger="3.51" ours="3.50"`, or says that hledger fails and
   we report no error, or that we report `unbalanced-transaction` while hledger accepts. A FAIL is a
   bug in the engine or in the harness; the exit code is 1.
 
-The last line is `N pass, N fail, N skip`.
+The last line is `N pass, N fail, N skip`, over everything compared (raw, `--cost` and `--value`; the lines before it
+count each of them: see "Cost and value").
 
 When hledger rejects a journal (exits non-zero), the harness takes the file and line of the **first error**
 from the first line of its stderr and compares them with our **first error-severity finding**
@@ -84,6 +86,31 @@ trimmed and amounts, each with its price and lot). Quantities are exact decimal 
 with `BigInt` from hledger's `decimalMantissa` and `decimalPlaces`, so places and big numbers
 survive (very large mantissas come in floating notation and are read back exactly).
 `source.file` is compared by basename.
+
+### Cost and value
+
+Every hledger case that hledger accepts and that passes the comparison above is compared twice more,
+with the same projection and the same diff (`ignorePlaces` too):
+
+- **`--cost`**: `hledger print -O json --cost` against `ledger.atCost()` (`Ledger::at_cost()`).
+- **`--value=DATE,COMM`**: `hledger print -O json --value=DATE,COMM` against `ledger.value(DATE, COMM)`, for a
+  journal with `P` lines (any file of the case), at: one day before the first `P` date, each distinct `P` date
+  (six at most, spread evenly over the sorted dates when there are more) and 30 days after the last; in `EUR`,
+  `USD`, the commodity of the first price and the first commodity priced. Hence up to 32 questions per
+  journal (`valueQueries` in `lib.ts`, read from the `P` lines of the files; `priceLines` is the reader).
+
+A journal hledger rejects is not asked these: it is compared as above (first error), and so is a case that
+fails or is skipped there. Verdicts:
+
+- the two agree: PASS; they differ: FAIL, the note names the query (`cost: ...` or `value=DATE,COMM: ...`);
+- we return an `unsupported-syntax` error: **SKIP**. The wasm throws an `Error` whose message is the finding as
+  JSON; the harness reads it. The shapes `at_cost()` refuses are those of `spec/hledger/cost.md` (Gaps): a
+  transaction with pairs of conversion postings and either several priced postings or a balance assignment.
+  One corpus journal is skipped for that (`conversion-several.journal`);
+- any other error of ours, or hledger failing a question after accepting the journal, is a FAIL.
+
+The summary has a line per kind before the total: `hledger --cost: ...` and `hledger --value: ...` (one count per
+question asked). A case's line shows the worst of its comparisons.
 
 ### Beancount
 
@@ -139,8 +166,16 @@ The summary prints a line per format when both are run. A FAIL is also: we repor
 The fuzzer (`fuzz.ts`) writes random, mostly valid journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
 and big numbers, and for hledger `=` and `~` rules, about a third of them invalid on purpose (they must
-fail in both). Same seed,
-same journals; a FAIL prints the journal.
+fail in both), and `P` lines (about 45%: dates, times of day, zero and negative prices). Each hledger
+journal is compared raw, under `--cost`, and under one or two random `--value=DATE,COMM` (dates around the
+`P` lines, the fuzzer's commodities). Same seed, same journals; a FAIL prints the journal.
+
+`bun harness/fuzz.ts --graph N SEED` writes dense networks of prices instead: 9 to 11 commodities out of
+twelve (names that sort in different orders, `Z` before `a`), 1 to 16 `P` lines with random dates, targets and
+rates (zero and negative ones too), a transaction with an amount in each commodity (some with a cost or a lot)
+and now and then a posting with several amounts; each journal is compared raw, under `--cost` and under two
+random `--value` runs. These exercise the choice of the path and the arithmetic of `spec/hledger/value-prices.md`
+and `value-arithmetic.md`.
 
 ## Corpus
 
