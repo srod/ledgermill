@@ -15,7 +15,8 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
   "amount".
 - An indented line that is not a comment is a posting whatever it looks like: an indented
   `2026-01-02 u` becomes an account with an amount of `0`.
-- A leading `*` or `!` is the posting's status; `(a)` makes a virtual posting, which is left out of
+- A leading `*` or `!` is the posting's status (a `*` with nothing after it is no posting: see
+  [posting-star-line](posting-star-line.md)); `(a)` makes a virtual posting, which is left out of
   balancing (see [postings](postings.md)); `@` gives a price (see [prices-and-lots](prices-and-lots.md));
   `= 1` a balance assertion, not read yet (`balance-assertion`); extra text after the amount is
   an error.

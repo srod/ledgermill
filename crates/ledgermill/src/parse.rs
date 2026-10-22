@@ -249,6 +249,13 @@ fn to_quantity(commodity: &str, value: &crate::decimal::Decimal) -> Quantity {
     }
 }
 
+/// `*` and nothing else (blanks aside): a line `!` alone is an error instead.
+fn is_lone_star(content: &str) -> bool {
+    content
+        .strip_prefix('*')
+        .is_some_and(|rest| trim_blank(rest).is_empty())
+}
+
 impl FileParser<'_> {
     fn report(&mut self, line_no: u32, column: Option<u32>, problem: Problem, text: Option<&str>) {
         self.reported += 1;
@@ -832,7 +839,7 @@ impl FileParser<'_> {
         match state {
             State::Skipping | State::CommentBlock => state,
             State::Top => {
-                if !content.starts_with(';') {
+                if !content.starts_with([';', '#', '*']) {
                     self.report(
                         line_no,
                         None,
@@ -843,6 +850,13 @@ impl FileParser<'_> {
                 State::Top
             }
             State::InDirective(body) => self.directive_line(body, line_no, content),
+            // A status mark with nothing after it is no posting: it ends the transaction or the
+            // rule, and is a comment line (spec/hledger/posting-star-line.md).
+            State::InRule(_) if is_lone_star(content) => State::Top,
+            State::InTransaction(_) if is_lone_star(content) => {
+                self.finish(state);
+                State::Top
+            }
             State::InRule(rule) => self.rule_line(rule, line_no, content),
             State::InTransaction(mut tx) => {
                 if let Some(comment) = content.strip_prefix(';') {
@@ -867,6 +881,9 @@ impl FileParser<'_> {
     }
 
     fn directive_line(&mut self, body: DirectiveBody, line_no: u32, content: &str) -> State {
+        if content.starts_with(['#', '*']) {
+            return State::InDirective(body);
+        }
         if let Some(comment) = content.strip_prefix(';') {
             if let DirectiveBody::Account(name) = &body {
                 let name = name.clone();
