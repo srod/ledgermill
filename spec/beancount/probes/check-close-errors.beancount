@@ -1,0 +1,9 @@
+2026-01-01 open Assets:A
+2026-01-02 close Assets:A
+2026-01-03 close Assets:A
+2026-01-03 close Assets:Never
+2026-01-05 open Assets:B
+2026-01-01 close Assets:B
+2026-01-01 open Assets:C
+2026-01-09 close Assets:C
+2026-01-05 close Assets:C

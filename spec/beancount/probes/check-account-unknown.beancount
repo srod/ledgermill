@@ -1,0 +1,8 @@
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "a posting to an account that was never opened"
+  Expenses:Food  10.00 EUR
+  Assets:Bank
+2026-01-03 * "still listed after the error, with its other posting"
+  Expenses:Food  1.00 EUR
+  Assets:Bank

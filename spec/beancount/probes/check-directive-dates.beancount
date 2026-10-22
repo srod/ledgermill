@@ -1,0 +1,13 @@
+2026-01-05 open Assets:Late
+2026-01-01 open Assets:Closed
+2026-01-01 open Equity:Ok
+2026-01-02 close Assets:Closed
+
+2026-01-03 note Assets:Late "before the open"
+2026-01-03 document Assets:Late "check-directive-dates.beancount"
+2026-01-03 balance Assets:Late  0 EUR
+2026-01-03 note Assets:Closed "after the close"
+2026-01-03 document Assets:Closed "check-directive-dates.beancount"
+2026-01-03 balance Assets:Closed  0 EUR
+2026-01-04 pad Assets:Closed Equity:Ok
+2026-01-05 balance Assets:Closed  5 EUR

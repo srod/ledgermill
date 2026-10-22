@@ -1,0 +1,9 @@
+option "title" "once"
+option "title" "twice"
+
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a repeated title option"
+  Assets:A  1 EUR
+  Assets:B

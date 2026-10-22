@@ -1,0 +1,11 @@
+2026-01-05 open Expenses:Food
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Late
+2026-01-02 close Expenses:Late
+
+2026-01-02 * "before the open date of Expenses:Food"
+  Expenses:Food  10.00 EUR
+  Assets:Bank
+2026-01-03 * "after the close of Expenses:Late"
+  Expenses:Late  10.00 EUR
+  Assets:Bank

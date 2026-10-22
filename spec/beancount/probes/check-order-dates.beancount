@@ -1,0 +1,21 @@
+2026-01-01 open Assets:Ok
+2026-01-01 open Equity:Ok
+
+2026-03-08 * "later date, written first"
+  Assets:UnLater  1 EUR
+  Assets:Ok
+2026-01-02 * "earlier date, written second"
+  Assets:UnEarlier  1 EUR
+  Assets:Ok
+
+2026-02-05 document Assets:UnDoc "check-order-dates.beancount"
+2026-02-05 close Assets:UnClose
+2026-02-05 pad Assets:UnPad Equity:Ok
+2026-02-05 * "same date, written after the pad"
+  Assets:UnTxn  1 EUR
+  Assets:Ok
+2026-02-05 note Assets:UnNote "n"
+2026-02-05 balance Assets:UnBal  0 EUR
+2026-02-05 open Assets:Dup
+2026-02-05 open Assets:Dup
+2026-02-06 balance Assets:UnPad  5 EUR

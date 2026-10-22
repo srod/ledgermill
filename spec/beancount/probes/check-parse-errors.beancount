@@ -1,0 +1,14 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Other
+
+2026-01-02 * "a good transaction"
+  Assets:Bank  1 EUR
+  Assets:Other
+this line is not a directive
+2026-02-30 open Assets:NoSuchDay
+2026-01-03 open Assets:Lower eur
+2026-01-04 * "after the errors"
+  Assets:Bank  2 EUR
+  Assets:Other
+2026-01-05 balance Assets:Bank  3
+2026-01-06 open Assets:Last

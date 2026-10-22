@@ -1,0 +1,9 @@
+* An org-mode heading
+** A sub-heading
+
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "after org-mode headings"
+  Assets:A  1 EUR
+  Assets:B

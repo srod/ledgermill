@@ -1,0 +1,40 @@
+2026-01-01 open Assets:Ub1
+2026-01-01 open Assets:Ub2
+2026-01-01 open Assets:Dup
+2026-01-01 open Assets:Eur EUR
+2026-01-01 open Assets:Other
+2026-01-01 open Assets:Bf
+2026-01-01 open Assets:Pa
+2026-01-01 open Equity:Opening
+2026-01-01 open Assets:Au1
+2026-01-01 open Assets:Au2
+2026-01-01 open Assets:Au3
+2026-01-05 open Assets:Late
+2026-01-01 open Assets:Doc
+
+2026-01-03 * "does not balance"
+  Assets:Ub1  1 EUR
+  Assets:Ub2  -2 EUR
+2026-01-02 commodity ZZZ
+2026-01-03 commodity ZZZ
+2026-01-02 * "Dup holds 10"
+  Assets:Dup  10 EUR
+  Equity:Opening
+2026-01-03 balance Assets:Dup  10 EUR
+2026-01-03 balance Assets:Dup  10.001 EUR
+2026-01-03 * "currency constraint"
+  Assets:Eur  1 USD
+  Assets:Other
+2026-01-03 * "inactive account"
+  Assets:Late  1 EUR
+  Assets:Other
+2026-01-02 open Assets:Other
+2026-01-03 balance Assets:Bf  9 EUR
+2026-01-03 pad Assets:Pa Equity:Opening
+2026-01-03 document Assets:Doc "/nonexistent/statement.pdf"
+2026-01-03 * "two elided postings"
+  Assets:Au1  1 EUR
+  Assets:Au2
+  Assets:Au3
+2026-01-03 open Foo:Bad
+pushtag #left-open

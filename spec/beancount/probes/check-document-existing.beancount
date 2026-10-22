@@ -1,0 +1,9 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Equity:Opening
+2026-01-05 document Assets:Bank "check-document-existing.beancount"
+2026-01-06 document Assets:Bank "check-document-existing.beancount" #tag ^link
+  note: "a relative path is read from the directory of the journal"
+
+2026-01-07 * "a transaction after them"
+  Assets:Bank  1.00 EUR
+  Equity:Opening

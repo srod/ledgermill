@@ -1,0 +1,14 @@
+poptag #never-pushed
+pushtag #left-open
+pushmeta trip: "x"
+popmeta other:
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Other
+
+2026-01-02 * "the same metadata key twice"
+  note: "a"
+  note: "b"
+  Assets:Bank  1 EUR
+    memo: "a"
+    memo: "b"
+  Assets:Other

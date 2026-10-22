@@ -1,0 +1,13 @@
+2026-01-01 open Assets:Fine
+2026-01-01 open Assets:1Fine
+2026-01-01 open Assets:Fine-Too
+2026-01-01 open Assets:Ünï
+2026-01-01 open Asset:Typo
+2026-01-01 open Assets:é
+2026-01-01 open Assets:bank
+2026-01-01 open Assets
+2026-01-01 open Assets::Double
+2026-01-02 * "the root is checked on every use"
+  Asset:Typo  1 EUR
+  Assets:Fine
+2026-01-03 balance Asset:Typo  0 EUR

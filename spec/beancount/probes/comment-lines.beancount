@@ -1,0 +1,10 @@
+; a semicolon comment at the margin
+2026-01-01 open Assets:Bank ; a trailing comment
+  ; an indented comment
+2026-01-01 open Equity:Opening
+
+2026-01-02 * "comments around a transaction" ; trailing
+  ; between header and postings
+  Assets:Bank  1 EUR ; on a posting
+  Equity:Opening
+    ; under a posting

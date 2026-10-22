@@ -1,0 +1,15 @@
+2026-01-01 open Expenses:Food EUR
+2026-01-01 open Assets:Bank EUR,USD
+2026-01-01 open Assets:Usd USD
+2026-01-01 open Assets:Free
+
+2026-01-03 * "posting in a currency the account does not allow"
+  Expenses:Food  10.00 USD
+  Assets:Bank
+2026-01-04 * "an elided posting gets the other currency"
+  Assets:Free  1 EUR
+  Assets:Usd
+2026-01-05 * "a zero amount counts too"
+  Assets:Free  1 EUR
+  Assets:Bank  -1 EUR
+  Assets:Bank  0 GBP

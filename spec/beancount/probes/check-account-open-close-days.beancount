@@ -1,0 +1,11 @@
+2026-01-01 * "written before the open directives of its own date"
+  Expenses:Food  1.00 EUR
+  Assets:Bank
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+2026-01-02 close Assets:Bank
+2026-01-02 * "written after the close of its own date"
+  Expenses:Food  2.00 EUR
+  Assets:Bank
+2026-01-02 note Assets:Bank "a note on the day of the close"
+2026-01-03 note Assets:Bank "a note after the close"

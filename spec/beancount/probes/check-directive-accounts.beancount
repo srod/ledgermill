@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Bank
+2026-01-02 close Assets:Bank
+2026-01-03 note Assets:Bank "a note after the close is fine"
+2026-01-03 note Assets:Never "a note on an unknown account"
+2026-01-04 document Assets:Never "check-directive-accounts.beancount"
+2026-01-04 document Assets:Bank "check-directive-accounts.beancount"

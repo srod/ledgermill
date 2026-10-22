@@ -1,0 +1,9 @@
+2026-01-01 open Assets:Stock BTC
+2026-01-01 open Assets:Bank EUR
+
+2026-01-02 * "the cost currency is not checked"
+  Assets:Stock  3 BTC {10 EUR}
+  Assets:Bank  -30 EUR
+2026-01-03 * "nor the price currency"
+  Assets:Stock  3 BTC @ 11 EUR
+  Assets:Bank  -33 EUR
