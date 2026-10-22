@@ -3,10 +3,10 @@
 
 use crate::balance::{Draft, conversion_exempt, conversion_pairs, priced, within_half_unit};
 use crate::decimal::{DIVISION_PLACES, Decimal};
-use crate::model::{Amount, Finding, Posting, Transaction};
-use crate::parse::report_amount;
+use crate::model::{Finding, Posting, Transaction};
 use crate::posting::{CostKind, WrittenAmount};
 use crate::problem::unsupported_finding;
+use crate::valuation::{Term, merge};
 use crate::{Exact, Ledger};
 
 /// Which postings of a transaction the reference tool tags `_conversion-posting`.
@@ -16,24 +16,27 @@ pub(crate) struct Plan {
     pub refused: bool,
 }
 
-/// The amount `--cost` gives: no cost, no lot, in the cost's commodity.
-fn at_cost_amount(a: &WrittenAmount) -> Amount {
-    let Some(cost) = &a.cost else {
-        return report_amount(a);
-    };
-    let value = match cost.kind {
-        CostKind::Unit => a
-            .quantity
-            .mul(&cost.value)
-            .rounded(DIVISION_PLACES)
-            .normalized(),
-        CostKind::Total => cost.value.clone(),
-    };
-    Amount {
-        commodity: cost.commodity.clone(),
-        quantity: value.output(),
-        cost: None,
-        lot: None,
+/// An amount on its way to the output of `--cost`: with a cost it becomes an amount in the
+/// cost's commodity (no cost, no lot); without one it is left as it is, lot kept.
+fn at_cost_term(a: &WrittenAmount) -> Term<'_> {
+    match &a.cost {
+        None => Term {
+            commodity: a.commodity.as_str(),
+            value: a.quantity.clone(),
+            original: Some(a),
+        },
+        Some(cost) => Term {
+            commodity: cost.commodity.as_str(),
+            value: match cost.kind {
+                CostKind::Unit => a
+                    .quantity
+                    .mul(&cost.value)
+                    .rounded(DIVISION_PLACES)
+                    .normalized(),
+                CostKind::Total => cost.value.clone(),
+            },
+            original: None,
+        },
     }
 }
 
@@ -86,7 +89,7 @@ fn at_cost_postings(t: &Transaction, exact: &Exact) -> Vec<Posting> {
         .zip(&exact.postings)
         .filter(|(_, e)| !(e.conversion_tagged && e.amounts.iter().all(|a| a.cost.is_none())))
         .map(|(p, e)| Posting {
-            amounts: e.amounts.iter().map(at_cost_amount).collect(),
+            amounts: merge(e.amounts.iter().map(at_cost_term)),
             ..p.clone()
         })
         .collect()

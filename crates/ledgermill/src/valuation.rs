@@ -22,58 +22,45 @@ pub(crate) fn beancount_refusal() -> Finding {
     )
 }
 
-/// What the amounts of one posting that end in one commodity add up to.
-struct Merged<'a> {
-    sum: Decimal,
-    /// How many amounts went in.
-    count: usize,
-    /// The amount itself when it was left alone (kept with its cost and lot).
-    alone: Option<&'a WrittenAmount>,
+/// One amount of a posting on its way to the output: the commodity it ends in and its value
+/// at full precision.
+pub(crate) struct Term<'a> {
+    pub commodity: &'a str,
+    pub value: Decimal,
+    /// The amount itself when it was left as it is (kept with its cost and lot if nothing joins
+    /// it).
+    pub original: Option<&'a WrittenAmount>,
 }
 
-/// The amounts of a posting valued in `target`, merged per commodity.
-///
-/// Each amount is converted at full precision (no price, no lot); those that end in the same
-/// commodity are summed in order; a sum is rounded to ten places only here, at the end. An
-/// amount left alone (in the target commodity already, or with no path to it) keeps its cost and
-/// lot when nothing else joined it.
-fn value_posting(
-    amounts: &[WrittenAmount],
-    target: &str,
-    rates: &mut HashMap<String, Option<Decimal>>,
-    graph: &Graph,
-) -> Vec<Amount> {
+/// What the terms of one posting that end in one commodity add up to.
+struct Merged<'a> {
+    sum: Decimal,
+    /// How many terms went in.
+    count: usize,
+    original: Option<&'a WrittenAmount>,
+}
+
+/// The amounts a posting reports once its amounts are converted: the terms that end in the same
+/// commodity are summed in order (a zero gives the other term back with its places), a sum is
+/// rounded to ten places only here, and the list is ordered by commodity, the empty one first. A
+/// term left as it is stays whole, with its cost and lot, when nothing else joined it; a lot
+/// does not survive a sum.
+pub(crate) fn merge<'a>(terms: impl IntoIterator<Item = Term<'a>>) -> Vec<Amount> {
     let mut merged: BTreeMap<&str, Merged> = BTreeMap::new();
-    for a in amounts {
-        let rate = if a.commodity == target {
-            None
-        } else {
-            rates
-                .entry(a.commodity.clone())
-                .or_insert_with(|| graph.rate(&a.commodity, target))
-                .as_ref()
-        };
-        let (commodity, value, alone) = match rate {
-            Some(rate) => (
-                target,
-                a.quantity.mul(rate).rounded(DIVISION_PLACES).normalized(),
-                None,
-            ),
-            None => (a.commodity.as_str(), a.quantity.clone(), Some(a)),
-        };
-        match merged.get_mut(commodity) {
+    for t in terms {
+        match merged.get_mut(t.commodity) {
             Some(m) => {
-                m.sum = m.sum.combine(&value, ZeroTie::KeepEarlier);
+                m.sum = m.sum.combine(&t.value, ZeroTie::KeepEarlier);
                 m.count += 1;
-                m.alone = None;
+                m.original = None;
             }
             None => {
                 merged.insert(
-                    commodity,
+                    t.commodity,
                     Merged {
-                        sum: value,
+                        sum: t.value,
                         count: 1,
-                        alone,
+                        original: t.original,
                     },
                 );
             }
@@ -81,7 +68,7 @@ fn value_posting(
     }
     merged
         .into_iter()
-        .map(|(commodity, m)| match m.alone {
+        .map(|(commodity, m)| match m.original {
             Some(a) if m.count == 1 => report_amount(a),
             _ => Amount {
                 commodity: commodity.to_string(),
@@ -91,6 +78,40 @@ fn value_posting(
             },
         })
         .collect()
+}
+
+/// The amounts of a posting valued in `target`, merged per commodity.
+///
+/// Each amount is converted at full precision (no price, no lot); an amount in the target
+/// commodity already, or with no path to it, is left as it is.
+fn value_posting(
+    amounts: &[WrittenAmount],
+    target: &str,
+    rates: &mut HashMap<String, Option<Decimal>>,
+    graph: &Graph,
+) -> Vec<Amount> {
+    merge(amounts.iter().map(|a| {
+        let rate = if a.commodity == target {
+            None
+        } else {
+            rates
+                .entry(a.commodity.clone())
+                .or_insert_with(|| graph.rate(&a.commodity, target))
+                .as_ref()
+        };
+        match rate {
+            Some(rate) => Term {
+                commodity: target,
+                value: a.quantity.mul(rate).rounded(DIVISION_PLACES).normalized(),
+                original: None,
+            },
+            None => Term {
+                commodity: a.commodity.as_str(),
+                value: a.quantity.clone(),
+                original: Some(a),
+            },
+        }
+    }))
 }
 
 impl Ledger {
