@@ -2,6 +2,8 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-22.
 
+Status: built.
+
 ## Rule
 
 An assertion sees the postings that come before it in hledger's own order, not in the order of

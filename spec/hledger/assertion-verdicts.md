@@ -2,14 +2,15 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-22.
 
+Status: built.
+
 ## Rule
 
 Which of the harness journals that have a balance assertion or assignment (the ones
 `bun harness/compare.ts` skips with `unsupported: balance-assertion`) hledger accepts, and for the
-rejected ones where its first error is, by file and line. When ledgermill reads assertions, the
-accepted ones are compared transaction by transaction and the rejected ones must give an error
-finding (the harness counts "both fail" as a match, and compares no line for hledger). The line of
-the first error is what a later check could compare; the rule for it is in
+rejected ones where its first error is, by file and line. ledgermill reads assertions: the
+accepted ones are compared transaction by transaction and, for the rejected ones, our first error finding
+must be on the same file and line as the first error of hledger (the harness does it). The rule for the line is in
 [assertion-failures](assertion-failures.md): the posting's line for a failing assertion, the first
 line of the transaction for an unbalanced one.
 
@@ -42,7 +43,7 @@ Accepted journals: `proj004-balance-assertion`, `d4`, `fuzz46-282`, `h2`, `h4`, 
 Pairs: `m1a+m1b`, `m3a+m3b`, `h1+h2`, `h3+h4`, `x13+x13b`
 
 Rejected (the position is `FILE:LINE:COLUMN` for an assertion and `FILE:LINE` of the transaction's
-first line for an unbalanced one; the harness says `SKIP` for all of them today):
+first line for an unbalanced one:
 
 | Journal | First error | Kind | Cause |
 |---|---|---|---|

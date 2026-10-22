@@ -18,6 +18,11 @@ ledger.check()          problems found, as structured findings
 ledger.free()
 ```
 
+For hledger, balance assertions (`=`, `==`, `=*`, `==*`) and assignments are read: `check()` reports a failed
+assertion (`assertion-failed`, with the account, commodity and the exact expected and actual amounts) and the
+transactions come with the amounts the assignments filled in. Its first error is the one hledger prints first
+(file and line), not the first by line.
+
 For Beancount, `check()` gives the verdict `bean-check` gives, with the same first error (file and line):
 unknown or closed accounts, balance assertions and their tolerance, unused pads, currency
 constraints, duplicates, unbalanced transactions and more (`spec/README.md` lists the codes).

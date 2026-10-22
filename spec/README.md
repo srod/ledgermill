@@ -95,7 +95,7 @@ to.
 
 `unsupported-syntax` (error): the line uses something ledgermill does not read yet.
 `details.construct` names it: `directive` (periodic and automated rules), `include`,
-`balance-assertion`, `date-without-year`, `control-character`, `number-too-large`,
+`date-without-year`, `control-character`, `number-too-large`,
 `conversion-postings`. A transaction with a refused line is not returned.
 
 `unbalanced-transaction` (error): a group does not sum to zero (`details.group`,
@@ -104,10 +104,9 @@ two-elided-amounts`), or a conversion pair carries a price (`conversion-posting-
 hledger fails the whole command here; ledgermill reports the finding and still returns the
 transaction.
 
-#### Balance assertions and assignments (proposed, not built yet)
+#### Balance assertions and assignments
 
-Until this is built, a balance assertion or assignment is `unsupported-syntax` with `construct:
-balance-assertion`, as above. Backed by the notes [assertion-syntax](hledger/assertion-syntax.md),
+Built. Backed by the notes [assertion-syntax](hledger/assertion-syntax.md),
 [assertions](hledger/assertions.md), [assertion-order](hledger/assertion-order.md),
 [assignments](hledger/assignments.md), [assignment-lots-and-costs](hledger/assignment-lots-and-costs.md),
 [assignment-processing](hledger/assignment-processing.md) and
@@ -115,7 +114,8 @@ balance-assertion`, as above. Backed by the notes [assertion-syntax](hledger/ass
 these; like `unbalanced-transaction`, ledgermill reports the finding and still returns the
 transactions, with the amounts of the assignments filled in (an empty amount list when the difference is zero).
 
-`assertion-failed` (error), on the **line of the posting that carries the assertion**. `details`:
+`assertion-failed` (error), on the **line of the posting that carries the assertion**, with `column` at the first `=`
+(a tab counts to the next multiple of eight). `details`:
 `account` (after aliases), `commodity` (`""` for a number with no commodity; for `==` the commodity
 hledger names: the asserted one if its balance is wrong, else the first other commodity of the
 account whose balance is not zero), `expected` (the asserted quantity, a decimal string as
@@ -129,7 +129,7 @@ are in, and two amount-less postings (`reason: two-elided-amounts`), on the tran
 line, as hledger's `FILE:FIRST-LAST`. An assignment is not an amount-less posting.
 
 `assignment-with-posting-date` (error): an assignment posting with a `date:` tag or a bracketed
-date in its comment. `details.account`. hledger names no line (it prints the transaction); use the
+date in its comment. `details.account`. hledger names no line (it prints the transaction); the finding is on the
 posting's line. `date2:` is fine.
 
 `parse-error` (existing): a malformed assertion ([assertion-syntax](hledger/assertion-syntax.md)), on the posting's line.
@@ -138,8 +138,13 @@ Order of findings, which is the order of hledger's errors within a file: parse e
 plain transactions (those without an assignment) in file order; then, in date order (ties by file position), the
 failing assertions of plain postings and, for a transaction with an assignment taken as a block at its
 date, its posting-date error, its failing assertions, and its balancing problems. With several files, a file
-is finished before the next. A price in the asserted amount of an assignment ([assignment-lots-and-costs](hledger/assignment-lots-and-costs.md))
-may be answered with `unsupported-syntax`, `construct: assignment-with-price`, in a first version.
+is finished before the next, so `check()`'s first error is hledger's first error. A file with a line that was
+not read (a `parse-error` or `unsupported-syntax` finding) is not walked: its balances would be wrong, so it has
+no `assertion-failed` finding.
+
+Decisions the notes leave open: a price in the asserted amount of an assignment is read, as the note says
+(no `unsupported-syntax`); the sub-accounts of an `=*` assignment are summed in name order, so the places of the result
+can differ from hledger's when a partial sum is exactly zero ([assignments](hledger/assignments.md), "Not settled").
 
 ### Beancount
 

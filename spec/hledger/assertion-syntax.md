@@ -2,6 +2,8 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-22.
 
+Status: built.
+
 ## Rule
 
 A posting may end with a balance assertion. After the account and, if there is one, the amount:

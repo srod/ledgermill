@@ -2,6 +2,8 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-22.
 
+Status: built.
+
 ## Rule
 
 An assertion on a posting compares what the posting's account holds at that point (after the
