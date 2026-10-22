@@ -49,20 +49,29 @@ pub(super) struct Padding {
 }
 
 impl Padding {
+    /// The two postings, in order: the padded account gains, the source loses. The one place that
+    /// says so; the transaction we report and the one the later checks walk are both built from it.
+    pub(super) fn legs(&self) -> [(&str, Num); 2] {
+        [
+            (&self.account, self.difference.clone()),
+            (&self.source, self.difference.negated()),
+        ]
+    }
+
     fn kept(&self) -> Kept {
-        let posted = |account: &str, units: Num| Posted {
-            account: account.to_string(),
-            currency: self.currency.clone(),
-            units,
-            lot: None,
-        };
         Kept {
             date: self.date,
             line: self.line,
-            postings: vec![
-                posted(&self.account, self.difference.clone()),
-                posted(&self.source, self.difference.negated()),
-            ],
+            postings: self
+                .legs()
+                .into_iter()
+                .map(|(account, units)| Posted {
+                    account: account.to_string(),
+                    currency: self.currency.clone(),
+                    units,
+                    lot: None,
+                })
+                .collect(),
         }
     }
 }

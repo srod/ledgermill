@@ -159,7 +159,7 @@ fn posting(p: &book::BookedPosting) -> Posting {
 /// (spec/beancount/pad.md).
 fn padding_transaction(file: &str, padding: &check::Padding) -> Transaction {
     let currency = &padding.currency;
-    let posting = |account: &str, units: &pydec::Num| Posting {
+    let posting = |(account, units): (&str, pydec::Num)| Posting {
         account: account.to_string(),
         kind: PostingKind::Regular,
         comment: String::new(),
@@ -187,10 +187,7 @@ fn padding_transaction(file: &str, padding: &check::Padding) -> Transaction {
             file: file.to_string(),
             line: padding.line,
         },
-        postings: vec![
-            posting(&padding.account, &padding.difference),
-            posting(&padding.source, &padding.difference.negated()),
-        ],
+        postings: padding.legs().into_iter().map(posting).collect(),
     }
 }
 
