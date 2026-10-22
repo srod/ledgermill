@@ -254,18 +254,28 @@ fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> Pars
 pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     // Offsets from the parser refer to the rewritten text, so lines are counted in it too.
     let negative_tolerance = super::text::negative_tolerance_lines(text);
+    let margin: Vec<ParseIssue> = super::text::margin_errors(text)
+        .into_iter()
+        .map(|line| ParseIssue {
+            line,
+            reason: "a lone `*` or `#`, or a tag, at the margin".into(),
+            kind: IssueKind::Syntax,
+        })
+        .collect();
     let normalized = super::text::normalize(text);
     let starts = line_starts(&normalized);
     let sources = parser::BeancountSources::from(normalized.as_str());
     let reader = parser::BeancountParser::new(&sources);
     let success = match reader.parse() {
-        Ok(success) => success,
+        Ok(success) if margin.is_empty() => success,
+        Ok(_) => return Err(margin),
         Err(failure) => {
             let mut issues: Vec<ParseIssue> = failure
                 .errors
                 .iter()
                 .map(|e| issue(e.reason(), e.span(), &normalized, &starts))
                 .collect();
+            issues.extend(margin);
             // The reference reports in file order, and the pushes left open last, after the file:
             // tags before metadata.
             issues.sort_by_key(|i| match i.kind {

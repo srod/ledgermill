@@ -1,0 +1,19 @@
+option "booking_method" "FIFO"
+option "booking_method" "LIFO"
+option "operating_currency" "EUR"
+option "operating_currency" "USD"
+option "render_commas" "TRUE"
+option "render_commas" "FALSE"
+
+2026-01-01 open Assets:Stock
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy two lots"
+  Assets:Stock  1 BTC {10 EUR, 2026-01-02}
+  Assets:Stock  1 BTC {20 EUR, 2026-01-03}
+  Assets:Bank  -30 EUR
+
+2026-01-10 * "sell with the last booking_method given: the newest lot goes"
+  Assets:Stock  -1 BTC {}
+  Assets:Bank  20 EUR

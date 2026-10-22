@@ -1,0 +1,16 @@
+* An org heading, a star without a space and a deeper one
+*no-space
+** deeper
+*;a star before a semicolon
+# a hash comment
+#! a hash and a symbol
+##  two hashes
+
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a string that spans lines
+* does not start a comment inside it
+# nor does this one"
+  Assets:A  1 EUR
+  Assets:B

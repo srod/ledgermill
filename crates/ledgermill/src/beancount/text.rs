@@ -387,13 +387,92 @@ pub(super) fn negative_tolerance_lines(text: &str) -> HashSet<u32> {
         .collect()
 }
 
+/// Whether a margin line is a comment the reference skips: it starts with `*` and has anything
+/// after it, or with `#` and a character that cannot start a tag after it. A lone `*` or `#` and
+/// `#tag` are syntax errors there (spec/beancount/syntax.md).
+fn is_margin_comment(line: &str) -> bool {
+    let mut chars = line.chars();
+    match (chars.next(), chars.next()) {
+        (Some('*'), Some(_)) => true,
+        (Some('#'), Some(next)) => {
+            !(next.is_ascii_alphanumeric() || matches!(next, '_' | '-' | '.' | '/'))
+        }
+        _ => false,
+    }
+}
+
+/// Lines that start with `*` or `#` at the margin and are not comments there: a lone `*` or `#`,
+/// or `#` and a tag (the parser would take the line for the tags of the directive above it).
+pub(super) fn margin_errors(text: &str) -> Vec<u32> {
+    let mut out = Vec::new();
+    let mut in_string = false;
+    for (index, raw) in text.split('\n').enumerate() {
+        let body = raw.strip_suffix('\r').unwrap_or(raw);
+        let body = if index == 0 {
+            body.strip_prefix('\u{feff}').unwrap_or(body)
+        } else {
+            body
+        };
+        if !in_string && body.starts_with(['*', '#']) && !is_margin_comment(body) {
+            out.extend(u32::try_from(index + 1));
+        }
+        in_string = string_open_after(body, in_string);
+    }
+    out
+}
+
+/// Whether the line leaves a string open (a string that spans lines), given whether one was open
+/// when it began. `;` starts a comment only outside a string.
+fn string_open_after(line: &str, mut open: bool) -> bool {
+    let mut escaped = false;
+    for c in line.chars() {
+        if open {
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                open = false;
+            }
+        } else if c == '"' {
+            open = true;
+        } else if c == ';' {
+            break;
+        }
+    }
+    open
+}
+
+/// The lines of the options that a later line sets again: the reference lets the last one count
+/// and the parser calls a repeat an error. Only the options ledgermill accepts are looked at.
+fn superseded_options(text: &str) -> HashSet<usize> {
+    let mut last: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut all: Vec<(usize, String)> = Vec::new();
+    for (index, raw) in text.split('\n').enumerate() {
+        let raw = raw.strip_suffix('\r').unwrap_or(raw);
+        if starts_with_keyword(raw, "option")
+            && let Some(name) = option_name(raw)
+            && HARMLESS_OPTIONS.contains(&name.as_str())
+        {
+            last.insert(name.clone(), index);
+            all.push((index, name));
+        }
+    }
+    all.into_iter()
+        .filter(|(index, name)| last.get(name) != Some(index))
+        .map(|(index, _)| index)
+        .collect()
+}
+
 /// The text rewritten into forms the parser reads, with every line kept where it was: bare
 /// capital-letter flags get the parser's quote (`P` becomes `'P`), and `{{ total }}` becomes
 /// `{# total}`. Both are accepted by the reference tool (spec/beancount/header-flags.md,
 /// spec/beancount/lots-costs.md).
 pub(super) fn normalize(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 16);
-    for raw in text.split_inclusive('\n') {
+    let superseded = superseded_options(text);
+    let mut in_string = false;
+    for (index, raw) in text.split_inclusive('\n').enumerate() {
         let (body, end) = match raw.strip_suffix('\n') {
             Some(body) => match body.strip_suffix('\r') {
                 Some(body) => (body, "\r\n"),
@@ -401,6 +480,15 @@ pub(super) fn normalize(text: &str) -> String {
             },
             None => (raw, ""),
         };
+        // A comment line (or an option set again later) becomes a `;` comment of the same length.
+        let was_in_string = in_string;
+        in_string = string_open_after(body, in_string);
+        if !was_in_string && (is_margin_comment(body) || superseded.contains(&index)) {
+            out.push(';');
+            out.push_str(body.get(1..).unwrap_or(""));
+            out.push_str(end);
+            continue;
+        }
         let at = if body.starts_with([' ', '\t']) {
             posting_flag_at(body)
         } else {

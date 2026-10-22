@@ -4,7 +4,7 @@
 # usage: spec/beancount/verdicts.sh [FILE...]    (default: the whole corpus)
 if [ $# -eq 0 ]; then
   set -- harness/journals/app/*.beancount spec/beancount/probes/*.beancount \
-    spec/beancount/probes/refused/*.beancount spec/beancount/probes/pending/*.beancount
+    spec/beancount/probes/refused/*.beancount
 fi
 for f in "$@"; do
   err=$(bean-check "$f" 2>&1 >/dev/null)
