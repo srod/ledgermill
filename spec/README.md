@@ -17,6 +17,10 @@ Each note has:
   `hledger -f FILE print -O json` and keeps the fields ledgermill compares, one transaction per
   line. An amount is `[commodity, decimalMantissa, decimalPlaces]`, then its price as
   `["@"|"@@", commodity, mantissa, places]` and its lot as `{cost, date, label}` when it has them.
+  `hledger/show.sh` and the other helpers pass any argument that starts with `-` to `hledger print`
+  (`show.sh --cost FILE`, `show.sh --value=2026-01-01,EUR FILE`). `hledger/show-amounts.sh` prints the same
+  transactions in a short form, one line each, amounts as decimal numbers (the valuation notes use it), and
+  `hledger/show-tags.sh` the tags hledger puts on postings (`_conversion-posting`, `_cost-posting`).
 - `hledger/probes/` – the probe journals.
 - `hledger/show-assertions.sh` prints the assertions hledger reads (position, asserted amount, flags, the
   amounts an assignment got). `hledger/assertion-verdicts.sh` prints hledger's verdict on every journal with an
@@ -28,7 +32,7 @@ Each note has:
   `hledger check` with `print` on the whole corpus.
 - `hledger/probes/refused/` holds the hledger probes ledgermill refuses (not run by the harness).
 - `hledger/prototype-observations.md` – the notes of our earlier TypeScript prototype, kept as a
-  starting point. They are our own text, written from running hledger.
+  starting point. They are our own text, written from running hledger. Its valuation sections (`--cost`, `--value=DATE,COMM`) are superseded by value-prices, value-arithmetic and cost.
 
 - `beancount/` – notes on Beancount. The commands use `beancount/show.sh`, which prints what
   `bean-check` says and, from `bean-query -f csv`, one row per transaction and one per posting
@@ -74,6 +78,9 @@ Each note has:
 | [rules-ignored](hledger/rules-ignored.md) | `=` and `~` rules: what is read, what is an error, period expressions, no effect on the rest |
 | [syntax](hledger/syntax.md) | every construct of the journal format: supported, ignored with a warning, or refused (the published list) |
 | [check-vs-print](hledger/check-vs-print.md) | `hledger check` gives print's verdict and first error; which checks it runs by default |
+| [value-prices](hledger/value-prices.md) | `--value=DATE,COMM`: which `P` lines exist on DATE, the path of prices, inverse rates |
+| [value-arithmetic](hledger/value-arithmetic.md) | `--value=DATE,COMM`: products, rounding, cost and lot of an amount, merged amounts of a posting |
+| [cost](hledger/cost.md) | `--cost`: unit and total costs, lots, inferred prices, which conversion postings are dropped |
 
 ## Index (Beancount 3.2.3)
 

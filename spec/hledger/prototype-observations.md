@@ -159,6 +159,14 @@ no price: val-p1-bad … val-p8-bad). Details, from val-g19-p-syntax, val-m4-d-y
 
 ## Valuation
 
+*Superseded by the spec notes [value-prices](value-prices.md), [value-arithmetic](value-arithmetic.md) and
+[cost](cost.md), which re-verified every rule below with new probes. The text is kept as it was. Where it
+differs: the equal-amounts gap of `--cost` is explained there (an anchor posting that another repeats keeps the
+pairs; an odd run of conversion postings before a priced posting is an exception); the folding order of rates is
+settled (from the amount's side, each product capped at 255 places); a non-zero result that rounds to zero is
+`0.0000000000`, not `0`; the empty `D`-less commodity, quoted commodities and the date forms of `--value` are
+described there.*
+
 ### `--cost`
 - Every amount with a cost becomes an amount in the cost commodity and loses `acost` and `acostbasis`. `UnitCost`: `normalise(q × p)`;
   `TotalCost`: the stored total as is (an explicit `@@` was normalised when parsed, `-2 @@ 100` is already −100; a total *inferred* by balancing keeps its
