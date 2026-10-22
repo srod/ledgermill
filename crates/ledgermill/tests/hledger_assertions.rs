@@ -410,3 +410,86 @@ fn the_first_date_in_a_posting_s_comment_is_its_date() {
         "not in before February"
     );
 }
+
+/// `[line, code]` of each finding, in the order `check()` gives them.
+fn order(name: &str, content: &str) -> Value {
+    let rows: Vec<Value> = findings(name, content)
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| json!([f["line"], f["code"]]))
+        .collect();
+    Value::Array(rows)
+}
+
+#[test]
+fn an_unbalanced_transaction_comes_before_a_failing_assertion_written_earlier() {
+    // hledger balances every plain transaction before it looks at any assertion.
+    let cases: [(&str, &str, Value); 3] = [
+        (
+            "unbalanced, later in the file",
+            include_str!("../../../spec/hledger/probes/assert-prec-unbalanced.journal"),
+            json!([[5, "unbalanced-transaction"], [2, "assertion-failed"]]),
+        ),
+        (
+            "two postings without an amount",
+            include_str!("../../../spec/hledger/probes/assert-prec-two-elided.journal"),
+            json!([[5, "unbalanced-transaction"], [2, "assertion-failed"]]),
+        ),
+        (
+            "both in one transaction: it is reported as unbalanced first",
+            include_str!("../../../spec/hledger/probes/assert-prec-both.journal"),
+            json!([[1, "unbalanced-transaction"], [2, "assertion-failed"]]),
+        ),
+    ];
+    for (name, probe, expected) in cases {
+        assert_eq!(order("x.journal", probe), expected, "{name}");
+    }
+}
+
+#[test]
+fn a_parse_error_is_first_and_the_walk_of_an_unread_file_reports_nothing() {
+    // The balances of a file with a line that was not read cannot be trusted.
+    let probe = include_str!("../../../spec/hledger/probes/assert-prec-parse.journal");
+    assert_eq!(order("x.journal", probe), json!([[8, "parse-error"]]));
+}
+
+#[test]
+fn plain_transactions_are_balanced_in_file_order_and_assertions_are_walked_in_date_order() {
+    let journal = "\
+2026-03-01 unbalanced, written first
+  a  1 EUR = 7 EUR
+  b  -2 EUR
+
+2026-01-01 unbalanced, written second
+  a  1 EUR = 8 EUR
+  b  -2 EUR
+";
+    assert_eq!(
+        order("x.journal", journal),
+        json!([
+            [1, "unbalanced-transaction"],
+            [5, "unbalanced-transaction"],
+            [6, "assertion-failed"],
+            [2, "assertion-failed"]
+        ])
+    );
+    let probe = include_str!("../../../spec/hledger/probes/assert-fail-first-by-date.journal");
+    assert_eq!(
+        order("x.journal", probe),
+        json!([[6, "assertion-failed"], [2, "assertion-failed"]])
+    );
+}
+
+#[test]
+fn a_journal_with_failed_assertions_still_returns_its_transactions() {
+    let probe = include_str!("../../../spec/hledger/probes/assert-fail-first-by-date.journal");
+    let lines: Vec<Value> = transactions("x.journal", probe)
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["source"]["line"].clone())
+        .collect();
+    // Printed by date: the transaction written second is first.
+    assert_eq!(lines, vec![json!(5), json!(1)]);
+}

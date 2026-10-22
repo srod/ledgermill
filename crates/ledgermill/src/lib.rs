@@ -42,14 +42,23 @@ impl Ledger {
         &self.postings
     }
 
-    /// Problems found while loading.
+    /// Problems found while loading, in the order the reference tool meets them, which is not line
+    /// order: the first error is therefore the reference's first error.
     ///
-    /// hledger: ordered by file (as given), then line.
+    /// hledger: file by file, as given (hledger stops at the first file that has an error). In a
+    /// file: what the lines gave (`parse-error`, `unsupported-syntax`), in line order; then the
+    /// problems of the transactions without a balance assignment (`unbalanced-transaction`), in
+    /// file order; then the walk over the postings by date, ties by position in the file
+    /// (spec/hledger/assertion-failures.md): the `assertion-failed` findings of plain postings
+    /// and, for a transaction with an assignment, taken as a block at its date, its
+    /// `assignment-with-posting-date`, its `assertion-failed` and then its own
+    /// `unbalanced-transaction`. A file with a line that was not read is not walked, as its
+    /// balances would be wrong.
     ///
     /// Beancount: in the order `bean-check` prints them, which is not line order: by step (parsing,
     /// booking, pads, balance assertions, then the validations), and within a step by date, with a
-    /// `balance` before the rest of its day (spec/beancount/check-order.md). The first error is
-    /// therefore the reference's first. A warning (`ignored-syntax`) comes before the errors.
+    /// `balance` before the rest of its day (spec/beancount/check-order.md). A warning
+    /// (`ignored-syntax`) comes before the errors.
     pub fn check(&self) -> &[Finding] {
         &self.findings
     }
