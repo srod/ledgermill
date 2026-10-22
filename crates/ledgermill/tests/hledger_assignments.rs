@@ -494,3 +494,70 @@ fn a_price_is_inferred_for_the_first_posting_unless_it_holds_several_amounts() {
         json!([[4, "unbalanced-transaction"]])
     );
 }
+
+#[test]
+fn the_amounts_that_zero_other_commodities_keep_the_lot_of_one_posting_and_never_more() {
+    // A lot survives only when exactly one posting made the balance in that commodity; the asserted commodity never has one.
+    let probe = include_str!("../../../spec/hledger/probes/assign-lots.journal");
+    assert_eq!(findings("x.journal", probe), json!([]));
+    assert_eq!(
+        rows("x.journal", probe),
+        vec![
+            "1: l1 => 1 X {10 EUR} | l1 => 1 X {10 EUR} | l2 => 1 X {10 EUR} | l2 => 1 X | l4 => 1 X {10 EUR} | l4 => 0 X | l5 => 0 X | l5 => 1 X {10 EUR} | l6 => 2 X {10 EUR}[2026-01-01](lbl) | l7 => 2 X {15 EUR} | l8 => 2 X {10 EUR} | l9 => 2 X @ 12 EUR {10 EUR} | l10 => 2 X {10 EUR} | l10 => 3 EUR | l12 => 2 Y {10 EUR} | l12 => 1 EUR | l13 => 1 EUR | l13:s => 2 Y {10 EUR} | z => -29 EUR, -14 X, -4 Y",
+            "22: l1 => -2 X | l2 => -2 X | z => 4 X",
+            "27: l4 => -1 X | l5 => -1 X | z => 2 X",
+            "32: l6 => -2 X {10 EUR}[2026-01-01](lbl) | l7 => -2 X {15 EUR} | z => 4 X",
+            "37: l8 => -1 X | z => 1 X",
+            "41: l9 => -2 X {10 EUR} | z => 2 X {10 EUR}",
+            "45: l10 => -2 X {10 EUR} | z => 2 X {10 EUR}",
+            "49: l11 => 2 X {10 EUR} | l11 => 3 X {11 EUR} | z => -5 X",
+            "54: l11 => -5 X | z => 5 X",
+            "58: l12 => 1 Y | z => -1 Y",
+            "62: l12 => -3 Y | z => 3 Y",
+            "66: l13 => -2 Y {10 EUR} | z => 2 Y {10 EUR}"
+        ]
+    );
+}
+
+#[test]
+fn a_price_in_the_asserted_amount_is_subtracted_from_the_entries_as_they_are() {
+    // Entries are grouped by price: costless first, then by price commodity, total before unit, then by value.
+    let probe = include_str!("../../../spec/hledger/probes/assign-cost.journal");
+    assert_eq!(findings("x.journal", probe), json!([]));
+    assert_eq!(
+        rows("x.journal", probe),
+        vec![
+            "1: a => 3 X | b => 3 X | c => 1 X | c => -1 X | d => 3 X @ 2 EUR | d => 2 X @ 3 EUR | d => 4 X | e => 3 X | f => 2 Y | z => -12 EUR, -13 X, -2 Y",
+            "13: d => 1 X | z => -1 X",
+            "17: a => -3 X, 3 X @ 2 EUR | z => -6 EUR, 3 X",
+            "21: a => 5 X, -3 X @ 2 EUR | z => 6 EUR, -5 X",
+            "25: b => -3 X, 3 X @@ 6 EUR | z => -6 EUR, 3 X",
+            "29: c => 3 X @ 2 EUR | z => -6 EUR",
+            "33: g => 3 X @ 2 EUR | z => -6 EUR",
+            "37: g => 1 X | g => 3 X, -3 X @ 2 EUR | z => 6 EUR, -4 X",
+            "42: f => 3 X @ 2 EUR, -2 Y | z => -6 EUR, 2 Y",
+            "46: h => 1 X @ 1 EUR | h => 1 X @ 1 EUR | z => -2 EUR",
+            "51: i => 1 X @@ 3 EUR | i => 1 X @@ -2 EUR | z => -1 EUR",
+            "56: j => 1 X @ 2 EUR | j => 1 X @ 1 EUR, -1 X @ 2 EUR | j => 1 X @@ 9 EUR, -1 X @ 1 EUR | j => -1 X @@ -9 EUR, 1 X @ 1 USD | j => 1 X, -1 X @ 1 USD | j => -1 X | z => 0 EUR, 0 USD, 0 X",
+            "65: k => 3 X @ 2 EUR | k => 1 X | k => 0 X | z => -6 EUR, -1 X"
+        ]
+    );
+}
+
+#[test]
+fn sub_accounts_are_added_in_name_order_so_places_can_differ_from_hledger_when_a_partial_sum_is_zero()
+ {
+    // 1.25, 3 and -1.25 over three sub-accounts, `a =* 4`: hledger adds them in an order that
+    // follows no rule we know (the notes call it unsettled), so it gives 1.00 for the first
+    // journal and 1 for the second. ledgermill adds in name order and gives 1.00 for both. The
+    // value is the same; the harness compares these two ignoring places.
+    for probe in [
+        include_str!("../../../spec/hledger/probes/assign-inclusive-order-names-bcd.journal"),
+        include_str!("../../../spec/hledger/probes/assign-inclusive-order-names-x123.journal"),
+    ] {
+        assert_eq!(
+            rows("x.journal", probe).last().unwrap(),
+            "7: a => 1.00 EUR | z => -1.00 EUR"
+        );
+    }
+}
