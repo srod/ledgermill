@@ -1,0 +1,14 @@
+; Rules with CRLF line ends.
+2026-01-01 t
+    a  1 EUR
+    b
+
+= x
+    (budget)  *2
+
+~ monthly  rent
+    c  1 EUR
+
+2026-01-02 u
+    d  1 EUR
+    e

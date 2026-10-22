@@ -1,0 +1,7 @@
+; Invalid posting of a rule, on line 7: two prices
+2026-01-01 before
+    a   1 EUR
+    b
+
+= x
+    a  1 EUR @ 2 USD @ 3 USD

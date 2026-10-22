@@ -1,0 +1,4 @@
+; File 1 of a pair: a transaction that does not balance (line 2).
+2026-01-01 t
+    a  1 EUR
+    b  -2 EUR

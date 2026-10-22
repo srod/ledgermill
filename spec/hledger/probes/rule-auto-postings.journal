@@ -1,0 +1,43 @@
+; What an automated rule's postings may be: none of the transaction checks apply to them.
+= expenses
+    (budget)  0.5
+    a  1 EUR
+    b  -2 EUR
+    c
+    d
+    e
+    ; a comment line
+    f  1 EUR  ; a comment with a tag: value
+    ; another comment line
+    [g]  1 EUR
+    * h  1 EUR
+    ! i  1 EUR
+    a  1 EUR = 5 EUR
+    a  1 EUR == 5 EUR
+    a  1 EUR =* 5 EUR
+    a  = 5 EUR
+    a  1 EUR @ 2 USD
+    a  1 EUR @@ 2 USD
+    a  1 EUR {2 USD}
+    a  1 EUR {{2 USD}}
+    a  1 EUR {=2 USD}
+    a  1 EUR [2026-01-01]
+    a  1 EUR (label)
+    a  1 EUR = 5 EUR @ 2 USD
+    a  = 5 EUR ; date:2026-01-02
+    a  1,2,3
+    a  1.2.3
+    a  +1
+    a  1e3
+    a  1000000000000000000000000000000000
+    a  $-1
+    a  1 "x y"
+    a 1 EUR
+    a  ; only a comment
+    %account  1
+    (%account:tax)  1 EUR
+    a  1 %account
+
+2026-01-01 t
+    a   1 EUR
+    b

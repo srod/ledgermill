@@ -1,0 +1,15 @@
+; Dates in the posting comments of a periodic rule. A date without a year takes the year of the Y directive
+; before it, or else the current year (here only 02-29 would depend on it).
+Y 2024
+~ monthly
+    ; date:garbage on a comment line before the first posting is not read
+    a  1 EUR  ; date:02-29
+    a  1 EUR  ; [02-29]
+    a  1 EUR  ; date2:02-29
+    a  1 EUR  ; [01-01=02-29]
+    a  1 EUR  ; date:2026-01-02 date:02-03
+
+Y 2026
+~ monthly
+    a  1 EUR  ; date:02-03
+    a  1 EUR  ; [02-03]

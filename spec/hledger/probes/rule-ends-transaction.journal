@@ -1,0 +1,19 @@
+; A rule header at the margin ends the transaction above it (no blank line needed), and a
+; transaction header ends the rule above it. The rules' postings belong to the rules.
+2026-01-01 first
+    a  1 EUR
+    b
+= x
+    (budget)  1 EUR
+    c  2 EUR
+2026-01-02 second
+    d  1 EUR
+    e
+~ monthly
+    f  1 EUR
+= y
+~ weekly
+2026-01-03 third
+    g  1 EUR
+    h
+=

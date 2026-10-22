@@ -1,0 +1,7 @@
+; A rule on the last line, with no newline after it.
+2026-01-01 t
+    a  1 EUR
+    b
+
+= x
+    (budget)  *2

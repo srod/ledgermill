@@ -1,7 +1,7 @@
 # typos: spelling in code, spec notes and docs.
-# Journals are test data with made-up words on purpose, so they are not checked.
+# Journals and the period-expression corpus are test data with made-up words on purpose, so they are not checked.
 [files]
-extend-exclude = ["*.journal", "LICENSE-*"]
+extend-exclude = ["*.journal", "LICENSE-*", "spec/hledger/period-forms.txt"]
 
 [default]
 # The 6-character transaction ids that open the rows in spec notes are hashes, not words.

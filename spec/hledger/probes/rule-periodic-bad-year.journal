@@ -1,0 +1,7 @@
+; Invalid rule header, on line 6: a year needs four digits
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ 999
+    (x)  1

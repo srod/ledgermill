@@ -1,0 +1,4 @@
+; 02-29 in a periodic rule takes the year of the Y directive: 2025 has no 29 February (error on line 4).
+Y 2025
+~ monthly
+    a  1 EUR  ; date:02-29

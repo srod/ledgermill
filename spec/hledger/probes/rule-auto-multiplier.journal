@@ -1,0 +1,40 @@
+; The amount of an automated rule's posting may be a multiplier: `*` and then an amount.
+= expenses
+    a  *2
+    a  *-2
+    a  *+2
+    a  *0.5
+    a  *.5
+    a  *5.
+    a  *1,000
+    a  *1 000
+    a  *1e3
+    a  *2 EUR
+    a  *2EUR
+    a  *-2 EUR
+    a  *EUR2
+    a  *EUR 2
+    a  *$2
+    a  *-$2
+    a  *$-2
+    a  *"x y" 2
+    a  *2 "x y"
+    a  *2 @ 3 EUR
+    a  *2 = 5
+    a  *2 EUR {3 EUR}
+    a  *2 EUR @@ 3
+    a  *2 EUR == 5 EUR
+    a  *1.2.3
+    a  *99999999999999999999999999999999999
+    a  *2 ; a comment
+    a  *
+    a  * ; a comment
+    a  *0
+    a   *2
+    (a)  *2
+    [a]  *2
+    a *2
+
+2026-01-01 t
+    a   1 EUR
+    b

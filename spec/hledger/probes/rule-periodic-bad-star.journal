@@ -1,0 +1,7 @@
+; Invalid posting of a rule, on line 7: a multiplier is only read in an automated rule
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ monthly
+    a  *2

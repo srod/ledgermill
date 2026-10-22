@@ -1,0 +1,7 @@
+; Invalid posting of a rule, on line 7: a blank between * and the number
+2026-01-01 before
+    a   1 EUR
+    b
+
+= x
+    a  * 2

@@ -1,0 +1,25 @@
+; What a periodic rule's postings may be: none of the transaction checks apply to them either.
+~ monthly
+    a  1 EUR
+    b  -2 EUR
+    c
+    d
+    e
+    ; a comment line
+    f  1 EUR  ; a comment with a tag: value
+    [g]  1 EUR
+    * h  1 EUR
+    a  1 EUR = 5 EUR
+    a  = 5 EUR
+    a  1 EUR @ 2 USD
+    a  1 EUR {2 USD}
+    a  = 5 EUR ; date:2026-01-02
+    a  1,2,3
+    a  1000000000000000000000000000000000
+    a  ; only a comment
+    a  1 EUR ; date:02-03
+    a  1 EUR ; [02-03]
+
+2026-01-01 t
+    a   1 EUR
+    b

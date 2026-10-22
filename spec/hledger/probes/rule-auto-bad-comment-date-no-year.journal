@@ -1,0 +1,7 @@
+; Invalid posting of a rule, on line 7: a date without a year, which no transaction supplies
+2026-01-01 before
+    a   1 EUR
+    b
+
+= x
+    a  1 EUR ; date:02-03

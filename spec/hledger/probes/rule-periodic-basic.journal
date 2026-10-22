@@ -1,0 +1,12 @@
+; A periodic rule between two transactions. Without --forecast it changes nothing.
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ monthly
+    rent   500 EUR
+    bank
+
+2026-01-02 after
+    c   2 EUR
+    d

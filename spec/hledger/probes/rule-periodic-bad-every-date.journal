@@ -1,0 +1,7 @@
+; Invalid rule header, on line 6: a day the month does not have
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ every 2/30
+    (x)  1

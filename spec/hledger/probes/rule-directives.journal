@@ -1,0 +1,28 @@
+; Directives around rules. The rules read their amounts as hledger reads any amount (the same
+; decimal mark and digit groups), and change nothing for the transactions around them.
+Y 2026
+decimal-mark ,
+commodity 1.000,00 EUR
+D 1.000,00 EUR
+alias old=new
+apply account top
+
+= x
+    (budget)  1.000,5
+    (budget)  1,5 EUR
+    a  *1,5
+
+~ monthly
+    (budget)  1.000,5
+    old  1,5 EUR
+
+end apply account
+decimal-mark .
+
+= x
+    (budget)  1,000.5
+
+2026-01-01 t
+    old:a  1.000,50 EUR
+    b  5
+    c  -1.005,50

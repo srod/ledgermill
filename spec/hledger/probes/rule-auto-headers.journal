@@ -1,0 +1,56 @@
+; The query of an automated rule is not read unless --auto is given: nothing here is an error
+; without it, not even an invalid regular expression or date.
+= expenses
+    (x)  1
+
+=
+    (x)  1
+
+=expenses
+    (x)  1
+
+= acct:expenses amt:>10 not:desc:foo
+    (x)  1
+
+= desc:foo  ; a comment after two spaces
+    (x)  1
+
+= desc:foo ; a comment after one space
+    (x)  1
+
+= (
+    (x)  1
+
+= re:[
+    (x)  1
+
+= date:garbage
+    (x)  1
+
+= amt:abc
+    (x)  1
+
+= depth:x
+    (x)  1
+
+= "unterminated
+    (x)  1
+
+= nosuch:foo
+    (x)  1
+
+==
+    (x)  1
+
+= ~ monthly
+    (x)  1
+
+=;comment glued to the sign
+    (x)  1
+
+=	tab after the sign
+    (x)  1
+
+2026-01-01 t
+    a   1 EUR
+    b

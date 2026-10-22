@@ -1,0 +1,7 @@
+; Invalid rule header, on line 6: two dates need to, .. or -
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ monthly 2026-01-01 2026-02-01
+    (x)  1

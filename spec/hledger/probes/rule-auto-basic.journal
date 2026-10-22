@@ -1,0 +1,11 @@
+; An automated rule between two transactions. Without --auto it changes nothing.
+2026-01-01 before
+    a   1 EUR
+    b
+
+= expenses:food
+    (budget:food)   0.5
+
+2026-01-02 after
+    expenses:food   10 EUR
+    cash

@@ -1,0 +1,7 @@
+; Invalid posting of a rule, on line 7: a date without a year comes before the full date that would give its year
+2026-01-01 before
+    a   1 EUR
+    b
+
+= x
+    a  1 EUR ; date:02-03 date2:2026-01-01

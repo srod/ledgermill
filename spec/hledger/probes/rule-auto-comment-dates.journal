@@ -1,0 +1,18 @@
+; Dates in the posting comments of an automated rule. No transaction gives them a year, so a date
+; without a year is only read where an earlier date of the same comment line gives one.
+= x
+    ; date:02-03 on a comment line before the first posting is not read
+    ; [02-03] nor is this
+    a  1 EUR  ; date:2026-01-02
+    a  1 EUR  ; date2:2026-01-02
+    a  1 EUR  ; [2026-01-02]
+    a  1 EUR  ; [2026-01-02=2026-02-03]
+    a  1 EUR  ; [2026-01-02=02-03]
+    a  1 EUR  ; [=2026-02-03]
+    a  1 EUR  ; date:2026-01-02 date:02-03
+    a  1 EUR  ; date2:2026-01-02 date:02-03
+    a  1 EUR  ; date: 2026-01-02
+    a  1 EUR  ; date:2026-01-02 and text after it
+    a  1 EUR  ; [x] and [2026] are only text
+    a  1 EUR  ; 02-03 is not in a tag or in brackets
+    a  1 EUR  ; type:A and other: tags

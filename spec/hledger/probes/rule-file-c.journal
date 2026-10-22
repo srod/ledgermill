@@ -1,0 +1,7 @@
+; A valid rule in a file of its own.
+= x
+    (budget)  *2
+
+2026-01-03 v
+    c  1 EUR
+    d

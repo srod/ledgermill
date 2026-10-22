@@ -1,0 +1,37 @@
+; What may follow the period expression: a description after two blanks, or a comment.
+~ monthly  rent
+    (x)  1
+
+~ monthly  rent ; and a comment
+    (x)  1
+
+~ monthly ; a comment after one space
+    (x)  1
+
+~ monthly; a comment with no space
+    (x)  1
+
+~ monthly  ; a comment after two spaces
+    (x)  1
+
+~ monthly		two tabs, then a description
+    (x)  1
+
+~ monthly 	a space and a tab, then a description
+    (x)  1
+
+~ monthly	 a tab and a space, then a description
+    (x)  1
+
+~ every 2 months  in 2023, we will review
+    (x)  1
+
+~monthly  glued to the sign
+    (x)  1
+
+~ monthly  (code) * not a status, any text is the description
+    (x)  1
+
+2026-01-01 t
+    a   1 EUR
+    b

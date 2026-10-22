@@ -1,0 +1,7 @@
+; Invalid rule header, on line 6: a comment cannot stand for the period expression
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ ; a comment
+    (x)  1

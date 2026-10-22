@@ -1,0 +1,10 @@
+; A rule header inside a comment block is a comment, valid or not.
+comment
+~ not a period expression
+    a  1 +
+= x
+    junk
+end comment
+2026-01-01 t
+    a  1 EUR
+    b

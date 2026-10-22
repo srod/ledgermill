@@ -1,0 +1,7 @@
+; Invalid posting of a rule, on line 7: text after an amount
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ monthly
+    a  1 EUR junk

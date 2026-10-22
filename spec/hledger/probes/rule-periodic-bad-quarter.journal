@@ -1,0 +1,7 @@
+; Invalid rule header, on line 6: quarter 5
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ 2026q5
+    (x)  1

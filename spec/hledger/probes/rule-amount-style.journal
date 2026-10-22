@@ -1,0 +1,10 @@
+; The amounts of a rule do not give EUR a display style or places: the transaction's amounts read the same.
+= x
+    (budget)  1,234.5678 EUR
+
+~ monthly
+    (budget)  1.5 EUR
+
+2026-01-01 t
+    a  5 EUR
+    b

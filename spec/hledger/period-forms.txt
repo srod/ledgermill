@@ -1,0 +1,466 @@
+ok	daily
+ok	weekly
+ok	monthly
+ok	quarterly
+ok	yearly
+ok	biweekly
+ok	fortnightly
+ok	bimonthly
+ok	Daily
+ok	MONTHLY
+ok	every day
+ok	every week
+ok	every month
+ok	every quarter
+ok	every year
+ok	every 2 days
+ok	every 1 days
+err:11	every 1 day
+ok	every 3 weeks
+ok	every 2 months
+ok	every 4 quarters
+ok	every 5 years
+ok	every 2nd day of week
+ok	every 1st day of week
+ok	every 8th day of week
+ok	every 5th day
+ok	every 5th day of month
+ok	every 31st day of month
+ok	every 32nd day
+err:16	every 2nd day of year
+err:16	every 2nd day of quarter
+err:16	every 2nd days
+ok	every monday
+ok	every Mon
+ok	every MONDAY
+ok	every thu
+ok	every thursday
+err:12	every tues
+ok	every weekday
+ok	every weekendday
+err:13	every weekend
+ok	every 2nd thursday
+ok	every 2nd thursday of month
+err:19	every 2nd monday of week
+ok	every 6th monday
+ok	every 1/15
+ok	every 1/15 of year
+err:13	every 1/15 of month
+err:14	every 13/15
+err:13	every 2/30
+ok	every 2/29
+ok	every jan 5th
+err:14	every jan 5
+ok	every january 5th of year
+err:17	every jan 5th of month
+ok	every 5th jan
+ok	every 5th january of year
+ok	every feb 30th
+err:10	every 5
+err:12	every 1st
+err:16	every 2 weeks monday
+err:9	every -1 days
+err:8	every
+err:10	every 2  days
+ok	2026
+ok	2026-01
+ok	2026-01-15
+ok	2026/1/5
+ok	2026.1.5
+ok	2026q1
+ok	2026Q1
+ok	q1
+ok	Q4
+err:4	q5
+err:7	2026q0
+err:7	2026q5
+ok	202601
+ok	20260115
+ok	20261301
+ok	20260132
+ok	2026011
+ok	2018010
+err:11	201801012
+ok	2026-1
+ok	2026-13
+err:8	2026-00
+err:11	2026-01-32
+ok	2026-02-30
+ok	2026-02-29
+ok	2024-02-29
+ok	2026-04-31
+ok	0000
+err:6	999
+ok	12345
+ok	12/31
+err:5	12/32
+err:5	13/1
+ok	1/1
+ok	2/29
+err:4	2/30
+ok	21
+err:4	0
+err:5	32
+ok	jan
+ok	january
+ok	Jan
+ok	may
+ok	sep
+err:6	sept
+err:3	sec
+err:3	mon
+err:6	jan 2026
+ok	jan-apr
+ok	jan..apr
+ok	jan to apr
+ok	from jan
+ok	since jan
+ok	to jan
+ok	until jan
+ok	from 2026-01-01 to 2026-02-01
+err:18	from 2026-01-01 until 2026-02-01
+ok	2026-01-01..2026-02-01
+ok	2026-01-01 - 2026-02-01
+ok	2026-01-01-2026-02-01
+ok	2026-01-01to2026-02-01
+err:13	2026-01-01 2026-02-01
+ok	..2026-02-01
+ok	2026-01-01..
+ok	2026-01-01-
+ok	2026-
+err:7	2026 -
+err:7	2026 ..
+err:7	2026to
+err:7	2026 to
+err:5	..
+err:4	-
+err:5	to
+err:7	from
+err:8	since
+err:8	until
+err:5	in
+ok	in 3
+ok	in 2026
+ok	IN 2026
+ok	From 2026
+ok	FROM 2026 TO 2027
+ok	since 2026 to 2027
+err:13	until 2026 to 2027
+err:10	to 2026 from 2025
+err:12	from 2026 from 2025
+err:10	to 2026 to 2027
+ok	from 2026..2027
+ok	from 2026 - 2027
+ok	from 2026-2027
+err:12	from 2026 to
+ok	from 2026-02-30
+err:18	from 2026-02-30 to 2027
+err:13	to 2026-02-30
+err:13	in 2026-02-30
+ok	2026-q1
+ok	from 2026-q1
+err:10	to 2026-q1
+ok	yesterday
+ok	today
+ok	tomorrow
+ok	last day
+ok	last week
+ok	this month
+ok	next quarter
+ok	next year
+ok	last year
+err:8	last yr
+ok	last monday
+ok	this friday
+ok	next february
+ok	last feb
+ok	in 3 days
+ok	in 2 weeks
+ok	in 1 month
+ok	3 days ahead
+ok	3 days ago
+ok	1 week ago
+ok	2 months ahead
+err:7	in 3 fortnights
+err:4	3 hours ago
+ok	in 3 day
+ok	3 day ago
+ok	3 days
+ok	1 day
+ok	in 0 days
+ok	in -1 days
+err:9	in 1.5 days
+err:6	in days
+ok	in 3 days ahead
+ok	in 3 days ago
+err:9	5 weekdays ago
+ok	last weeks
+ok	next quarters
+ok	this days
+ok	in next quarter
+ok	in last year
+ok	in last monday
+ok	in yesterday
+ok	in today
+ok	in jun
+ok	in q2
+ok	in 2026q2
+ok	in 12/31
+ok	in 21
+ok	in 2026-01
+err:10	in 2026 to 2027
+ok	in 3 days to 2027
+ok	in next quarter to 2027
+ok	in last year to 2027
+ok	last year to 2026
+ok	this year to next year
+ok	last monday to next monday
+ok	today to tomorrow
+ok	2026 to today
+ok	from 12/1
+ok	from 12/1 to 12/31
+ok	from in 2 days
+err:15	from in 2026
+ok	to in 3 days
+ok	2026 to in 3 days ago
+ok	monthly from 2026-01-01
+ok	monthly from 2026-01-01 to 2026-06-01
+ok	monthly since 2026-01-01
+ok	monthly in 2026
+ok	monthly in 2026-03
+ok	monthly 2026
+err:21	monthly 2026-01-01 2026-02-01
+ok	monthly 2026-01-01 to 2026-02-01
+ok	monthly to 2026-02-01
+ok	monthly until 2026-02-01
+err:10	monthly in
+err:10	monthly in from 2026
+err:18	monthly in 2026 to 2027
+err:10	monthly,2026
+ok	monthly-2026
+err:21	monthly 2026 monthly
+err:10	monthly weekly
+err:9	weekly monthly
+ok	monthlyfrom 2026
+ok	monthly from2026
+ok	monthly2026
+ok	every2days
+ok	every 2days
+ok	every day 2026
+ok	every monday from 2026-01-01
+ok	every 3rd monday in 2026
+ok	every month from 2026 to 2027
+ok	daily from jan to mar
+err:8	daily from
+err:8	daily from to 2026
+err:7	2026 daily
+err:12	from 2026 daily
+err:8	daily daily
+ok	2026 - 2026
+err:7	2026 - x
+err:10	2026-01 2026.4
+err:13	2026-02-30 - 2026q2
+err:13	2026-02-30 - 8 quarters
+err:10	2026-13-01 to today
+err:12	2026/03..0
+ok	2026/1/5 .. 21
+err:9	2026q2 2026.4
+err:21	Monthly 2026-02-30 to last apr
+ok	Monthly from 3 months ago
+ok	Monthly from mar
+err:10	Monthly0
+err:18	Monthly2026-01-32
+ok	bimonthly 2026/1/5
+ok	bimonthly from jun
+ok	bimonthly in 2026.12.31
+ok	bimonthlyaug to 5 day ago
+ok	biweekly 202601
+ok	biweekly from 2026-01
+ok	biweekly in yesterday
+ok	biweeklytoday to 2026
+ok	daily from june to 1999
+err:19	daily in 2026-01-32
+ok	daily in 2026.12.31
+ok	daily in yesterday
+ok	every 0 quarters
+err:11	every 0 week in this jun to 2026q2
+ok	every 1/8
+ok	every 10/5 of year
+ok	every 11/19 of year2026/1/5
+ok	every 11/20 of year
+ok	every 11/4 of year
+ok	every 11nd day of month 7 to 202601
+ok	every 12/2 of year
+err:26	every 12nd day 2026-01-32
+err:14	every 13/28
+ok	every 13nd thursday of month
+ok	every 14st saturday today
+ok	every 15rd day 2026/1/5 to yesterday
+ok	every 15st thursday of month
+ok	every 16st day of monthnext tue
+ok	every 16th sun of month in in 5 year ago
+ok	every 17rd day
+err:37	every 17th wed of month in 2026-01-32 to 3.4
+ok	every 18nd day in 7
+ok	every 19st november
+ok	every 19st septemberthis august to aug
+ok	every 19th jandec
+ok	every 2/17 12 weeks ago
+ok	every 2/19 2026.12.31
+err:13	every 2026
+ok	every 21th saturday of month
+ok	every 23th mar from in 3 week ahead
+err:28	every 26nd day 2026-02-30 to tomorrow
+ok	every 26st day of week
+ok	every 27st mon of monthlast june
+ok	every 28th august8 weeks ahead to 2026-01-15
+ok	every 29st may from 2026q2
+ok	every 3/22 of year
+err:31	every 30th dec in 2026.12.31 to 2026q2
+ok	every 31st monday 2026.12.31 to 2026/1/5
+ok	every 32th apr from 2026-01 to today
+ok	every 35nd tue of month 20260115 to today
+ok	every 35rd day from 20260115 to 2025
+ok	every 35st saturday from Q1 to 2026
+ok	every 3st day from 3.4 to 2026.12.31
+ok	every 4/26 from this apr
+ok	every 4th day
+err:16	every 4th day of year
+ok	every 5st day
+ok	every 7st friday
+err:16	every 7th day of year
+ok	every 8/27
+ok	every 8nd thursday of month from 2026
+err:29	every 9nd day from 2026-01-32
+ok	every april 24th of year
+err:27	every dec 31st2026-02-30 to november
+ok	every friday from october
+ok	every jan 15th of year from mar
+ok	every jul 26th of year from 2026q2 to today
+ok	every july 24th of year from tomorrow to Q1
+ok	every jun 26th of year
+ok	every jun 31th2026-q1
+ok	every month aug
+err:14	every months
+err:14	every months2026-01
+err:16	every quarters
+err:28	every sun from 2026-02-29 to dec
+ok	every thu 2026-01
+err:13	every weeks
+err:13	every weeks today
+err:9	every x
+ok	every yearnovember to 2026q2
+ok	fortnightly 2026.12.31
+ok	fortnightlynext week
+ok	from 2026
+err:18	from 2026-02-29..1999
+err:15	from 2026-q1 to may
+ok	from 2026.12.31
+ok	from 31 - in 3 quarter ago
+ok	from december
+err:3	garbage
+err:3	garbage 2026
+ok	in 2025
+err:14	in 9 years 4 month ago
+err:8	march this sunday
+err:23	monthly from 2026-01-32
+ok	monthly to 2026
+err:10	monthly to x
+ok	monthlyjanuary
+ok	quarterly from 2026-01
+ok	since 2026-01
+ok	since Q1 - 2025
+ok	since february..202601
+ok	since in 2 year ago
+err:12	since jan - 0
+ok	since july
+err:12	this june next saturday
+ok	to 2026-01-15
+ok	to last wed
+err:11	tomorrow 8 days ahead
+ok	until 2026.12.31
+ok	until last week
+err:25	weekly from 2026-02-30 to 2026q2
+ok	weekly in 4 years ahead to 1999
+err:3	x
+ok	yearly 6 day
+ok	yearly feb to last december
+err:20	yearly in 2026-02-29 to 2026
+err:16	yearly in jan to in 2 year
+ok	yearly2026q2 to september
+ok	yearly5 quarters
+ok	yearlythis jan
+err:3	,
+err:5	- ahead1/5
+err:4	-x from
+err:6	.. monday
+err:3	/ 3rd weekly in
+err:3	/ weekdayevery
+err:6	1/5 2026-01 this
+err:6	1/5monday
+err:5	12 jan
+err:8	12/31 from 2nd
+err:6	123rdmon
+ok	1999
+err:7	1999aheadmonths week 2026q1 next
+err:4	1st quarters 2026-01-15 2026-01-15month
+err:12	2026 weekday 5thq3
+err:9	2026q1 2026-01
+err:9	2026q1 x . 2026-01..
+err:4	2ndof .. 5th- ,
+ok	31
+err:4	3rd from 1stfrom
+err:4	3rd2026-01month 1st 1,
+err:14	52026-01-15 1 mon2026-01-15
+err:3	ahead mon today ofquarters
+err:3	aheadago
+err:3	day daily days . months
+err:3	day weekday
+err:3	day-
+err:3	days in
+err:6	feb 1999
+err:6	feb x monday friday
+err:3	friday day..monday ago this
+err:3	friday feb 2026-01-15
+err:6	jan /
+err:6	jan3rd q1today1/5 ahead
+err:6	janmonago3rd daysmonthly
+err:16	lastquarters q1 12/315
+err:3	mon 5th years
+err:3	mon mon
+err:3	mon weekly of 2026feb
+err:3	monday 2026q1 ago
+err:3	monday dailysince
+err:3	month q12nd
+err:3	month since
+err:3	of daily 2025 12/31 .. 5th
+err:3	ofday ago of - to
+err:5	q1 years .
+err:5	q3 day3rd5 day ..
+err:5	q3 mondaydaily.. quarter2026
+err:4	quarter
+err:4	quarter .. day 2026 days year
+err:4	quarter year
+err:4	quarters 2026q131 daily
+err:4	quarters weekdaymonth ahead
+err:4	quarters weeksmon ahead day
+err:4	quartersquarter x year x
+err:11	since 12 1 31
+err:8	sinceago - tolast-
+err:8	this every1
+err:7	thisx 12/31 2026-01-1531
+err:11	to 12/31 12/31 mon
+err:8	today 2026q1 125 weeks 2026
+err:3	week /5
+err:3	week 1st q1day year
+err:3	week 2026next weeks
+err:3	weekday
+err:9	weekly -quarters until daily2026-01
+err:13	weekly1999 2nd quarter
+err:3	weeks
+err:3	weeks 2026-01-155 this1since
+err:3	x 2025
+err:3	year 12
+err:3	year months
+err:3	years q3 days 2026
+err:3	years5th 3rd last 1999

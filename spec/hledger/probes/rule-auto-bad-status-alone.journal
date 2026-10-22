@@ -1,0 +1,7 @@
+; Invalid posting of a rule, on line 7: a status mark with no account
+2026-01-01 before
+    a   1 EUR
+    b
+
+= x
+    !

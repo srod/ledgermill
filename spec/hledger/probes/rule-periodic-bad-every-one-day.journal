@@ -1,0 +1,7 @@
+; Invalid rule header, on line 6: the unit takes the plural after a count
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ every 1 day
+    (x)  1

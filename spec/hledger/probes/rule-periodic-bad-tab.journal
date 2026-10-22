@@ -1,0 +1,7 @@
+; Invalid rule header, on line 6: a single tab is not enough before a description
+2026-01-01 before
+    a   1 EUR
+    b
+
+~ monthly	rent
+    (x)  1

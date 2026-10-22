@@ -1,0 +1,7 @@
+; The same, with the rule's body invalid. The first error is on line 7.
+2026-01-01 t
+    a  1 EUR
+    b  -2 EUR
+
+= x
+    (x)  1 +
