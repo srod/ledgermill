@@ -1,0 +1,8 @@
+; A valuation expression in double parentheses after an amount is ignored.
+2026-01-02 t
+    a  1 EUR ((1 + 1))
+    b  -1 EUR
+
+2026-01-03 u
+    a  1 EUR @ 1.1 USD ((x))
+    b  -1.1 USD

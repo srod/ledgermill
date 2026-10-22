@@ -1,0 +1,4 @@
+# A timedot file (read by hledger by its extension): ledgermill reads only journals.
+2026-01-01
+work:a  4
+work:b  2.5h

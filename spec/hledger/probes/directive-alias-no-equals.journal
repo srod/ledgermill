@@ -1,0 +1,6 @@
+; An alias needs an =; hledger reports the error at the end of the file.
+alias a
+
+2026-01-02 t
+    a  1 EUR
+    b

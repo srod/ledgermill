@@ -1,0 +1,6 @@
+; An account directive takes no bracketed name (error at the bracket).
+account [a]
+
+2026-01-02 t
+    a  1 EUR
+    b

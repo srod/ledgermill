@@ -1,0 +1,7 @@
+; text after end apply tag is ignored.
+apply tag foo
+end apply tag x
+
+2026-01-02 t
+    a  1 EUR
+    b

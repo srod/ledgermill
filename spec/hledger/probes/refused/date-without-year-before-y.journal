@@ -1,0 +1,11 @@
+; A yearless date before a Y directive is read with the current year; after one it is read with the Y year.
+; Only the first is refused (date-without-year).
+01-02 before Y
+    a  1
+    b
+
+Y 2025
+
+01-02 after Y
+    a  1
+    b

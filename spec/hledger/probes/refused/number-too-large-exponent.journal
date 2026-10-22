@@ -1,0 +1,5 @@
+; An exponent above 4096: hledger reads the number (a mantissa of thousands of digits), ledgermill
+; refuses it (number-too-large).
+2026-01-01 t
+    a  1e5000 EUR
+    b  -1e5000 EUR

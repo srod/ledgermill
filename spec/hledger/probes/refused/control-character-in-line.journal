@@ -1,0 +1,4 @@
+; A carriage return inside a line (here after the description): ledgermill refuses it (control-character).
+2026-01-01 ttext after the carriage return
+    a  1 EUR
+    b

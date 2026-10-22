@@ -1,0 +1,11 @@
+; A transaction with no postings, alone, with a comment line, and at the end of the file.
+2026-01-01 nothing yet
+
+2026-01-02 a note
+    ; only a comment
+
+2026-01-03 t
+    a  1 EUR
+    b
+
+2026-01-04 last

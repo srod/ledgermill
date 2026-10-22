@@ -1,0 +1,6 @@
+; A commodity directive with only a decimal mark is read.
+commodity ,
+
+2026-01-02 t
+    a  1 EUR
+    b

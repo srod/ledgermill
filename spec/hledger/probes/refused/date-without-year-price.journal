@@ -1,0 +1,7 @@
+; A P directive date with no year and no Y directive: the year is the current one. ledgermill refuses it
+; (date-without-year), although a P directive changes nothing it reports.
+P 01-01 X 2 EUR
+
+2026-01-01 t
+    a  1 X
+    b

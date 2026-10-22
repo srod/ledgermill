@@ -1,0 +1,4 @@
+; An exponent that makes more than 255 decimal places is an error too (1e-256).
+2026-01-02 t
+    a  1e-256 EUR
+    b

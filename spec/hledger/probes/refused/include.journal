@@ -1,0 +1,6 @@
+; include reads another file: ledgermill refuses it (include), its caller hands it the files instead.
+include include-target.journal
+
+2026-01-02 after
+    a  1 EUR
+    b

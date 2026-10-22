@@ -1,0 +1,6 @@
+; N takes a commodity symbol, not a number.
+N 1
+
+2026-01-02 t
+    a  1 EUR
+    b

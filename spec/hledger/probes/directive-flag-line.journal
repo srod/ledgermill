@@ -1,0 +1,8 @@
+; A line starting with two hyphens is ignored (a command-line flag of Ledger).
+--strict
+--foo=bar
+--foo bar
+
+2026-01-02 t
+    a  1 EUR
+    b

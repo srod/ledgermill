@@ -1,0 +1,7 @@
+; text after end apply fixed is ignored.
+apply fixed EUR 1.5 USD
+end apply fixed x
+
+2026-01-02 t
+    a  1 EUR
+    b

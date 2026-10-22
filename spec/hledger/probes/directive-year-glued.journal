@@ -1,0 +1,6 @@
+; year, like Y, may be glued to the number.
+year2026
+
+2026-01-02 t
+    a  1 EUR
+    b

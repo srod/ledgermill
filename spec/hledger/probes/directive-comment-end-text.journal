@@ -1,0 +1,8 @@
+; Text after end comment, inside a comment block, ends the file: the line is an error.
+comment
+x
+end comment x
+
+2026-01-02 t
+    a  1 EUR
+    b

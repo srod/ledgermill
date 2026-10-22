@@ -1,0 +1,7 @@
+; The rules for csv.csv. hledger reads a CSV file with the rules in FILE.rules; ledgermill reads only journals.
+skip 1
+fields date,amount,description
+date-format %Y-%m-%d
+account1 assets:bank
+account2 expenses:x
+currency EUR

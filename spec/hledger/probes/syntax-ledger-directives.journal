@@ -1,0 +1,26 @@
+; Ledger directives that hledger accepts and ignores (see directives-other.md). The python directive and
+; the lines that start with two hyphens are in directive-python-block and directive-flag-line.
+apply fixed EUR 1.5 USD
+end apply fixed
+apply tag foo
+end apply tag
+assert 1 == 1
+bucket assets:cash
+A assets:cash
+capture assets:cash foo
+check 1 == 1
+define x=1
+eval 1
+expr 1
+python
+value 1
+N $
+C 1 EUR = 1 USD
+tag foo
+end tag
+end apply year
+--
+
+2026-01-02 t
+    a  1 EUR
+    b

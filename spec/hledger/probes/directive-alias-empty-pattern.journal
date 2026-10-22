@@ -1,0 +1,6 @@
+; An alias needs something before the =.
+alias =b
+
+2026-01-02 t
+    a  1 EUR
+    b

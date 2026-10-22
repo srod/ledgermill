@@ -1,0 +1,9 @@
+2026-01-01 t
+    a  1 EUR
+    b
+
+comment
+A comment block with no end comment line runs to the end of the file.
+2026-01-02 not read
+    a  1 EUR
+    b

@@ -1,0 +1,6 @@
+; text after end apply year is ignored.
+end apply year x
+
+2026-01-02 t
+    a  1 EUR
+    b

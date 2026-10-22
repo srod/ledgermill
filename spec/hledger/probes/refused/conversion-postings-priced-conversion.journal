@@ -1,0 +1,8 @@
+; A priced posting on a conversion account, next to a pair of conversion postings: ledgermill refuses
+; (conversion-postings).
+2026-01-01 t
+    a  1 X
+    equity:conversion  -1 X
+    equity:conversion  2 EUR
+    equity:conversion  2 Y @ 3 EUR
+    b  -8 EUR

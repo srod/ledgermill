@@ -1,0 +1,6 @@
+; C needs amounts, not words.
+C a
+
+2026-01-02 t
+    a  1 EUR
+    b

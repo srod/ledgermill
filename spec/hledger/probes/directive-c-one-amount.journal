@@ -1,0 +1,6 @@
+; C needs two amounts separated by =.
+C 1 EUR
+
+2026-01-02 t
+    a  1 EUR
+    b

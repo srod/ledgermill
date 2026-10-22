@@ -1,0 +1,200 @@
+ok	account a
+ok	account a:b:c
+ok	account a b
+ok	account a  ; a comment
+ok	account a  ; type:A
+err:1:1	account a  ; type:Q
+err:1:12	account a  junk
+ok	account a\n    ; a comment
+ok	account a\n    any text
+ok	account a\n    any text  ; c
+ok	account a\n    a:b  1
+err:1:9	account (a)
+err:1:9	account [a]
+err:1:8	account
+err:1:10	account  
+ok	account a ; one space comment
+ok	account a\t; tab comment
+ok	account\ta
+ok	payee a
+ok	payee a b
+ok	payee a  ; c
+ok	payee a ; c
+err:1:6	payee
+err:1:8	payee  
+ok	tag a
+err:1:7	tag a b
+ok	tag a  ; c
+err:1:4	tag
+err:1:4	tag\n    x
+ok	alias a=b
+ok	alias a = b
+ok	alias  a  =  b
+ok	alias /a/=b
+ok	alias /a/ = b
+err:1:8	alias /(/=b
+ok	alias /a/=b=c
+err:6:1	alias a
+err:1:7	alias =b
+ok	alias a=
+err:1:11	alias /a=b
+ok	alias a=b ; c
+err:2:5	alias a=b\n    x
+ok	alias a=b=c
+ok	end aliases
+err:1:13	end aliases x
+ok	apply account a
+ok	apply account a:b
+ok	apply account a b
+err:1:16	apply account a  b
+err:1:14	apply account
+ok	apply account a ; c
+err:2:5	apply account a\n    x
+err:1:18	end apply account
+err:1:18	end apply account x
+ok	apply account a\nend apply account
+ok	commodity EUR
+ok	commodity EUR  ; c
+ok	commodity 1.000,00 EUR
+ok	commodity $1,000.00
+ok	commodity "x y"
+err:1:11	commodity "x y" 1
+err:1:11	commodity 1 EUR
+ok	commodity 1.00 EUR
+ok	commodity 1,00 EUR
+ok	commodity 1 000.00 EUR
+err:1:11	commodity 1.0.0 EUR
+err:1:10	commodity
+ok	commodity ,
+err:1:11	commodity 1
+ok	commodity EUR\n    format 1.000,00 EUR
+ok	commodity EUR\n    note x
+err:2:13	commodity EUR\n    format x
+ok	commodity EUR\n    anything
+ok	commodity EUR 1.00
+err:1:15	commodity EUR junk
+ok	decimal-mark .
+ok	decimal-mark ,
+err:1:13	decimal-mark
+err:1:14	decimal-mark x
+ok	decimal-mark ..
+ok	decimal-mark . ; c
+err:2:5	decimal-mark .\n    x
+ok	D 1,000.00 EUR
+ok	D 1.000,00 EUR
+ok	D 1000.00 EUR
+err:1:3	D 1000 EUR
+err:1:6	D EUR
+err:1:3	D 1 EUR
+ok	D $1.00
+err:1:3	D $1
+err:1:2	D
+ok	D 1.00
+ok	D 1.00 EUR junk
+ok	D 1.00 EUR ; c
+err:2:5	D 1.00 EUR\n    x
+ok	P 2026-01-01 X 1 EUR
+err:1:15	P 2026-01-01 X
+err:1:13	P 2026-01-01
+err:1:2	P
+ok	P 2026-01-01 X 1 EUR ; c
+ok	P 2026-01-01 10:00 X 1 EUR
+ok	P 2026-01-01 10:00:00 X 1 EUR
+err:1:14	P 2026-01-01 25:00 X 1 EUR
+ok	P 2026-01-01 X 1
+err:1:19	P 2026-01-01 X EUR
+err:1:3	P 2026-13-01 X 1 EUR
+ok	P 01-01 X 1 EUR
+err:2:5	P 2026-01-01 X 1 EUR\n    x
+ok	P 2026-01-01 "X Y" 1 EUR
+ok	P2026-01-01 X 1 EUR
+ok	Y 2026
+ok	Y2026
+err:1:5	Y 26
+err:1:7	Y 2026x
+err:1:2	Y
+ok	Y 2026 ; c
+ok	Y 12345
+ok	Y 0000
+err:2:5	Y 2026\n    x
+ok	year 2026
+ok	year2026
+ok	apply year 2026
+err:1:11	apply year
+ok	end apply year
+ok	end apply year x
+ok	comment
+err:1:9	comment x
+ok	comment\nx\nend comment
+ok	comment\nx
+err:3:13	comment\nx\nend comment x
+ok	comment\nx\n end comment
+ok	comment\nx\nend  comment
+ok	comment\nx\nEnd comment
+err:1:5	end comment
+err:1:4	end
+err:1:5	end foo
+err:1:1	include x.journal
+err:1:1	include
+err:1:2	!include x.journal
+err:1:1	include x.journal ; c
+ok	apply fixed EUR 1.5 USD
+ok	apply fixed
+ok	apply fixed EUR
+ok	apply fixed junk
+ok	end apply fixed
+ok	end apply fixed x
+ok	apply tag foo
+ok	apply tag
+ok	apply tag foo bar
+ok	end apply tag
+ok	end apply tag x
+ok	end tag
+err:1:9	end tag x
+ok	assert 1 == 1
+ok	assert
+ok	bucket assets:cash
+err:1:1	bucket
+ok	A assets:cash
+err:1:1	A
+ok	capture assets:cash foo
+ok	capture assets:cash
+ok	capture
+ok	check 1 == 1
+ok	check
+ok	define x=1
+ok	define
+ok	define x
+ok	eval 1
+ok	eval
+ok	expr 1
+ok	expr
+ok	python
+ok	python x
+ok	python\n    print(1)
+ok	python\n    print(1)\n    print(2)
+ok	value 1
+ok	value
+ok	N $
+err:1:2	N
+ok	N a
+err:1:3	N 1
+ok	C 1 EUR = 1 USD
+err:1:8	C 1 EUR
+err:1:4	C a
+err:1:2	C
+ok	--
+ok	-- x
+ok	--strict
+ok	--foo=bar
+ok	--foo bar
+err:1:1	-x
+err:1:1	-
+err:1:1	apply
+err:1:1	apply x
+err:2:5	apply account a ; c\n    x
+err:1:1	i 2026-01-01 09:00:00 a
+err:1:1	o 2026-01-01 17:00:00
+err:1:1	x
+err:1:1	ab
+ok	2026-01-01 x

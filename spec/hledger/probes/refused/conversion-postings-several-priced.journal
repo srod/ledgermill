@@ -1,0 +1,10 @@
+; Two priced postings, one after an odd run of conversion postings that opens the transaction and
+; holds a pair: hledger accepts it, ledgermill refuses (conversion-postings).
+2026-01-01 t
+    equity:conversion  1 A
+    equity:conversion  -1 A
+    equity:conversion  6 EUR
+    c  2 X @ 3 EUR
+    d  1 Y @ 2 EUR
+    e  -8 EUR
+    f  -2 X

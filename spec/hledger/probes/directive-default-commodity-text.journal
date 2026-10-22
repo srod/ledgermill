@@ -1,0 +1,6 @@
+; Text after the amount of a D directive is ignored.
+D 1.00 EUR junk
+
+2026-01-02 t
+    a  1 EUR
+    b

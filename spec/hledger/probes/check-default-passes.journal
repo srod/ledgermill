@@ -1,0 +1,10 @@
+; Everything here is accepted by a plain `hledger check`: accounts, commodities, payees and tags are not
+; declared, the dates are out of order, two accounts share a leaf name, an amount is inferred, and the
+; assertion is old. Each of the named checks rejects it (see spec/hledger/check-vs-print.md).
+2026-02-01 shop | milk  ; flavour: oat
+    expenses:food:milk  1 EUR
+    assets:cash
+
+2026-01-01 shop | tea
+    expenses:drinks:milk  1 EUR
+    assets:cash  -1 EUR = -1 EUR

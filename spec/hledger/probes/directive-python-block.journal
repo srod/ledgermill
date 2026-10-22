@@ -1,0 +1,8 @@
+; The python directive takes indented lines (Ledger code), all ignored.
+python
+    print(1)
+    print(2)
+
+2026-01-02 t
+    a  1 EUR
+    b

@@ -1,0 +1,3 @@
+; A timeclock file (read by hledger by its extension): ledgermill reads only journals.
+i 2026/01/01 09:00:00 work:a  desc
+o 2026/01/01 17:00:00
