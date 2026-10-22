@@ -1,0 +1,17 @@
+2026-01-01 setup: other commodities in the account itself and in sub-accounts
+  a      -2.00 X
+  a:b    -1 X
+  d:b:c   2 Y
+  f       1 Y
+  f:g     1.00 Y
+  z
+
+2026-01-02 =* alone also zeroes the commodities that sub-accounts hold
+  a  =* 4 EUR
+  d  =* 0 EUR
+  f  =* 0 EUR
+  z
+
+2026-01-03 the account itself now holds its own X plus what was added
+  a  = 0 X
+  z

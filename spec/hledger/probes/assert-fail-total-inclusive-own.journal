@@ -1,0 +1,8 @@
+2026-01-01 setup: USD in the account itself
+  a      -3 USD
+  a:b     2 EUR
+  z
+
+2026-01-02 a commodity the account holds itself must be zero in the whole subtree
+  a  0 EUR ==* 2 EUR
+  y

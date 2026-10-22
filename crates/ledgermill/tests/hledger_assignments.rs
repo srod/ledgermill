@@ -578,3 +578,56 @@ fn an_assignment_sees_only_the_postings_of_its_own_file() {
         "1: a => 20 EUR | b => -20 EUR"
     );
 }
+
+#[test]
+fn a_star_assignment_also_zeroes_the_commodities_that_sub_accounts_hold() {
+    // The amount is the sub-accounts' share (the whole less the account's own); the account
+    // itself then holds its own plus that amount.
+    let probe = include_str!("../../../spec/hledger/probes/assign-inclusive-other.journal");
+    assert_eq!(findings("x.journal", probe), json!([]));
+    assert_eq!(
+        rows("x.journal", probe),
+        vec![
+            "1: a => -2.00 X | a:b => -1 X | d:b:c => 2 Y | f => 1 Y | f:g => 1.00 Y | z => 3.00 X, -4.00 Y",
+            "9: a => 4 EUR, 1.00 X | d => -2 Y | f => -1 Y | z => -4 EUR, -1.00 X, 3 Y",
+            "15: a => 1.00 X | z => -1.00 X"
+        ]
+    );
+}
+
+#[test]
+fn a_posting_keeps_its_price_as_an_entry_when_its_transaction_has_an_assignment() {
+    let probe = include_str!("../../../spec/hledger/probes/assign-entry-prices.journal");
+    assert_eq!(findings("x.journal", probe), json!([]));
+    assert_eq!(
+        rows("x.journal", probe),
+        vec![
+            "1: x => 1 X @ 2 EUR | w => - | y => -2 EUR",
+            "6: x => -1 X @ 2 EUR | z => 2 EUR",
+            "10: p => 1 X @ 2 EUR | y => -2 EUR",
+            "14: p => -1 X | z => 1 X",
+            "18: q => 3 X @@ 6 EUR | q => -3 X @@ -6 EUR | y => 0 EUR",
+            "23: r => 1 X @ 2 EUR | r => 2 X | r => -2 X, -1 X @ 2 EUR | y => 0 EUR, 0 X"
+        ]
+    );
+}
+
+#[test]
+fn a_posting_dated_after_its_transaction_joins_the_balance_at_the_end_of_the_block() {
+    let probe = include_str!("../../../spec/hledger/probes/assign-later-posting-date.journal");
+    assert_eq!(findings("x.journal", probe), json!([]));
+    assert_eq!(
+        rows("x.journal", probe),
+        vec![
+            "1: x => 5 EUR | x => 7 EUR | x => 0 EUR | z => -12 EUR",
+            "7: x => 0 EUR | y => 0 EUR",
+            "11: w => 5 EUR | v => 5 EUR | w => 2 EUR | v => 3 EUR | z => -15 EUR"
+        ]
+    );
+    let failing =
+        include_str!("../../../spec/hledger/probes/assign-fail-later-posting-date.journal");
+    assert_eq!(
+        order("x.journal", failing),
+        json!([[4, "assertion-failed"]])
+    );
+}

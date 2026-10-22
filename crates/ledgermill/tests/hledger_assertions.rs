@@ -582,3 +582,30 @@ fn findings_come_file_by_file_so_the_first_file_with_an_error_has_the_first_find
         assert_eq!(together(names), Value::Array(expected), "{names:?}");
     }
 }
+
+#[test]
+fn double_equals_with_a_star_looks_at_the_commodities_the_account_holds_itself() {
+    // A commodity held only by sub-accounts is not looked at; one the account holds is wanted
+    // at zero over the whole subtree.
+    let held_by_subs =
+        include_str!("../../../spec/hledger/probes/assert-total-inclusive-commodities.journal");
+    assert_eq!(findings("x.journal", held_by_subs), json!([]));
+    for (name, probe, actual) in [
+        (
+            "own USD",
+            include_str!("../../../spec/hledger/probes/assert-fail-total-inclusive-own.journal"),
+            "-3",
+        ),
+        (
+            "the sum over the subtree",
+            include_str!("../../../spec/hledger/probes/assert-fail-total-inclusive-sum.journal"),
+            "4",
+        ),
+    ] {
+        assert_eq!(
+            only_failure("x.journal", probe),
+            json!([7 + (actual == "4") as i32, 12, "USD", "0", actual]),
+            "{name}"
+        );
+    }
+}

@@ -111,6 +111,31 @@ fn groups(entries: &[&Entry]) -> Vec<Group> {
     out
 }
 
+/// `held - taken`, per price group; a group `taken` has none of is left as it is.
+fn subtract(held: &mut [Group], taken: &[Group]) {
+    for g in held.iter_mut() {
+        let Some(t) = taken.iter().find(|t| same_group(&t.price, &g.price)) else {
+            continue;
+        };
+        // Observed places (assignments.md): nothing is taken off when the account holds a
+        // zero; otherwise plain arithmetic, a zero whole being no exception, except that a share
+        // equal to the account's own balance has the places of that balance.
+        if !t.quantity.is_zero() {
+            let share = g.quantity.add(&t.quantity.negated());
+            g.quantity = if share.cmp_value(&t.quantity).is_eq() {
+                share.rounded(t.quantity.places())
+            } else {
+                share
+            };
+        }
+        if let (Some(p), Some(q)) = (g.price.as_mut(), t.price.as_ref())
+            && p.kind == CostKind::Total
+        {
+            p.value = p.value.combine(&q.value.negated(), ZeroTie::KeepEarlier);
+        }
+    }
+}
+
 /// One amount of a difference.
 struct Piece {
     price: Option<Price>,
@@ -193,28 +218,40 @@ pub(crate) struct Balances {
 }
 
 impl Balances {
-    /// A posting's amount joins the balance of its account; its price and lot never count, and a
-    /// second posting in a commodity drops the lot of the first.
-    pub(crate) fn add(&mut self, account: &str, amount: &WrittenAmount) {
+    /// A posting's amount joins the balance of its account; a second posting in a commodity drops
+    /// the lot of the first. Its price never counts in a sum, but a posting of a transaction with
+    /// an assignment (`keep_price`) keeps it: it makes an entry of its own price group, which the
+    /// amounts of a later assignment subtract as they are (assignment-processing.md).
+    pub(crate) fn add(&mut self, account: &str, amount: &WrittenAmount, keep_price: bool) {
+        let price = if keep_price {
+            amount.cost.as_ref().map(Price::of)
+        } else {
+            None
+        };
         let entries = self
             .accounts
             .entry(account.to_string())
             .or_default()
             .entry(amount.commodity.clone())
             .or_default();
-        match entries.iter_mut().find(|e| e.price.is_none()) {
+        match entries.iter_mut().find(|e| same_group(&e.price, &price)) {
             Some(e) => {
                 e.quantity = e.quantity.combine(&amount.quantity, ZeroTie::KeepLater);
+                if let (Some(held), Some(added)) = (e.price.as_mut(), price.as_ref())
+                    && held.kind == CostKind::Total
+                {
+                    held.value = held.value.combine(&added.value, ZeroTie::KeepLater);
+                }
                 e.lot = None;
             }
-            None => entries.insert(
-                0,
-                Entry {
+            None => {
+                entries.push(Entry {
                     quantity: amount.quantity.clone(),
-                    price: None,
+                    price,
                     lot: amount.lot.clone(),
-                },
-            ),
+                });
+                entries.sort_by(|a, b| cmp_group(&a.price, &b.price));
+            }
         }
     }
 
@@ -286,7 +323,9 @@ impl Balances {
         if !total {
             return None;
         }
-        self.commodities(account, inclusive)
+        // Only the commodities the account holds itself are looked at: one held only by a
+        // sub-account is not, even with a star.
+        self.commodities(account, false)
             .into_iter()
             .filter(|c| *c != asserted.commodity)
             .find_map(|commodity| {
@@ -301,6 +340,11 @@ impl Balances {
 
     /// Work out the amounts of a balance assignment and set the balance as it leaves it
     /// (assignments.md). The amounts are listed by commodity, then by price group.
+    ///
+    /// The asserted commodity is compared with what the account holds (and, with `inclusive`,
+    /// what its sub-accounts hold). `total` adds every other commodity of the account; `inclusive`
+    /// alone adds the other commodities of the sub-accounts, which the account itself then takes
+    /// back (assignments.md, "Other commodities with a star").
     pub(crate) fn assign(
         &mut self,
         account: &str,
@@ -311,38 +355,77 @@ impl Balances {
         let mut commodities = BTreeSet::from([asserted.commodity.clone()]);
         if total {
             commodities.extend(self.commodities(account, inclusive));
+        } else if inclusive {
+            commodities.extend(self.below(account).iter().flat_map(|h| h.keys().cloned()));
         }
         let mut amounts = Vec::new();
         let mut replacements: Vec<(String, Vec<Entry>)> = Vec::new();
         for commodity in commodities {
-            let target = (commodity == asserted.commodity).then_some(asserted);
-            let held = groups(&Self::entries(&self.scope(account, inclusive), &commodity));
-            for piece in difference(target, &held) {
-                if !piece.is_zero() {
-                    amounts.push(WrittenAmount {
-                        commodity: commodity.clone(),
-                        quantity: piece.quantity,
-                        cost: piece.price.as_ref().map(Price::written),
-                        lot: if target.is_some() { None } else { piece.lot },
-                    });
-                }
-            }
-            // What the account itself holds afterwards: the asserted amount less what the
-            // sub-accounts hold (all of it, for `=` and `==`, which look at no sub-account).
+            let is_asserted = commodity == asserted.commodity;
+            let target = is_asserted.then_some(asserted);
+            let own = Self::entries(&self.scope(account, false), &commodity);
             let below = if inclusive {
-                groups(&Self::entries(&self.below(account), &commodity))
+                Self::entries(&self.below(account), &commodity)
             } else {
                 Vec::new()
             };
-            let left = difference(target, &below)
+            let mut all_entries = own.clone();
+            all_entries.extend(&below);
+            let mut held = groups(&all_entries);
+            if !total && !is_asserted {
+                // Another commodity, with a star only: what the sub-accounts hold, worked out as
+                // the whole less the account's own, which can give other places than their sum.
+                subtract(&mut held, &groups(&own));
+            }
+            let pieces: Vec<Piece> = difference(target, &held)
                 .into_iter()
-                .filter(|p| target.is_some() || !p.is_zero())
-                .map(|p| Entry {
-                    quantity: p.quantity,
-                    price: p.price,
-                    lot: None,
-                })
+                .filter(|p| !p.is_zero())
                 .collect();
+            let left: Vec<Entry> = if total || is_asserted {
+                // What the account itself holds afterwards: the asserted amount less what the
+                // sub-accounts hold (all of it, for `=` and `==`, which look at no sub-account).
+                difference(target, &groups(&below))
+                    .into_iter()
+                    .filter(|p| target.is_some() || !p.is_zero())
+                    .map(|p| Entry {
+                        quantity: p.quantity,
+                        price: p.price,
+                        lot: None,
+                    })
+                    .collect()
+            } else if pieces.is_empty() {
+                own.into_iter().cloned().collect()
+            } else {
+                let mut left: Vec<Entry> = own.into_iter().cloned().collect();
+                for p in &pieces {
+                    match left.iter_mut().find(|e| same_group(&e.price, &p.price)) {
+                        Some(e) => {
+                            e.quantity = e.quantity.combine(&p.quantity, ZeroTie::KeepLater);
+                            if let (Some(held), Some(add)) = (e.price.as_mut(), p.price.as_ref())
+                                && held.kind == CostKind::Total
+                            {
+                                held.value = held.value.combine(&add.value, ZeroTie::KeepLater);
+                            }
+                            e.lot = None;
+                        }
+                        None => left.push(Entry {
+                            quantity: p.quantity.clone(),
+                            price: p.price.clone(),
+                            lot: None,
+                        }),
+                    }
+                }
+                left.sort_by(|a, b| cmp_group(&a.price, &b.price));
+                left
+            };
+            for piece in pieces {
+                amounts.push(WrittenAmount {
+                    commodity: commodity.clone(),
+                    quantity: piece.quantity,
+                    cost: piece.price.as_ref().map(Price::written),
+                    lot: if is_asserted { None } else { piece.lot },
+                });
+            }
             replacements.push((commodity, left));
         }
         let own = self.accounts.entry(account.to_string()).or_default();

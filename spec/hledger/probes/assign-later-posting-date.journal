@@ -1,0 +1,16 @@
+2026-01-02 a posting dated after the transaction waits for the end of the block
+  x  5 EUR  ; date:2026-03-01
+  x  = 7 EUR
+  x  0 EUR = 7 EUR
+  z
+
+2026-01-03 and is in the balance afterwards
+  x  0 EUR = 12 EUR
+  y
+
+2026-01-04 a posting dated on or before the transaction is in at once
+  w  5 EUR  ; date:2026-01-01
+  v  5 EUR  ; date:2026-01-04
+  w  = 7 EUR
+  v  = 8 EUR
+  z

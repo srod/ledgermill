@@ -36,6 +36,14 @@ commodity of the account must have a balance of exactly 0 (a commodity that went
 `==*` then also wants every other commodity of that sum to be 0. Without the `*`, sub-accounts
 are left out.
 
+**Which other commodities `==*` looks at.** Only those the account holds itself, not those that only
+its sub-accounts hold, and for each the sum over the whole subtree must be 0. With `a` 2 EUR, `a:b`
+-3 USD and `a:b:c` 4 GBP, `a ==* 2 EUR` holds (`assert-total-inclusive-commodities`); with `a` -3 USD
+and `a:b` 2 EUR it fails, in USD, calculated -3 (`assert-fail-total-inclusive-own`, line 7); with `a` 3 USD and
+`a:b` 1 USD it fails, calculated 4 (`assert-fail-total-inclusive-sum`, line 8). hledger says `Across all
+commodities ... including subaccounts` for these. (The assignment `==*` zeroes every commodity of the subtree:
+[assignments](assignments.md).)
+
 **Exact.** The two quantities must be equal as numbers, with no tolerance and no rounding:
 `1.00` equals `1`, `2.750` equals `2.75`, `0.1e2` equals `10`; a difference in the fortieth
 decimal place fails. The places written in the postings or in the assertion have no effect on
@@ -58,7 +66,9 @@ passing counterparts):
 
 ## Probe
 
-`probes/assert-compare.journal` and the `probes/assert-fail-*.journal` of the table above.
+`probes/assert-compare.journal` and the `probes/assert-fail-*.journal` of the table above;
+`probes/assert-total-inclusive-commodities.journal`, `probes/assert-fail-total-inclusive-own.journal` and
+`probes/assert-fail-total-inclusive-sum.journal` for `==*`.
 
 Command:
 

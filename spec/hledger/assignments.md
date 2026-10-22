@@ -70,6 +70,28 @@ For `=*`, the account's own balance becomes `B` minus the sub-accounts' sum, com
 also on a zero difference (`i` 1 and `i:b` 2.5, `i =* 3.5` gives nothing, and the own balance is
 now `3.5 - 2.5 = 1.0`, so `i = 2` gives `1.0`). The sub-accounts keep their balances.
 
+**Other commodities with a star.** `=*` alone (no second `=`) also zeroes the commodities that
+sub-accounts hold, though not those held only by the account itself. For each commodity D other than
+the asserted one that some sub-account holds, the posting gets `-(sub-accounts' share of D)`, where the
+share is the subtree's sum less the account's own balance in D; the account then holds its own D
+plus that amount, so a later `a = 0 D` gives the share back. A zero share is not listed.
+
+- The places of the share: plain arithmetic, `whole - own`, with two exceptions. When the account's own
+  balance in D is zero nothing is taken off, so the share is the subtree's sum as it is. When the share
+  equals the own balance in value, it has the places of the own balance (`f` 1 and `f:g` 1.00 give `-1`,
+  not `-1.00`; `f` 1.0 and `f:g` 1.000 give `-1.0`; `f` 1 and `f:g` 1.01 give `-1.01`; a share of the
+  same value with fewer places is rare and is not probed).
+  A zero whole is no exception to the plain arithmetic (`f` 1 and `f:g` -1.00 give `1.00`).
+- `==*` already zeroes these (it zeroes every commodity of the subtree); the rule above is for `=*`.
+
+Probe `probes/assign-inclusive-other.journal`, command `spec/hledger/show.sh` on it. Lines 9 and 15
+(`a` holds -2.00 X and `a:b` -1 X; `d:b:c` 2 Y; `f` 1 Y and `f:g` 1.00 Y):
+
+```text
+9:  a [4 EUR, 1.00 X]   d [-2 Y]   f [-1 Y]   z [-4 EUR, -1.00 X, 3 Y]
+15: a [1.00 X]          (a = 0 X: the own -2.00 plus the added 1.00 is -1.00)
+```
+
 **Not settled: the order of the sub-accounts' sum.** The sum over sub-accounts is made in an order
 that is not the order of the names or of the file, and the places of the result depend on it
 only when a partial sum is exactly zero: three sub-accounts holding `1.25`, `3`, `-1.25`, and
@@ -82,7 +104,7 @@ name order and accept a difference of places in this case. The value is never af
 `probes/assign-basic.journal`, `probes/assign-diff-places.journal`,
 `probes/assign-sum-places.journal`, `probes/assign-total.journal`,
 `probes/assign-inclusive.journal`, `probes/assign-inclusive-order-names-bcd.journal`,
-`probes/assign-inclusive-order-names-x123.journal`
+`probes/assign-inclusive-order-names-x123.journal`, `probes/assign-inclusive-other.journal`
 
 Command:
 
@@ -92,6 +114,7 @@ spec/hledger/show.sh spec/hledger/probes/assign-diff-places.journal
 spec/hledger/show.sh spec/hledger/probes/assign-sum-places.journal
 spec/hledger/show.sh spec/hledger/probes/assign-total.journal
 spec/hledger/show.sh spec/hledger/probes/assign-inclusive.journal
+spec/hledger/show.sh spec/hledger/probes/assign-inclusive-other.journal
 spec/hledger/show.sh spec/hledger/probes/assign-inclusive-order-names-bcd.journal
 spec/hledger/show.sh spec/hledger/probes/assign-inclusive-order-names-x123.journal
 ```

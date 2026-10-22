@@ -1,0 +1,27 @@
+2026-01-01 a priced posting in a transaction with an assignment keeps its price
+  x  1 X @ 2 EUR
+  w  = 0 EUR
+  y  -2 EUR
+
+2026-01-02 so a later == zeroes it with that price
+  x  == 0 EUR
+  z
+
+2026-01-03 in a plain transaction the price is dropped
+  p  1 X @ 2 EUR
+  y  -2 EUR
+
+2026-01-04 so the zeroing amount has none
+  p  == 0 EUR
+  z
+
+2026-01-05 in the same transaction, a total price
+  q  3 X @@ 6 EUR
+  q  == 0 EUR
+  y
+
+2026-01-06 a priced and a plain posting are two entries
+  r  1 X @ 2 EUR
+  r  2 X
+  r  == 0 EUR
+  y

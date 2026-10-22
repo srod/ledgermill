@@ -7,7 +7,7 @@ Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 
 The amounts of an assignment ([assignments](assignments.md)) follow the account's running
 balance, which has no costs and, at most, a lot.
 
-**Costs of the postings.** When a posting is added to the balance its price is dropped: `3 X @ 2 EUR`,
+**Costs of the postings.** When a posting of a plain transaction is added to the balance its price is dropped (the postings of a transaction with an assignment keep it: [assignment-processing](assignment-processing.md)): `3 X @ 2 EUR`,
 `2 X @ 3 EUR` and `4 X` make one entry of 9 X. So `d = 10 X` gives plain `1 X`.
 
 **A lot on the zeroing amounts.** The amounts that `==` and `==*` emit to bring the other

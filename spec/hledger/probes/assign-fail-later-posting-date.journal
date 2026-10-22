@@ -1,0 +1,5 @@
+2026-01-02 the posting dated later is not in the balance for the assertion after it
+  x  5 EUR  ; date:2026-03-01
+  y  = 3 EUR
+  x  0 EUR = 5 EUR
+  z

@@ -154,7 +154,7 @@ pub(crate) fn process(txs: &mut [Tx], walk_is_known: bool) -> Vec<Issue> {
             Some(i) => {
                 if let (Some(info), Some(draft)) = (tx.info.get(i), tx.drafts.get(i)) {
                     for amount in draft.amounts.iter().flatten() {
-                        balances.add(&info.account, amount);
+                        balances.add(&info.account, amount, false);
                     }
                     check(&balances, info, &mut walked);
                 }
@@ -178,7 +178,22 @@ fn walk_transaction(tx: &mut Tx, balances: &mut Balances, issues: &mut Vec<Issue
     let elided: Vec<bool> = (0..tx.info.len())
         .map(|i| tx.drafts.get(i).is_some_and(|d| d.amounts.is_none()) && !tx.is_assignment(i))
         .collect();
+    // A posting dated after the transaction waits for the end of the block: the postings before
+    // it do not see it, but it is in the balance when the block is over.
+    let later: Vec<bool> = (0..tx.info.len())
+        .map(|i| {
+            !tx.is_assignment(i)
+                && tx
+                    .info
+                    .get(i)
+                    .and_then(|p| p.date)
+                    .is_some_and(|d| d > tx.date)
+        })
+        .collect();
     for i in 0..tx.info.len() {
+        if later.get(i).copied().unwrap_or(false) {
+            continue;
+        }
         if tx.is_assignment(i) {
             let (Some(info), Some(draft)) = (tx.info.get(i), tx.drafts.get_mut(i)) else {
                 continue;
@@ -199,7 +214,15 @@ fn walk_transaction(tx: &mut Tx, balances: &mut Balances, issues: &mut Vec<Issue
                 continue;
             }
             for amount in draft.amounts.iter().flatten() {
-                balances.add(&info.account, amount);
+                balances.add(&info.account, amount, true);
+            }
+            check(balances, info, issues);
+        }
+    }
+    for i in (0..later.len()).filter(|&i| later[i]) {
+        if let (Some(info), Some(draft)) = (tx.info.get(i), tx.drafts.get(i)) {
+            for amount in draft.amounts.iter().flatten() {
+                balances.add(&info.account, amount, true);
             }
             check(balances, info, issues);
         }
@@ -220,7 +243,7 @@ fn walk_transaction(tx: &mut Tx, balances: &mut Balances, issues: &mut Vec<Issue
     for (i, was_elided) in elided.into_iter().enumerate() {
         if let (true, Some(info), Some(draft)) = (was_elided, tx.info.get(i), tx.drafts.get(i)) {
             for amount in draft.amounts.iter().flatten() {
-                balances.add(&info.account, amount);
+                balances.add(&info.account, amount, true);
             }
         }
     }

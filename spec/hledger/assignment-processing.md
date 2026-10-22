@@ -53,6 +53,32 @@ included, and one whose difference turned out zero. All the others are **plain**
      worked out, the group checks made, a price inferred) and the elided amounts are added to
      the balances of their accounts then.
 
+**Posting dates inside the block.** A posting of such a transaction dated *after* the transaction is
+not in the balance for the postings before it: it waits for the end of the block, is added then (its
+assertion, if any, is checked then, before the transaction is balanced), and is in the balance for
+everything after. A posting dated on or before the transaction is in at once. (Probe
+`assign-later-posting-date`: `x 5 EUR ; date:2026-03-01`, then `x = 7 EUR` gives `7`, and the `x 0 EUR =
+7 EUR` after it holds; the next day `x` holds 12. `assign-fail-later-posting-date`: `x 0 EUR = 5 EUR`
+after the assignment fails at its line, calculated 0 EUR. A posting dated 2026-01-01 and one dated
+2026-01-04 in a transaction of 4 January are both in at once.) This is how the 'dated March is in the
+balance' of the list above is to be read: in for everything after the block.
+
+**Prices of postings in the block.** A posting with a price (`@`, `@@`) of a transaction with an
+assignment is added to the balance *with* its price, as an entry of its own price group; in a plain
+transaction the price is dropped ([assignment-lots-and-costs](assignment-lots-and-costs.md)). The
+entries stay in the balance for later transactions. A later assignment subtracts the entries as
+they are, so `==` zeroes a priced entry with that price, and a priced and a plain entry in one commodity
+are two amounts (costless first). Probe `assign-entry-prices`:
+
+```text
+ 1: x [1 X @ 2 EUR]  w [-]  y [-2 EUR]              (w = 0 EUR makes the transaction an assignment one)
+ 6: x [-1 X @ 2 EUR] z [2 EUR]                       x == 0 EUR the next day: the price comes along
+10: p [1 X @ 2 EUR]  y [-2 EUR]                      plain transaction
+14: p [-1 X]         z [1 X]                         the price was dropped: none on the zeroing amount
+18: q [3 X @@ 6 EUR, -3 X @@ -6 EUR]  y [0 EUR]      same transaction: a total price is subtracted as a total
+23: r [1 X @ 2 EUR]  r [2 X]  r [-2 X, -1 X @ 2 EUR]  y [0 EUR, 0 X]   a priced and a plain entry: two amounts
+```
+
 So an assertion or assignment inside a transaction with an assignment does not see the elided
 posting of its own transaction, before or after the elided posting in the order written; one in
 a later transaction does. In a plain transaction an assertion on the elided account sees its
@@ -83,7 +109,9 @@ Which error comes first when there are several is in [assertion-failures](assert
 
 ## Probe
 
-`probes/assign-balancing.journal`, `probes/assign-precision.journal`,
+`probes/assign-balancing.journal`, `probes/assign-entry-prices.journal`,
+`probes/assign-later-posting-date.journal`, `probes/assign-fail-later-posting-date.journal`,
+`probes/assign-precision.journal`,
 `probes/assign-fail-precision.journal`, `probes/assign-fail-precision-assertion.journal`,
 `probes/assign-processing.journal`, `probes/assign-fail-elided-not-yet.journal`,
 `probes/assign-fail-elided-not-yet-virtual.journal`,
@@ -102,6 +130,8 @@ spec/hledger/show.sh spec/hledger/probes/assign-balancing.journal
 spec/hledger/show.sh spec/hledger/probes/assign-precision.journal
 spec/hledger/show.sh spec/hledger/probes/assign-processing.journal
 spec/hledger/show.sh spec/hledger/probes/assign-order.journal
+spec/hledger/show.sh spec/hledger/probes/assign-entry-prices.journal
+spec/hledger/show.sh spec/hledger/probes/assign-later-posting-date.journal
 spec/hledger/show.sh spec/hledger/probes/assert-file-a.journal spec/hledger/probes/assign-file-b.journal
 spec/hledger/assertion-verdicts.sh spec/hledger/probes/assign-fail-*.journal \
   spec/hledger/probes/assign-posting-date2.journal
