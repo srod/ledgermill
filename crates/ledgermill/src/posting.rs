@@ -46,11 +46,25 @@ pub(crate) struct WrittenAmount {
     pub lot: Option<WrittenLot>,
 }
 
+/// A balance assertion written after a posting's amount (spec/hledger/assertion-syntax.md).
+#[derive(Debug, Clone)]
+pub(crate) struct WrittenAssertion {
+    /// `==`: every commodity of the account is compared, not only the asserted one.
+    pub total: bool,
+    /// `=*`: the account's sub-accounts count too.
+    pub inclusive: bool,
+    /// The asserted amount; its price is kept (an assignment uses it) and never checked.
+    pub amount: WrittenAmount,
+    /// Byte offset of the first `=` in the posting content (indentation removed).
+    pub offset: usize,
+}
+
 #[derive(Debug)]
 pub(crate) struct PostingLine {
     pub kind: PostingKind,
     pub account: String,
     pub amount: Option<WrittenAmount>,
+    pub assertion: Option<WrittenAssertion>,
     /// Text after the first `;`, untrimmed; `None` without one.
     pub comment: Option<String>,
 }
@@ -119,6 +133,7 @@ pub(crate) fn parse_posting(content: &str, styles: &Styles, year: u32) -> Parsed
             kind,
             account,
             amount: None,
+            assertion: None,
             comment,
         });
     }
@@ -129,13 +144,20 @@ pub(crate) fn parse_posting(content: &str, styles: &Styles, year: u32) -> Parsed
         Some(parse_amount_tail(&mut cur, styles, year)?)
     };
     cur.skip_blanks();
-    if cur.peek() == Some('=') {
-        return Err(Problem::Unsupported(Unsupported::BalanceAssertion));
-    }
+    let assertion = if cur.peek() == Some('=') {
+        let offset = content.len() - cur.rest().len();
+        let assertion = parse_assertion(&mut cur, styles, year, offset)?;
+        cur.skip_blanks();
+        Some(assertion)
+    } else {
+        None
+    };
     let comment = if cur.eat(';') {
         Some(cur.rest().to_string())
     } else if cur.at_end() {
         None
+    } else if assertion.is_some() {
+        return invalid("Unexpected text after the balance assertion.");
     } else {
         return invalid("Unexpected text after the amount.");
     };
@@ -143,7 +165,38 @@ pub(crate) fn parse_posting(content: &str, styles: &Styles, year: u32) -> Parsed
         kind,
         account,
         amount,
+        assertion,
         comment,
+    })
+}
+
+/// `=`, `==`, `=*` or `==*`, then the asserted amount. The cursor is on the first `=`. The
+/// stars must touch the equals signs; the amount may carry a price but no lot.
+fn parse_assertion(
+    cur: &mut Cursor,
+    styles: &Styles,
+    year: u32,
+    offset: usize,
+) -> Parsed<WrittenAssertion> {
+    cur.eat('=');
+    let total = cur.eat('=');
+    if cur.peek() == Some('=') {
+        return invalid("A balance assertion has at most two equals signs.");
+    }
+    let inclusive = cur.eat('*');
+    cur.skip_blanks();
+    let amount = parse_amount_tail(cur, styles, year)?;
+    if amount.lot.is_some() {
+        return invalid("The amount of a balance assertion has no lot.");
+    }
+    if total || inclusive {
+        return Err(Problem::Unsupported(Unsupported::BalanceAssertion));
+    }
+    Ok(WrittenAssertion {
+        total,
+        inclusive,
+        amount,
+        offset,
     })
 }
 

@@ -6,7 +6,7 @@
 
 use crate::alias::{Alias, parse_alias};
 use crate::amount::{Default, Styles, read_amount, read_symbol};
-use crate::balance::{Draft, Unbalanced, balance};
+use crate::balance::{Draft, Unbalanced};
 use crate::chars::{is_blank, trim_blank};
 use crate::cursor::Cursor;
 use crate::date::{Date, parse_date};
@@ -17,7 +17,8 @@ use crate::model::{
 use crate::number::Mark;
 use crate::posting::{CostKind, WrittenAmount, parse_posting};
 use crate::problem::{Parsed, Problem, Unsupported, invalid};
-use crate::tags::{check_posting_comment, tags};
+use crate::tags::{check_posting_comment, posting_date, tags};
+use crate::walk::{self, Assertion, Issue, PostingInfo, Tx};
 use regex_lite::Regex;
 use serde_json::json;
 use std::sync::OnceLock;
@@ -32,8 +33,10 @@ pub(crate) struct Output {
 struct PostingDraft {
     account: String,
     kind: PostingKind,
+    line: u32,
     comment_lines: Vec<String>,
     amount: Option<WrittenAmount>,
+    assertion: Option<Assertion>,
 }
 
 struct TxDraft {
@@ -111,6 +114,12 @@ struct FileParser<'a> {
     file: &'a SourceFile,
     out: &'a mut Output,
     st: FileState,
+    /// Transactions read without a refused line, in file order, waiting for the file's walk.
+    done: Vec<TxDraft>,
+    /// Conversion-account flags of `done`'s postings, decided when each transaction ended.
+    conversion: Vec<Vec<bool>>,
+    /// Findings reported while reading lines: the file was not read completely if there are any.
+    reported: usize,
 }
 
 pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output) {
@@ -119,6 +128,9 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
         file,
         out,
         st: FileState::default(),
+        done: Vec::new(),
+        conversion: Vec::new(),
+        reported: 0,
     };
     let text = file
         .content
@@ -139,11 +151,13 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
                 Problem::Invalid("The file ends inside a line."),
                 None,
             );
+            parser.conclude();
             return;
         }
         state = parser.line(state, line_no, line);
     }
     parser.finish(state);
+    parser.conclude();
 }
 
 fn finding(
@@ -190,6 +204,7 @@ fn to_quantity(commodity: &str, value: &crate::decimal::Decimal) -> Quantity {
 
 impl FileParser<'_> {
     fn report(&mut self, line_no: u32, column: Option<u32>, problem: Problem, text: Option<&str>) {
+        self.reported += 1;
         self.out.findings.push((
             self.file_index,
             finding(&self.file.name, line_no, column, problem, text),
@@ -561,7 +576,7 @@ impl FileParser<'_> {
                         None => tx.comment_lines.push(trim_blank(comment).to_string()),
                     }
                 } else {
-                    self.posting(&mut tx, line_no, content);
+                    self.posting(&mut tx, line_no, line, content);
                 }
                 State::InTransaction(tx)
             }
@@ -619,7 +634,7 @@ impl FileParser<'_> {
         }
     }
 
-    fn posting(&mut self, tx: &mut TxDraft, line_no: u32, content: &str) {
+    fn posting(&mut self, tx: &mut TxDraft, line_no: u32, line: &str, content: &str) {
         let parsed = parse_posting(content, &self.st.styles, tx.date.year());
         let p = match parsed {
             Ok(p) => p,
@@ -629,6 +644,24 @@ impl FileParser<'_> {
                 return;
             }
         };
+        if p.amount.is_none() && p.assertion.is_some() {
+            self.report(
+                line_no,
+                None,
+                Problem::Unsupported(Unsupported::BalanceAssertion),
+                Some(content),
+            );
+            tx.refused = true;
+            return;
+        }
+        let assertion = p.assertion.map(|written| {
+            let indent = line.get(..line.len() - content.len()).unwrap_or("");
+            let before = content.get(..written.offset).unwrap_or("");
+            Assertion {
+                column: column_after(indent, before),
+                written,
+            }
+        });
         if let Some(Err(problem)) = p
             .comment
             .as_deref()
@@ -641,6 +674,8 @@ impl FileParser<'_> {
         tx.postings.push(PostingDraft {
             account,
             kind: p.kind,
+            line: line_no,
+            assertion,
             comment_lines: p
                 .comment
                 .map(|c| trim_blank(&c).to_string())
@@ -662,7 +697,7 @@ impl FileParser<'_> {
         })
     }
 
-    /// End of a transaction: balance it and, if nothing was refused, keep it.
+    /// End of a transaction: keep it for the file's walk, unless a line of it was refused.
     fn finish(&mut self, state: State) {
         let State::InTransaction(tx) = state else {
             return;
@@ -670,98 +705,180 @@ impl FileParser<'_> {
         if tx.refused {
             return;
         }
-        let mut drafts: Vec<Draft> = tx
+        let flags = tx
             .postings
             .iter()
-            .map(|p| Draft {
-                kind: p.kind,
-                conversion_account: self.is_conversion_account(&p.account),
-                amounts: p.amount.clone().map(|a| vec![a]),
-            })
+            .map(|p| self.is_conversion_account(&p.account))
             .collect();
-        if let Err(u) = balance(&mut drafts) {
-            let dropped = matches!(u, Unbalanced::UnsupportedConversion);
-            let finding = match u {
-                Unbalanced::UnsupportedConversion => finding(
-                    &self.file.name,
-                    tx.line,
-                    None,
-                    Problem::Unsupported(Unsupported::ConversionPostings),
-                    None,
-                ),
-                Unbalanced::ConversionWithCost => Finding {
-                    code: "unbalanced-transaction".into(),
-                    severity: Severity::Error,
-                    file: self.file.name.clone(),
-                    line: tx.line,
-                    column: None,
-                    details: json!({ "reason": "conversion-posting-with-cost" }),
-                    message: "Conversion postings must not have a price.".into(),
-                },
-                Unbalanced::TwoElided { group } => Finding {
-                    code: "unbalanced-transaction".into(),
-                    severity: Severity::Error,
-                    file: self.file.name.clone(),
-                    line: tx.line,
-                    column: None,
-                    details: json!({ "reason": "two-elided-amounts", "group": group.id() }),
-                    message: "At most one posting per group may leave out its amount.".into(),
-                },
-                Unbalanced::Residual { group, residual } => Finding {
-                    code: "unbalanced-transaction".into(),
-                    severity: Severity::Error,
-                    file: self.file.name.clone(),
-                    line: tx.line,
-                    column: None,
-                    details: json!({
-                        "group": group.id(),
-                        "residual": residual
-                            .iter()
-                            .map(|(c, q)| json!({ "commodity": c, "quantity": q }))
-                            .collect::<Vec<_>>(),
-                    }),
-                    message: "The postings do not add up to zero.".into(),
-                },
-            };
-            self.out.findings.push((self.file_index, finding));
-            if dropped {
-                return;
-            }
-        }
-        let postings = tx
-            .postings
-            .into_iter()
-            .zip(drafts)
-            .map(|(p, d)| Posting {
-                account: p.account,
-                kind: p.kind,
-                comment: join_comment(&p.comment_lines),
-                amounts: d
-                    .amounts
-                    .unwrap_or_default()
-                    .iter()
-                    .map(report_amount)
+        self.conversion.push(flags);
+        self.done.push(tx);
+    }
+
+    /// End of the file: balance its transactions and walk its postings (see `walk`), report what
+    /// that finds, and keep the transactions. The findings come in hledger's order: what the
+    /// lines gave, then the problems of plain transactions, then the walk's.
+    fn conclude(&mut self) {
+        let mut done = std::mem::take(&mut self.done);
+        let conversion = std::mem::take(&mut self.conversion);
+        let mut txs: Vec<Tx> = done
+            .iter_mut()
+            .zip(&conversion)
+            .map(|(tx, flags)| Tx {
+                date: tx.date,
+                line: tx.line,
+                dropped: false,
+                info: tx
+                    .postings
+                    .iter_mut()
+                    .map(|p| PostingInfo {
+                        account: p.account.clone(),
+                        line: p.line,
+                        date: posting_date(&p.comment_lines, tx.date.year()),
+                        assertion: p.assertion.take(),
+                    })
                     .collect(),
-                flag: None,
-                line: None,
+                drafts: tx
+                    .postings
+                    .iter()
+                    .zip(flags)
+                    .map(|(p, &conversion_account)| Draft {
+                        kind: p.kind,
+                        conversion_account,
+                        amounts: p.amount.clone().map(|a| vec![a]),
+                    })
+                    .collect(),
             })
             .collect();
-        self.out.transactions.push((
-            Transaction {
-                date: tx.date.to_string(),
-                status: tx.status,
-                flag: None,
-                payee: None,
-                description: tx.description,
-                comment: join_comment(&tx.comment_lines),
-                source: Source {
-                    file: self.file.name.clone(),
-                    line: tx.line,
+        let issues = walk::process(&mut txs, self.reported == 0);
+        for issue in &issues {
+            let finding = self.issue_finding(issue);
+            self.out.findings.push((self.file_index, finding));
+        }
+        for (tx, walked) in done.into_iter().zip(txs) {
+            if walked.dropped {
+                continue;
+            }
+            let postings = tx
+                .postings
+                .into_iter()
+                .zip(walked.drafts)
+                .map(|(p, d)| Posting {
+                    account: p.account,
+                    kind: p.kind,
+                    comment: join_comment(&p.comment_lines),
+                    amounts: d
+                        .amounts
+                        .unwrap_or_default()
+                        .iter()
+                        .map(report_amount)
+                        .collect(),
+                    flag: None,
+                    line: None,
+                })
+                .collect();
+            self.out.transactions.push((
+                Transaction {
+                    date: tx.date.to_string(),
+                    status: tx.status,
+                    flag: None,
+                    payee: None,
+                    description: tx.description,
+                    comment: join_comment(&tx.comment_lines),
+                    source: Source {
+                        file: self.file.name.clone(),
+                        line: tx.line,
+                    },
+                    postings,
                 },
-                postings,
+                tx.date,
+            ));
+        }
+    }
+
+    fn issue_finding(&self, issue: &Issue) -> Finding {
+        let file = self.file.name.clone();
+        match issue {
+            Issue::Unbalanced { line, problem } => unbalanced_finding(&file, *line, problem),
+            Issue::AssertionFailed {
+                line,
+                column,
+                account,
+                commodity,
+                expected,
+                actual,
+                total,
+                inclusive,
+            } => Finding {
+                code: "assertion-failed".into(),
+                severity: Severity::Error,
+                file,
+                line: *line,
+                column: Some(*column),
+                details: json!({
+                    "account": account,
+                    "commodity": commodity,
+                    "expected": expected.to_string(),
+                    "actual": actual.to_string(),
+                    "total": total,
+                    "inclusive": inclusive,
+                }),
+                message: format!(
+                    "The balance of {account} in {commodity} is {actual}, not {expected}."
+                ),
             },
-            tx.date,
-        ));
+            Issue::AssignmentPostingDate { line, account } => Finding {
+                code: "assignment-with-posting-date".into(),
+                severity: Severity::Error,
+                file,
+                line: *line,
+                column: None,
+                details: json!({ "account": account }),
+                message: "A balance assignment cannot have a posting date.".into(),
+            },
+        }
+    }
+}
+
+/// The finding for a transaction that does not balance.
+fn unbalanced_finding(file: &str, line: u32, u: &Unbalanced) -> Finding {
+    let at = |code: &str, details: serde_json::Value, message: &str| Finding {
+        code: code.into(),
+        severity: Severity::Error,
+        file: file.into(),
+        line,
+        column: None,
+        details,
+        message: message.into(),
+    };
+    match u {
+        Unbalanced::UnsupportedConversion => finding(
+            file,
+            line,
+            None,
+            Problem::Unsupported(Unsupported::ConversionPostings),
+            None,
+        ),
+        Unbalanced::ConversionWithCost => at(
+            "unbalanced-transaction",
+            json!({ "reason": "conversion-posting-with-cost" }),
+            "Conversion postings must not have a price.",
+        ),
+        Unbalanced::TwoElided { group } => at(
+            "unbalanced-transaction",
+            json!({ "reason": "two-elided-amounts", "group": group.id() }),
+            "At most one posting per group may leave out its amount.",
+        ),
+        Unbalanced::Residual { group, residual } => at(
+            "unbalanced-transaction",
+            json!({
+                "group": group.id(),
+                "residual": residual
+                    .iter()
+                    .map(|(c, q)| json!({ "commodity": c, "quantity": q }))
+                    .collect::<Vec<_>>(),
+            }),
+            "The postings do not add up to zero.",
+        ),
     }
 }
 
@@ -814,6 +931,20 @@ fn time_of_day(cur: &mut Cursor) -> Parsed<()> {
         part(cur, 59)?;
     }
     Ok(())
+}
+
+/// The 1-based column after `indent` and `before`, as the reference tool counts: a tab moves to
+/// the next multiple of eight.
+fn column_after(indent: &str, before: &str) -> u32 {
+    let mut column = 0u32;
+    for c in indent.chars().chain(before.chars()) {
+        column = if c == '\t' {
+            column.saturating_add(8) / 8 * 8
+        } else {
+            column.saturating_add(1)
+        };
+    }
+    column.saturating_add(1)
 }
 
 fn trim_end(line: &str) -> &str {

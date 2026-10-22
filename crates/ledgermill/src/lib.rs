@@ -5,6 +5,7 @@
 mod alias;
 mod amount;
 mod balance;
+mod balances;
 mod beancount;
 mod chars;
 mod cursor;
@@ -16,6 +17,7 @@ mod parse;
 mod posting;
 mod problem;
 mod tags;
+mod walk;
 
 pub use model::*;
 
@@ -104,10 +106,10 @@ pub fn load(files: &[SourceFile]) -> Ledger {
     for (index, file) in files.iter().enumerate() {
         parse::parse_file(index, file, &mut out);
     }
-    // Both sorts are stable: same date keeps file order, then line order.
+    // The sort is stable: same date keeps file order, then line order. Findings stay in the order
+    // they were made in, which is hledger's: file by file; in each file what the lines gave, the
+    // problems of plain transactions, then the walk's.
     out.transactions.sort_by_key(|(_, date)| *date);
-    out.findings
-        .sort_by_key(|(file, finding)| (*file, finding.line));
     Ledger {
         transactions: out.transactions.into_iter().map(|(t, _)| t).collect(),
         postings: Vec::new(),

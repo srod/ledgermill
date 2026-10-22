@@ -31,23 +31,26 @@ fn invalid(line: u32) -> Value {
 
 #[test]
 fn a_finding_has_the_documented_shape() {
-    let f = findings("x.journal", "2026-01-01 t\n  a  1 EUR = 1 EUR\n  b  -1\n");
+    let f = findings(
+        "x.journal",
+        "2026-01-01 t\n  a  1\n  b\n\ninclude y.journal\n",
+    );
     assert_eq!(
         f,
         json!([{
-            "code": "unsupported-syntax", "severity": "error", "file": "x.journal", "line": 2,
-            "details": { "construct": "balance-assertion", "text": "a  1 EUR = 1 EUR" },
-            "message": "Balance assertions and assignments are not supported yet."
+            "code": "unsupported-syntax", "severity": "error", "file": "x.journal", "line": 5,
+            "details": { "construct": "include" },
+            "message": "Including other files is not supported."
         }])
     );
 }
 
 #[test]
 fn a_transaction_with_a_refused_line_is_not_returned_but_its_neighbours_are() {
-    let journal = "2026-01-01 before\n  a  1\n  b  -1\n\n2026-01-02 refused\n  a  1 = 1\n  b\n\n2026-01-03 after\n  a  2\n  b  -2\n";
+    let journal = "2026-01-01 before\n  a  1\n  b  -1\n\n2026-01-02 refused\n  a  1\r  b\n  c\n\n2026-01-03 after\n  a  2\n  b  -2\n";
     assert_eq!(
         short("x.journal", journal),
-        json!([refused(6, "balance-assertion")])
+        json!([refused(6, "control-character")])
     );
     let lines: Vec<Value> = transactions("x.journal", journal)
         .as_array()
@@ -125,21 +128,18 @@ fn lines_hledger_rejects_are_parse_errors() {
     for (name, content, expected) in cases {
         assert_eq!(short(name, content), json!([expected]), "{name}");
     }
-    // The posting after the comment is out of place; what came before is then incomplete.
+    // The posting after the comment is out of place; what came before is then incomplete. The
+    // parse error comes first, as hledger's does: the balancing of transactions is after parsing.
     let ended = include_str!("../../../spec/hledger/probes/comments-col0-ends-transaction.journal");
     assert_eq!(
         short("c.journal", ended),
-        json!([[1, "unbalanced-transaction", null], invalid(4)])
+        json!([invalid(4), [1, "unbalanced-transaction", null]])
     );
 }
 
 #[test]
 fn what_ledgermill_does_not_read_yet_is_refused_at_its_line() {
-    let cases: [(&str, Value); 6] = [
-        (
-            "2026-01-01 t\n  a  1 = 1\n  b  -1\n",
-            refused(2, "balance-assertion"),
-        ),
+    let cases: [(&str, Value); 5] = [
         ("include other.journal\n", refused(1, "include")),
         ("~ monthly\n  a  1\n  b\n", refused(1, "directive")),
         ("= expenses\n  (budget)  *1\n", refused(1, "directive")),
@@ -264,7 +264,7 @@ fn balanced_forms_hledger_accepts_raise_no_finding() {
 
 #[test]
 fn findings_are_ordered_by_file_then_line_and_name_their_file() {
-    let a = file("a.journal", "2026-01-01 t\n  a  1 = 1\n  b\n\ninclude x\n");
+    let a = file("a.journal", "include x\n\n2026-01-01 t\n  a  1\r  b\n");
     let b = file("b.journal", "2026-01-01 t\n  a  1 EUR\n  b  -2 EUR\n");
     let all: Vec<(String, u32, String)> = load(&[a, b])
         .check()
@@ -275,8 +275,8 @@ fn findings_are_ordered_by_file_then_line_and_name_their_file() {
     assert_eq!(
         all,
         vec![
-            s("a.journal", 2, "unsupported-syntax"),
-            s("a.journal", 5, "unsupported-syntax"),
+            s("a.journal", 1, "unsupported-syntax"),
+            s("a.journal", 4, "unsupported-syntax"),
             s("b.journal", 1, "unbalanced-transaction")
         ]
     );
