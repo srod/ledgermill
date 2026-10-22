@@ -147,6 +147,23 @@ grammar above; none of them is a plausible rule): a `-` or `..` glued after a da
 `jan`, `q1` or `today`); a number glued to the date that follows it (`2026-01-152026-01`, `2026-011`,
 `19992026q1`).
 
+### Left to the engine
+
+- **How much of the period grammar to build.** The grammar above is exact on everything but the "not settled"
+  forms. A reader that checks only the shape (an expression is not empty, the two-blank rule, the first word is
+  one of the known ones) would still match hledger on every rule anyone writes, and miss only the expressions
+  of `rule-periodic-bad-*` that are wrong inside (a month 13, `every 1 day`). `period-forms.txt` is the test
+  corpus for either choice; for an expression outside the grammar an `unsupported-syntax` finding on the
+  header's line is better than a guess.
+- **A date without a year in a posting comment of a `~` rule** needs the current year only for `02-29`. Without a `Y`
+  directive ledgermill can answer for every other date (the day exists in a leap year, 2000 as in `date.rs`)
+  and refuse `02-29` as `date-without-year`, as it does for a transaction date.
+- **A number in a rule's posting that ledgermill cannot hold** (`1e5000`, hledger accepts it): nothing reads
+  the value, so reading the shape is enough, with no `number-too-large` for a rule. More than 255 decimal
+  places is a parse error in a rule as elsewhere ([syntax](syntax.md)).
+- **The warning**: one `ignored-syntax` per rule, on the header's line, with `details.construct` naming the kind
+  (`automated-rule`, `periodic-rule` are the obvious names).
+
 ## Probe
 
 The probes are under `probes/`, `rule-*.journal`. Rules that are read:
