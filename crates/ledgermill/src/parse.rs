@@ -644,16 +644,6 @@ impl FileParser<'_> {
                 return;
             }
         };
-        if p.amount.is_none() && p.assertion.is_some() {
-            self.report(
-                line_no,
-                None,
-                Problem::Unsupported(Unsupported::BalanceAssertion),
-                Some(content),
-            );
-            tx.refused = true;
-            return;
-        }
         let assertion = p.assertion.map(|written| {
             let indent = line.get(..line.len() - content.len()).unwrap_or("");
             let before = content.get(..written.offset).unwrap_or("");

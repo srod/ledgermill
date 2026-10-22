@@ -16,7 +16,10 @@ balances:
   trailing zeros when the exact quotient fits in ten places.
 - The sums follow the same zero rule as elided amounts: a zero term gives back the other term.
 - A posting that holds more than one amount, a third unbalanced commodity, or sums of the same
-  sign: no inference, and the group is unbalanced.
+  sign: no inference, and the group is unbalanced. The posting that holds more than one amount
+  is one that would get the price: the holder of the *other* commodity may hold several (an
+  assignment `a == 3 USD` also gives `a` a `-1 X`; with `d -6 Y` written before it the price is
+  inferred, `d -6 Y @@ -3 USD`, and with `a` first it is not: `pi72-infer`, `pi71-infer`).
 
 ## Probe
 

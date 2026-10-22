@@ -463,18 +463,10 @@ fn infer_prices(postings: &mut [Draft], members: &[usize]) {
                 .any(|a| a.commodity == first)
         })
         .collect();
+    // Only the postings that would get the price must hold one amount; the holder of the other
+    // commodity may hold several (an assignment can give a posting several amounts).
     let single = |i: usize| postings[i].amounts.as_ref().is_some_and(|a| a.len() == 1);
-    let other_holders_single = members
-        .iter()
-        .filter(|&&i| {
-            postings[i]
-                .amounts
-                .iter()
-                .flatten()
-                .any(|a| a.commodity == other)
-        })
-        .all(|&i| single(i));
-    if !holders.iter().all(|&i| single(i)) || !other_holders_single {
+    if !holders.iter().all(|&i| single(i)) {
         return;
     }
     let (Some(this_sum), Some(other_sum)) = (sums.get(&first), sums.get(&other)) else {

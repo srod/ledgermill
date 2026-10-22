@@ -6,7 +6,6 @@
 pub(crate) enum Unsupported {
     Directive,
     Include,
-    BalanceAssertion,
     /// A date without a year and no `Y` directive: the reference tool uses the current year.
     DateWithoutYear,
     /// A carriage return inside a line.
@@ -21,7 +20,6 @@ impl Unsupported {
         match self {
             Unsupported::Directive => "directive",
             Unsupported::Include => "include",
-            Unsupported::BalanceAssertion => "balance-assertion",
             Unsupported::DateWithoutYear => "date-without-year",
             Unsupported::ControlCharacter => "control-character",
             Unsupported::NumberTooLarge => "number-too-large",
@@ -33,9 +31,6 @@ impl Unsupported {
         match self {
             Unsupported::Directive => "This directive is not supported yet.",
             Unsupported::Include => "Including other files is not supported.",
-            Unsupported::BalanceAssertion => {
-                "Balance assertions and assignments are not supported yet."
-            }
             Unsupported::DateWithoutYear => {
                 "A date without a year needs a Y directive before it to be read here."
             }
