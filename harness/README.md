@@ -43,8 +43,9 @@ Each case ends in one verdict:
 
 - **PASS**: both give the same transactions, or both fail with the same first error (see below).
 - **SKIP**: we report an `unsupported-syntax` finding (the line after `SKIP` says which construct):
-  not built yet. For Beancount, also the one journal whose only error is a `document` file that does
-  not exist: ledgermill does not look at files and warns instead.
+  not built. No SKIP is expected on the hledger corpus any more: the hledger journals ledgermill refuses
+  are kept apart (see Corpus). For Beancount, one journal is skipped, the one whose only error is a
+  `document` file that does not exist: ledgermill does not look at files and warns instead.
 - **FAIL**: anything else. The line gives the first difference as a path, for example
   `[2].postings[0].amounts[0].quantity: hledger="3.51" ours="3.50"`, or says that hledger fails and
   we report no error, or that we report `unbalanced-transaction` while hledger accepts. A FAIL is a
@@ -64,6 +65,9 @@ from the first line of its stderr and compares them with our **first error-sever
 - hledger names no position (the only one in the corpus is a posting date on an assignment, `Balance
   assignments and custom posting dates may not be combined.`, which shows the transaction and no file or
   line): `both fail`, the old rule, with no line compared.
+
+A journal with `=` or `~` rules gets an `ignored-syntax` warning from us; hledger has nothing to say about
+them, so the warning is not compared and the transactions are, as for any journal.
 
 Every rejected journal of the corpus is compared by line today, except those three. The errors of hledger's
 `check` command (undeclared accounts and the like) are not reported by `check()` yet and no journal of the
@@ -134,7 +138,8 @@ The summary prints a line per format when both are run. A FAIL is also: we repor
 
 The fuzzer (`fuzz.ts`) writes random, mostly valid journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
-and big numbers, about a third of them invalid on purpose (they must fail in both). Same seed,
+and big numbers, and for hledger `=` and `~` rules, about a third of them invalid on purpose (they must
+fail in both). Same seed,
 same journals; a FAIL prints the journal.
 
 ## Corpus
@@ -145,10 +150,15 @@ All journals are written by us and safe to publish.
 - `journals/app/`: test journals of our first user, a personal finance app, published with its
   author's approval.
 - `../spec/hledger/probes/`: the probe journals behind each spec note.
+- `../spec/hledger/probes/refused/`: the hledger journals ledgermill refuses (`unsupported-syntax`).
+  `compare.ts` does not run them, since hledger accepts them; the Rust test
+  `crates/ledgermill/tests/hledger_refused_probes.rs` reads the directory and checks that each gives an
+  `unsupported-syntax` error.
 - `journals/app/*.beancount`: the Beancount test journals of our first user (12).
 - `../spec/beancount/probes/`: the Beancount probe journals behind each spec note
   (`probes/refused/` holds those ledgermill refuses; they are not run by `compare.ts`).
 - Multi-file cases: the `pairs`, `fixturePairs` and `specPairs` lists in `compare.ts` (files are loaded
-  in the order listed; `specPairs` are probes of `../spec/hledger/probes/`, for assertions and assignments).
+  in the order listed; `specPairs` are probes of `../spec/hledger/probes/`: assertions and assignments, and the
+  `rule-file-*` pairs, where a file with a rule is read to its end before the next starts).
 
 Never commit private journals: `real.ts` exists so you can check them locally.

@@ -55,6 +55,7 @@ Each note has:
 | [comment-dates](hledger/comment-dates.md) | `date:` tags and bracketed dates in posting comments |
 | [source-lines](hledger/source-lines.md) | the reported line, CRLF, BOM, tabs, missing final newline |
 | [posting-lines](hledger/posting-lines.md) | account/amount separator, elided amounts, markers |
+| [posting-star-line](hledger/posting-star-line.md) | a posting line of only `*` ends the transaction like a comment line |
 | [postings](hledger/postings.md) | posting status, virtual and balanced virtual postings, account names |
 | [prices-and-lots](hledger/prices-and-lots.md) | `@`, `@@`, `{}`, `{{}}`, `[date]`, `(label)` |
 | [balancing](hledger/balancing.md) | groups, what must sum to zero, tolerance |
@@ -71,7 +72,7 @@ Each note has:
 | [assertion-failures](hledger/assertion-failures.md) | the line blamed, which failure and which error comes first, `-I` |
 | [assertion-verdicts](hledger/assertion-verdicts.md) | hledger's verdict and first error on every corpus journal with an assertion |
 | [rules-ignored](hledger/rules-ignored.md) | `=` and `~` rules: what is read, what is an error, period expressions, no effect on the rest |
-| [syntax](hledger/syntax.md) | every construct of the journal format: supported, ignored with a warning, or refused; where ledgermill differs today |
+| [syntax](hledger/syntax.md) | every construct of the journal format: supported, ignored with a warning, or refused (the published list) |
 | [check-vs-print](hledger/check-vs-print.md) | `hledger check` gives print's verdict and first error; which checks it runs by default |
 
 ## Index (Beancount 3.2.3)
@@ -103,9 +104,16 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 to.
 
 `unsupported-syntax` (error): the line uses something ledgermill does not read yet.
-`details.construct` names it: `directive` (periodic and automated rules), `include`,
-`date-without-year`, `control-character`, `number-too-large`,
-`conversion-postings`. A transaction with a refused line is not returned.
+`details.construct` names it: `include`, `date-without-year`, `control-character`,
+`number-too-large`, `conversion-postings`, `period-expression` (a period expression in a `~` rule
+that the notes cannot settle), and `timeclock`, `timedot`, `csv` (a file of that kind, by its
+extension, on line 1). A transaction with a refused line is not returned. `!include` is a
+`parse-error`, as in hledger. [hledger/syntax.md](hledger/syntax.md) is the published list of
+every construct and its class.
+
+`ignored-syntax` (warning), for hledger: an automated (`=`) or periodic (`~`) rule, read in full and
+left out. `details.construct` is `automated-rule` or `periodic-rule`; one finding per rule, on its
+header line. It never changes the verdict ([rules-ignored](hledger/rules-ignored.md)).
 
 `unbalanced-transaction` (error): a group does not sum to zero (`details.group`,
 `details.residual`), two postings of a group leave out their amount (`details.reason:

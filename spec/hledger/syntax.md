@@ -2,8 +2,9 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-22.
 
-Status: **specified, not built**. The classes below are the design; "Where ledgermill differs today"
-lists the rows ledgermill does not yet do as the table says.
+Status: **built**. ledgermill does what the table says; this is the published list of what it reads,
+ignores and refuses. The harness agrees with hledger on every probe of `probes/` (a `.journal` and a rule
+pair alike).
 
 Every construct of the hledger journal format and what ledgermill does with it, with the probe that
 shows what hledger does. The list of constructs comes from the format's documentation (the directives,
@@ -27,8 +28,9 @@ Three classes, as for Beancount ([syntax](../beancount/syntax.md)).
   not returned as transactions. It is never used for what hledger rejects: that is a `parse-error` (or
   another finding) on the line hledger blames.
 
-Probes are under `probes/` (run by the harness), or `probes/refused/` for the unsupported ones (not run:
-hledger accepts them, ledgermill reports an error). `rule-*` probes belong to
+Probes are under `probes/` (run by the harness), or `probes/refused/` for the unsupported ones (not run by
+the harness: hledger accepts them, ledgermill reports an error; the Rust test `hledger_refused_probes.rs`
+checks that each gives an `unsupported-syntax` error). `rule-*` probes belong to
 [rules-ignored](rules-ignored.md). A probe name is a file of `probes/` without its `.journal`; `refused/NAME` is in `probes/refused/`
 and `app/NAME` is in `../../harness/journals/app/`.
 
@@ -37,7 +39,7 @@ and `app/NAME` is in `../../harness/journals/app/`.
 | transaction: date `YYYY-MM-DD`, with `/` or `.`, leading zeros optional | supported | `header-code-and-dates`, `header-date-mixed-separators`, `date-invalid`, `date-leap`, `date-year-zero-and-five-digits` |
 | secondary date `DATE=DATE` (a year-less one takes the primary's year) | supported | `header-code-and-dates`, `directive-year` |
 | date with no year after `Y`, `year` or `apply year` | supported | `directive-year` |
-| date with no year and no `Y` directive (transaction, secondary primary, `P`) | unsupported | `refused/date-without-year-header`, `refused/date-without-year-before-y`, `refused/date-without-year-price`, `directive-date-without-year` |
+| date with no year and no `Y` directive (transaction, secondary primary, `P`) | unsupported | `refused/date-without-year-header`, `refused/date-without-year-before-y`, `refused/date-without-year-price`, `refused/directive-date-without-year` |
 | status `*` or `!`, code `(...)`, description, `payee \| note` | supported | `header-forms`, `header-status-glued-to-date`, `header-unusual-accepted-by-hledger` |
 | transaction comment: on the header, on indented lines below | supported | `comments`, `header-forms` |
 | transaction with no postings | supported | `syntax-no-postings` |
@@ -107,7 +109,7 @@ for f in refused/timeclock.timeclock refused/timedot.timedot refused/csv.csv; do
 `directive-forms.txt` is hledger's verdict on 200 lines of the margin: the arguments each directive takes,
 bare, glued, with an extra word, a comment or an indented line below it (`ok` or `err:LINE:COLUMN`, the
 line being the line of the file the error is on: `err:2:5` is an indented line after a directive that takes
-none). The rows that name a `directive-*` probe are the lines of this file where ledgermill differs today.
+none). The rows that name a `directive-*` probe are the lines of this file where ledgermill used to differ.
 The reader needs the forms of the file, not only those probes.
 
 ## Output
@@ -173,68 +175,23 @@ err:1:1	i 2026-01-01 09:00:00 a
 err:1:1	x
 ```
 
-## Where ledgermill differs today
+## Notes on the edges
 
-Built from `bun harness/real.ts` and the harness on every probe above, with the wasm of this branch
-(`cargo build --release --target wasm32-unknown-unknown -p ledgermill-wasm`, then `wasm-bindgen`). Every
-journal of the corpus (`harness/journals/`, `probes/`) agrees with hledger today except the ones below. Before
-the probes of this change the harness said, for hledger, 968 pass, 0 fail, 2 skip (`prototype/w7`, which has
-rules, and `directive-date-without-year`); with the `rule-*` probes, 974 pass, 0 fail, 86 skip. The 27 probes
-added for the rows below fail today: this list is the engine's to-do list, and the probes are its tests.
+Every journal of the corpus (`harness/journals/`, `probes/`) and every rule pair agrees with hledger: no
+SKIP on the hledger side. What is left to know:
 
-Silent: ledgermill returns the transactions, with no finding, of a journal that hledger rejects (16 probes).
-These are the ones that make figures differ from hledger's without an error or a warning:
-
-| Construct | Probe | hledger | ledgermill today |
-|---|---|---|---|
-| a number with more than 255 decimal places (also through an exponent: `1e-256`) | `numbers-too-many-places`, `numbers-too-many-places-exponent` | parse error at the number | reads it |
-| `account (a)`, `account [a]` | `directive-account-virtual-name`, `directive-account-balanced-virtual-name` | parse error at the parenthesis | accepts |
-| `tag a b` (a blank in the name) | `directive-tag-two-words` | parse error at the second word | accepts |
-| `alias =b` (nothing before the `=`) | `directive-alias-empty-pattern` | parse error | accepts |
-| text after `end comment`, inside a comment block | `directive-comment-end-text` | parse error on that line | accepts |
-| `bucket` or `A` with no account | `directive-bare-bucket`, `directive-bare-a` | parse error at the word | accepts |
-| `N` with no symbol, or with a number | `directive-bare-n`, `directive-n-number` | parse error | accepts |
-| `C` with nothing, one amount, or no number | `directive-bare-c`, `directive-c-one-amount`, `directive-c-no-number` | parse error | accepts |
-| `apply` with nothing, or an unknown word | `directive-apply-bare`, `directive-apply-unknown` | parse error at the word | accepts |
-
-Another line: `alias a` (no `=`), `directive-alias-no-equals`. hledger blames the line after the last line of
-the file; ledgermill reports a `parse-error` on the alias's own line. Both reject, but the first errors
-differ, which the harness counts as a failure. (The line is the position at which hledger found out that
-no `=` came; to match it, report the line after the last one.)
-
-Refused, where hledger reads the file (a `parse-error` finding for a line hledger accepts, so the
-transaction it belongs to is dropped):
-
-| Construct | Probe | ledgermill today |
-|---|---|---|
-| `python` and its indented code | `directive-python-block` | parse-error on the first code line |
-| a line starting with `--` and a word (`--strict`, `--foo=bar`, `--foo bar`; `--` alone is fine) | `directive-flag-line` | parse-error |
-| text after `end apply fixed`, `end apply tag`, `end apply year` | `directive-end-apply-fixed-text`, `directive-end-apply-tag-text`, `directive-end-apply-year-text` | parse-error |
-| `commodity ,` | `directive-commodity-lone-mark` | parse-error |
-| text after the amount of `D` | `directive-default-commodity-text` | parse-error |
-| `year2026` (glued) | `directive-year-glued` | parse-error |
-| virtual costs `(@)`, `(@@)` | `syntax-virtual-cost` | parse-error on the line |
-| a valuation expression `((...))` | `syntax-valuation-expression` | parse-error on the line |
-
-Not an error of the verdict, a different kind of finding to decide:
-
-- A timeclock, timedot or CSV file (`refused/*`) gets `parse-error`s (line by line) and, for the timedot one, a
-  transaction made of a date line; hledger reads the file by its extension. The class says
-  `unsupported-syntax`, a construct such as `timeclock`, `timedot` or `csv`, on line 1, and no transaction.
-- `!include` is an error in hledger (at the `!`); ledgermill says `unsupported-syntax` (`include`) on the
-  same line. The verdict and the line match; hledger's kind is a parse error.
-- `include` of a file that does not exist is an error in hledger (line of the include); ledgermill
-  says `include` too: same line, same verdict.
-- The rules `=` and `~` are `unsupported-syntax` (`directive`) today; every `rule-*` probe is a SKIP, and the
-  probes that hledger rejects are SKIPs too, because the first error of ours is the refusal. Each line of
-  [rules-ignored](rules-ignored.md) is a case for the harness once rules are read.
-- A file that is not valid UTF-8 is an error in hledger with no position (`hGetContents`); ledgermill gets a
-  string, so the caller decides how to decode: nothing to do.
+- A timeclock, timedot or CSV file is refused by its extension (`timeclock`, `timedot`, `csv`), on line 1,
+  with no transaction; hledger reads it. A CSV file needs its rules file too, which ledgermill does not read.
+- `!include` is a `parse-error` at the same line as hledger's error. `include` is `unsupported-syntax`
+  (`include`), also for a file that does not exist, where hledger errors on that line: same line, same verdict.
+- The rules `=` and `~` are read in full and left out, with an `ignored-syntax` warning. A period expression
+  the notes cannot settle (a range sign glued after a date) is `unsupported-syntax` (`period-expression`).
+  See [rules-ignored](rules-ignored.md).
+- `alias a` with no `=` runs on to the `=` of a later `alias` line in the file, as in hledger; with none, the
+  error is on the line after the last one.
+- A file that is not valid UTF-8 is an error in hledger with no position; ledgermill is given a string, so
+  the caller decides how to decode: nothing to do.
 - A positive exponent up to 4096 and a number of up to 255 decimal places are read exactly as hledger does;
-  an exponent above 4096 is `number-too-large`, as the table says. hledger reads `1e100000` (a mantissa of a
-  hundred thousand digits) and does not finish on `1e9999999999999999999`: not probed further.
-
-Probes that live in `probes/` and that ledgermill refuses today: `directive-date-without-year`
-(`date-without-year`, SKIP; `crates/ledgermill/tests/findings.rs` includes it, so it was left where it
-is; the same case is in `refused/date-without-year-*`). Nothing under `harness/journals/` is refused,
-except `prototype/w7` (rules).
+  an exponent above 4096 is `number-too-large`. hledger reads `1e100000` (a mantissa of a hundred thousand
+  digits) and does not finish on `1e9999999999999999999`: not probed further.
+- A line of only `*` is not a posting: [posting-star-line](posting-star-line.md).

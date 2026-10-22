@@ -54,7 +54,9 @@ impl Ledger {
     /// and, for a transaction with an assignment, taken as a block at its date, its
     /// `assignment-with-posting-date`, its `assertion-failed` and then its own
     /// `unbalanced-transaction`. A file with a line that was not read is not walked, as its
-    /// balances would be wrong.
+    /// balances would be wrong. A `=` or `~` rule is read and left out, with an `ignored-syntax`
+    /// warning on its header line (`automated-rule`, `periodic-rule`), in line order with the
+    /// errors of that file; it never changes the verdict (spec/hledger/rules-ignored.md).
     ///
     /// Beancount: in the order `bean-check` prints them, which is not line order: by step (parsing,
     /// booking, pads, balance assertions, then the validations), and within a step by date, with a

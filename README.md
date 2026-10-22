@@ -21,7 +21,12 @@ ledger.free()
 For hledger, balance assertions (`=`, `==`, `=*`, `==*`) and assignments are read: `check()` reports a failed
 assertion (`assertion-failed`, with the account, commodity and the exact expected and actual amounts) and the
 transactions come with the amounts the assignments filled in. Its first error is the one hledger prints first
-(file and line), not the first by line.
+(file and line), not the first by line. The automated (`=`) and periodic (`~`) rules are read, with the
+errors hledger gives for them, and left out: hledger only applies them with `--auto` and `--forecast`, so
+each one gets an `ignored-syntax` warning and changes nothing. A few things are refused with an
+`unsupported-syntax` error instead (`include`, timeclock, timedot and CSV files, dates with no year and no
+`Y`, and a few more); [spec/hledger/syntax.md](spec/hledger/syntax.md) lists every construct and what
+ledgermill does with it.
 
 For Beancount, `check()` gives the verdict `bean-check` gives, with the same first error (file and line):
 unknown or closed accounts, balance assertions and their tolerance, unused pads, currency
