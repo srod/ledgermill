@@ -4,7 +4,7 @@
 use crate::amount::{Default, ReadAmount, Styles, read_amount};
 use crate::chars::{is_blank, trim_blank};
 use crate::cursor::Cursor;
-use crate::date::parse_date;
+use crate::date::{YearSource, check_date, parse_date};
 use crate::decimal::Decimal;
 use crate::model::PostingKind;
 use crate::problem::{Parsed, invalid};
@@ -59,6 +59,27 @@ pub(crate) struct WrittenAssertion {
     pub offset: usize,
 }
 
+/// What a posting line is read for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Mode {
+    /// A transaction's posting.
+    Transaction,
+    /// A posting of an automated rule (`=`): an amount may be a multiplier.
+    AutomatedRule,
+    /// A posting of a periodic rule (`~`): read as a transaction's is.
+    PeriodicRule,
+}
+
+/// Where an amount is read, which decides what may follow its number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Tail {
+    Posting,
+    /// After `=`: no lot, no valuation expression.
+    Assertion,
+    /// After the `*` of a rule's posting: no virtual cost.
+    Multiplier,
+}
+
 #[derive(Debug)]
 pub(crate) struct PostingLine {
     pub kind: PostingKind,
@@ -88,13 +109,21 @@ fn account_name(text: &str) -> String {
         .collect()
 }
 
-/// Read a posting line's content (indentation removed). `year` is the transaction's year, for
-/// lot dates without one.
-pub(crate) fn parse_posting(content: &str, styles: &Styles, year: u32) -> Parsed<PostingLine> {
+/// Read a posting line's content (indentation removed). `year` says where a lot date without a
+/// year gets its year.
+pub(crate) fn parse_posting(
+    content: &str,
+    styles: &Styles,
+    year: YearSource,
+    mode: Mode,
+) -> Parsed<PostingLine> {
     let mut cur = Cursor::new(content);
     // A posting status is read and not reported.
     if cur.eat('*') || cur.eat('!') {
         cur.skip_blanks();
+        if cur.at_end() {
+            return invalid("A status mark needs an account after it.");
+        }
     }
     let (raw_account, rest) = split_account(cur.rest());
     // A posting with no amount needs two spaces before its comment; otherwise `;` is part of
@@ -140,8 +169,21 @@ pub(crate) fn parse_posting(content: &str, styles: &Styles, year: u32) -> Parsed
     let mut cur = Cursor::new(rest);
     let amount = if cur.peek() == Some('=') {
         None
+    } else if mode == Mode::AutomatedRule && cur.eat('*') {
+        // A multiplier: glued to its number, or alone (then nothing but a comment follows).
+        let mut after = cur;
+        after.skip_blanks();
+        let alone = after.at_end() || after.peek() == Some(';');
+        if alone {
+            cur = after;
+            None
+        } else if cur.peek().is_some_and(is_blank) {
+            return invalid("A multiplier is written right before its number.");
+        } else {
+            Some(parse_amount_tail(&mut cur, styles, year, Tail::Multiplier)?)
+        }
     } else {
-        Some(parse_amount_tail(&mut cur, styles, year)?)
+        Some(parse_amount_tail(&mut cur, styles, year, Tail::Posting)?)
     };
     cur.skip_blanks();
     let assertion = if cur.peek() == Some('=') {
@@ -175,7 +217,7 @@ pub(crate) fn parse_posting(content: &str, styles: &Styles, year: u32) -> Parsed
 fn parse_assertion(
     cur: &mut Cursor,
     styles: &Styles,
-    year: u32,
+    year: YearSource,
     offset: usize,
 ) -> Parsed<WrittenAssertion> {
     cur.eat('=');
@@ -185,7 +227,7 @@ fn parse_assertion(
     }
     let inclusive = cur.eat('*');
     cur.skip_blanks();
-    let amount = parse_amount_tail(cur, styles, year)?;
+    let amount = parse_amount_tail(cur, styles, year, Tail::Assertion)?;
     if amount.lot.is_some() {
         return invalid("The amount of a balance assertion has no lot.");
     }
@@ -197,9 +239,44 @@ fn parse_assertion(
     })
 }
 
-/// The amount and its `@`/`@@` price and lot parts, in any order, each at most once.
-fn parse_amount_tail(cur: &mut Cursor, styles: &Styles, year: u32) -> Parsed<WrittenAmount> {
+/// `(@)` or `(@@)` at the cursor: the kind of price it stands for and its length.
+fn virtual_cost(at: &Cursor) -> Option<(CostKind, usize)> {
+    let rest = at.rest();
+    if rest.starts_with("(@@)") {
+        Some((CostKind::Total, 4))
+    } else if rest.starts_with("(@)") {
+        Some((CostKind::Unit, 3))
+    } else {
+        None
+    }
+}
+
+/// A lot label `(text)` at the cursor, which is on the `(`.
+fn read_label(probe: &mut Cursor, lot: &mut Option<WrittenLot>) -> Parsed<()> {
+    let l = lot.get_or_insert_with(WrittenLot::default);
+    if l.label.is_some() {
+        return invalid("An amount has at most one lot label.");
+    }
+    probe.bump();
+    let text = probe.take_while(|c| c != ')' && c != '\n');
+    if !probe.eat(')') {
+        return invalid("A lot label is not closed.");
+    }
+    l.label = Some(trim_blank(text).to_string());
+    Ok(())
+}
+
+/// The amount and its `@`/`@@` price and lot parts, in any order, each at most once. A `(@)` or
+/// `(@@)` followed by an amount is a price too, and `((...))` is a valuation expression, which
+/// is read and dropped.
+fn parse_amount_tail(
+    cur: &mut Cursor,
+    styles: &Styles,
+    year: YearSource,
+    tail: Tail,
+) -> Parsed<WrittenAmount> {
     let main = read_amount(cur, styles, Default::Apply)?;
+    let mut valued = false;
     let mut cost = None;
     let mut lot: Option<WrittenLot> = None;
     let mut lot_cost_total = None;
@@ -260,24 +337,52 @@ fn parse_amount_tail(cur: &mut Cursor, styles: &Styles, year: u32) -> Parsed<Wri
                 }
                 probe.bump();
                 probe.skip_blanks();
-                let date = parse_date(&mut probe, Some(year))?;
+                // A rule's lot date is checked and dropped, as nothing reads it.
+                let date = match year {
+                    YearSource::Fixed(year) => parse_date(&mut probe, Some(year))?.to_string(),
+                    other => {
+                        check_date(&mut probe, other)?;
+                        String::new()
+                    }
+                };
                 probe.skip_blanks();
                 if !probe.eat(']') {
                     return invalid("A lot date is not closed.");
                 }
-                l.date = Some(date.to_string());
+                l.date = Some(date);
+            }
+            Some('(') if !valued && tail != Tail::Assertion && probe.rest().starts_with("((") => {
+                probe.bump();
+                probe.bump();
+                probe.take_while(|c| c != ')');
+                if !(probe.eat(')') && probe.eat(')')) {
+                    return invalid("A valuation expression is not closed.");
+                }
+                valued = true;
+            }
+            Some('(')
+                if cost.is_none() && tail != Tail::Multiplier && virtual_cost(&probe).is_some() =>
+            {
+                // `(@)` and `(@@)` price an amount like `@` and `@@`; without an amount after
+                // them they are a lot label.
+                let (kind, length) = virtual_cost(&probe).unwrap_or((CostKind::Unit, 0));
+                let mut ahead = probe;
+                for _ in 0..length {
+                    ahead.bump();
+                }
+                ahead.skip_blanks();
+                match read_amount(&mut ahead, styles, Default::Apply) {
+                    Ok(price) => {
+                        cost = Some((kind, price));
+                        probe = ahead;
+                    }
+                    Err(_) => {
+                        read_label(&mut probe, &mut lot)?;
+                    }
+                }
             }
             Some('(') => {
-                let l = lot.get_or_insert_with(WrittenLot::default);
-                if l.label.is_some() {
-                    return invalid("An amount has at most one lot label.");
-                }
-                probe.bump();
-                let text = probe.take_while(|c| c != ')' && c != '\n');
-                if !probe.eat(')') {
-                    return invalid("A lot label is not closed.");
-                }
-                l.label = Some(trim_blank(text).to_string());
+                read_label(&mut probe, &mut lot)?;
             }
             _ => break,
         }

@@ -6,3 +6,7 @@ extend-exclude = ["*.journal", "LICENSE-*", "spec/hledger/period-forms.txt"]
 [default]
 # The 6-character transaction ids that open the rows in spec notes are hashes, not words.
 extend-ignore-re = ["(?m)^[0-9a-f]{6},"]
+
+[default.extend-words]
+# The ordinal ending of `2nd` in period expressions.
+nd = "nd"

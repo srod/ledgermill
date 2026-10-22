@@ -3,7 +3,7 @@
 
 use crate::chars::{is_blank, trim_blank};
 use crate::cursor::Cursor;
-use crate::date::{Date, parse_date};
+use crate::date::{Date, YearSource, check_date, parse_date};
 use crate::problem::{Parsed, Problem, invalid};
 
 /// Tags of one comment line, in order: `(name, value)`. Scanning left to right, a tag name is
@@ -57,19 +57,29 @@ fn date_prefix(text: &str, year: u32) -> Parsed<Date> {
     parse_date(&mut cur, Some(year))
 }
 
+/// [`date_prefix`] for checking only, with the year coming from `source`.
+fn check_date_prefix(text: &str, source: YearSource) -> Parsed<()> {
+    let mut cur = Cursor::new(text);
+    cur.skip_ws();
+    check_date(&mut cur, source).map(|_| ())
+}
+
 fn is_bracket_char(c: char) -> bool {
     c.is_ascii_digit() || matches!(c, '-' | '/' | '.' | '=')
 }
 
 /// `[DATE]`, `[DATE=DATE]` or `[=DATE]`, strictly; `inner` is the text between the brackets.
-fn bracket_dates(inner: &str, year: u32) -> Parsed<()> {
+fn bracket_dates(inner: &str, source: YearSource) -> Parsed<()> {
     let mut cur = Cursor::new(inner);
-    let mut primary_year = year;
+    let mut second = source;
     if !cur.at_end() && cur.peek() != Some('=') {
-        primary_year = parse_date(&mut cur, Some(year))?.year();
+        // The second date takes the year the first one settled on.
+        if let Some(year) = check_date(&mut cur, source)? {
+            second = YearSource::Fixed(year);
+        }
     }
     if cur.eat('=') {
-        parse_date(&mut cur, Some(primary_year))?;
+        check_date(&mut cur, second)?;
     }
     if !cur.at_end() {
         return invalid("A bracketed date was expected.");
@@ -78,12 +88,12 @@ fn bracket_dates(inner: &str, year: u32) -> Parsed<()> {
 }
 
 /// Check the dates a posting comment line holds: `date:`/`date2:` tags and bracketed dates,
-/// which the reference tool reads and rejects when invalid. Dates without a year take `year`,
-/// the transaction's.
-pub(crate) fn check_posting_comment(text: &str, year: u32) -> Parsed<()> {
+/// which the reference tool reads and rejects when invalid. Dates without a year take theirs
+/// from `source`.
+pub(crate) fn check_posting_comment(text: &str, source: YearSource) -> Parsed<()> {
     for (name, value) in tags(text) {
         if name == "date" || name == "date2" {
-            date_prefix(value, year).map(|_| ()).map_err(|p| match p {
+            check_date_prefix(value, source).map_err(|p| match p {
                 Problem::Unsupported(_) => p,
                 Problem::Invalid(_) => {
                     Problem::Invalid("This posting date tag is not a valid date.")
@@ -92,7 +102,7 @@ pub(crate) fn check_posting_comment(text: &str, year: u32) -> Parsed<()> {
         }
     }
     for (_, run) in date_brackets(text) {
-        bracket_dates(run, year)?;
+        bracket_dates(run, source)?;
     }
     Ok(())
 }

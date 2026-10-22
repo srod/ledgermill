@@ -19,7 +19,7 @@ the same way, taking the transaction's year (see [comment-dates](comment-dates.m
 
 ## Probe
 
-`probes/directive-year.journal`, `probes/header-code-and-dates.journal`, `probes/header-date-mixed-separators.journal`, `probes/directive-date-without-year.journal`
+`probes/directive-year.journal`, `probes/header-code-and-dates.journal`, `probes/header-date-mixed-separators.journal`, `probes/refused/directive-date-without-year.journal`
 
 Command:
 
@@ -27,7 +27,7 @@ Command:
 spec/hledger/show.sh spec/hledger/probes/directive-year.journal
 spec/hledger/show.sh spec/hledger/probes/header-code-and-dates.journal
 hledger --no-conf -f spec/hledger/probes/header-date-mixed-separators.journal print -O json
-hledger --no-conf -f spec/hledger/probes/directive-date-without-year.journal print -O json
+hledger --no-conf -f spec/hledger/probes/refused/directive-date-without-year.journal print -O json
 ```
 
 ## Output
@@ -143,12 +143,12 @@ directive-date-without-year:
       {
         "sourceColumn": 1,
         "sourceLine": 1,
-        "sourceName": "spec/hledger/probes/directive-date-without-year.journal"
+        "sourceName": "spec/hledger/probes/refused/directive-date-without-year.journal"
       },
       {
         "sourceColumn": 1,
         "sourceLine": 4,
-        "sourceName": "spec/hledger/probes/directive-date-without-year.journal"
+        "sourceName": "spec/hledger/probes/refused/directive-date-without-year.journal"
       }
     ],
     "tstatus": "Unmarked",

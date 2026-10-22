@@ -139,12 +139,12 @@ fn lines_hledger_rejects_are_parse_errors() {
 
 #[test]
 fn what_ledgermill_does_not_read_yet_is_refused_at_its_line() {
-    let cases: [(&str, Value); 5] = [
+    let cases: [(&str, Value); 3] = [
         ("include other.journal\n", refused(1, "include")),
-        ("~ monthly\n  a  1\n  b\n", refused(1, "directive")),
-        ("= expenses\n  (budget)  *1\n", refused(1, "directive")),
         (
-            include_str!("../../../spec/hledger/probes/directive-date-without-year.journal"),
+            include_str!(
+                "../../../spec/hledger/probes/refused/directive-date-without-year.journal"
+            ),
             refused(1, "date-without-year"),
         ),
         (
@@ -279,5 +279,67 @@ fn findings_are_ordered_by_file_then_line_and_name_their_file() {
             s("a.journal", 4, "unsupported-syntax"),
             s("b.journal", 1, "unbalanced-transaction")
         ]
+    );
+}
+
+/// Files of `refused/` that are not meant to be loaded on their own: the file `include.journal`
+/// includes, and the rules file of `csv.csv`.
+const SUPPORT_FILES: [&str; 2] = ["include-target.journal", "csv.csv.rules"];
+
+#[test]
+fn every_probe_hledger_reads_and_ledgermill_refuses_is_refused() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spec/hledger/probes/refused");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_str().unwrap().to_string();
+        if SUPPORT_FILES.contains(&name.as_str()) {
+            continue;
+        }
+        let content = std::fs::read_to_string(&path).unwrap();
+        let found = short(&name, &content);
+        let found = found.as_array().unwrap();
+        assert!(
+            found.iter().any(|f| f[1] == "unsupported-syntax"),
+            "{name}: {found:?}"
+        );
+        // A file in a format ledgermill does not read gives one finding, on line 1, and nothing
+        // else.
+        let foreign = [
+            ("timeclock", "timeclock.timeclock"),
+            ("timedot", "timedot.timedot"),
+            ("csv", "csv.csv"),
+        ];
+        if let Some((construct, _)) = foreign.iter().find(|(_, file)| *file == name) {
+            assert_eq!(found, &vec![refused(1, construct)], "{name}");
+            assert_eq!(transactions(&name, &content), json!([]), "{name}");
+        }
+        checked += 1;
+    }
+    assert_eq!(checked, 13);
+}
+
+#[test]
+fn a_file_in_another_format_is_refused_by_its_extension_in_any_case() {
+    for name in ["a.TimeClock", "b.TIMEDOT", "c.Csv", "d.tsv", "e.ssv"] {
+        let found = short(name, "2026-01-01 t\n  a  1\n  b\n");
+        let construct = match name.rsplit_once('.').unwrap().1.to_lowercase().as_str() {
+            "timeclock" => "timeclock",
+            "timedot" => "timedot",
+            _ => "csv",
+        };
+        assert_eq!(found, json!([refused(1, construct)]), "{name}");
+    }
+}
+
+#[test]
+fn bang_include_is_a_parse_error_where_hledger_blames_it() {
+    assert_eq!(
+        short(
+            "x.journal",
+            "2026-01-01 t\n  a  1\n  b\n\n!include y.journal\n"
+        ),
+        json!([invalid(5)])
     );
 }

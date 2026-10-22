@@ -34,6 +34,9 @@ impl Mark {
 /// Exponents beyond this are refused: the value would be absurdly large to hold.
 const MAX_EXPONENT: i64 = 4096;
 
+/// More decimal places than this is an error, whatever the exponent leaves.
+const MAX_PLACES: i128 = 255;
+
 /// A number as written, before its decimal mark is known.
 #[derive(Debug)]
 pub(crate) struct RawNumber<'a> {
@@ -130,16 +133,14 @@ fn read_exponent(cur: &mut Cursor) -> Parsed<Option<i64>> {
     }
     *cur = probe;
     let value: i64 = digits.parse().unwrap_or(i64::MAX);
-    if value > MAX_EXPONENT {
-        return Err(Problem::Unsupported(Unsupported::NumberTooLarge));
-    }
     Ok(Some(if negative { -value } else { value }))
 }
 
 impl RawNumber<'_> {
     /// Settle the meaning. `declared` decides a lone `.` or `,` between digits; with nothing
-    /// declared it is the decimal mark.
-    pub(crate) fn settle(&self, declared: Option<Mark>) -> Parsed<Number> {
+    /// declared it is the decimal mark. With `shape_only` nobody reads the value (a rule's
+    /// amount), so it is not worked out and an exponent cannot make it too large.
+    pub(crate) fn settle(&self, declared: Option<Mark>, shape_only: bool) -> Parsed<Number> {
         let (decimal_at, mark) = self.decimal_position(declared)?;
         let groups = match decimal_at {
             Some(i) => i,
@@ -162,6 +163,22 @@ impl RawNumber<'_> {
         };
         let mut digits = int_runs.concat();
         digits.push_str(frac);
+        // The places left after the exponent moves the point.
+        let net = i128::try_from(frac.len()).unwrap_or(i128::MAX)
+            - i128::from(self.exponent.unwrap_or(0));
+        if net > MAX_PLACES {
+            return invalid("A number has at most 255 decimal places.");
+        }
+        let exponent = self.exponent.unwrap_or(0);
+        if shape_only {
+            return Ok(Number {
+                value: Decimal::zero(),
+                mark,
+            });
+        }
+        if exponent.abs() > MAX_EXPONENT {
+            return Err(Problem::Unsupported(Unsupported::NumberTooLarge));
+        }
         let places =
             u32::try_from(frac.len()).or(Err(Problem::Unsupported(Unsupported::NumberTooLarge)))?;
         let value = Decimal::from_digits(&digits, places)

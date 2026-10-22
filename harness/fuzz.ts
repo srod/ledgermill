@@ -330,6 +330,26 @@ function balanceJournal(): { text: string; second?: string } {
   return second === undefined ? { text } : { text, second };
 }
 
+// ───────────── rules ─────────────
+// Automated (`=`) and periodic (`~`) rules are read and ignored, so a journal with them gives the
+// transactions it gives without them. Their postings are read like any posting, and in a rule `*`
+// may stand before an amount.
+const QUERIES = ["expenses", "acct:a", "desc:foo", "re:[", "date:garbage", "amt:>10", ""] as const;
+const PERIODS = ["monthly", "every 2 weeks", "weekly from 2026-01-01", "every 5th day of month", "every jan 5th", "daily in 2026"] as const;
+function rule(style: Style): string {
+  const automated = chance(0.5);
+  const query = pick(QUERIES);
+  let t = automated ? `=${query ? " " : ""}${query}\n` : `~ ${pick(PERIODS)}${chance(0.2) ? "  a description" : ""}\n`;
+  for (let k = 0, n = int(4); k < n; k++) {
+    const c = pick(COMMODITIES);
+    const x = randomN();
+    const star = automated && chance(0.4) ? "*" : "";
+    const tail = pick(["", "", ` @ ${amount(pick(COMMODITIES), randomN(), style)}`, ` = ${amount(c, x, style)}`, " {3 EUR}", " ((x))"]);
+    t += `    ${pick(["(budget)", "a", "[x]", "* b"])}  ${star}${amount(c, x, style)}${tail}${comment()}\n`;
+  }
+  return t;
+}
+
 function journal(): { text: string; second?: string } {
   if (chance(0.3)) return balanceJournal();
   const { style, header } = fileStyle();
@@ -339,7 +359,10 @@ function journal(): { text: string; second?: string } {
   if (chance(0.1)) text += "apply account top\n";
   if (chance(0.3)) text += `P 2026-01-01 X ${digits({ v: 2n, dp: 0 }, style)} EUR\n`;
   text += "\n";
-  for (let k = 0, n = 1 + int(3); k < n; k++) text += `${transaction(style)}\n`;
+  for (let k = 0, n = 1 + int(3); k < n; k++) {
+    if (chance(0.25)) text += `${rule(style)}\n`;
+    text += `${transaction(style)}\n`;
+  }
   // Now and then a second file: directives must not reach it.
   const second = chance(0.15) ? `${transaction({ mark: ".", group: "" })}\n` : undefined;
   return second === undefined ? { text } : { text, second };

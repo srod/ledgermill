@@ -9,13 +9,14 @@ use crate::amount::{Default, Styles, read_amount, read_symbol};
 use crate::balance::{Draft, Unbalanced};
 use crate::chars::{is_blank, trim_blank};
 use crate::cursor::Cursor;
-use crate::date::{Date, parse_date};
+use crate::date::{Date, YearSource, parse_date};
 use crate::model::{
     Amount, Cost, Finding, Lot, Posting, PostingKind, Quantity, Severity, Source, SourceFile,
     Status, Transaction,
 };
 use crate::number::Mark;
-use crate::posting::{CostKind, WrittenAmount, parse_posting};
+use crate::period::{self, Verdict};
+use crate::posting::{CostKind, Mode, WrittenAmount, parse_posting};
 use crate::problem::{Parsed, Problem, Unsupported, invalid};
 use crate::tags::{check_posting_comment, posting_date, tags};
 use crate::walk::{self, Assertion, Issue, PostingInfo, Tx};
@@ -60,12 +61,32 @@ enum State {
     Skipping,
     /// Between `comment` and `end comment`.
     CommentBlock,
+    /// The indented lines of an automated or periodic rule.
+    InRule(RuleDraft),
+}
+
+/// A rule being read. Nothing of it is kept: hledger applies rules only when asked to with
+/// `--auto` or `--forecast`, which ledgermill never does.
+struct RuleDraft {
+    mode: Mode,
+    /// The styles of the file, but for values: no rule's number is read.
+    styles: Styles,
+    /// Where a date without a year in a posting comment gets its year.
+    comment_year: YearSource,
+    /// The same for the date of a lot.
+    lot_year: YearSource,
+    /// A posting has been read: comment lines are read from then on.
+    has_posting: bool,
 }
 
 enum DirectiveBody {
     Plain,
     Account(String),
     Commodity(String),
+    /// The code after `python`: any indented or blank lines.
+    Python,
+    /// The lines under `payee` and `tag`: any text, indented.
+    Free,
 }
 
 /// What a file has set up so far; directives reach only the lines after them in their file.
@@ -120,9 +141,18 @@ struct FileParser<'a> {
     conversion: Vec<Vec<bool>>,
     /// Findings reported while reading lines: the file was not read completely if there are any.
     reported: usize,
+    /// Every line of the file, for the directives that read past their own.
+    lines: &'a [&'a str],
+    /// Index of the first line not yet read: lines before it were taken by an earlier one.
+    consumed: usize,
 }
 
 pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output) {
+    let text = file
+        .content
+        .strip_prefix('\u{feff}')
+        .unwrap_or(&file.content);
+    let lines: Vec<&str> = text.split('\n').collect();
     let mut parser = FileParser {
         file_index,
         file,
@@ -131,15 +161,19 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
         done: Vec::new(),
         conversion: Vec::new(),
         reported: 0,
+        lines: &lines,
+        consumed: 0,
     };
-    let text = file
-        .content
-        .strip_prefix('\u{feff}')
-        .unwrap_or(&file.content);
+    // The reference tool reads these by their extension; ledgermill reads journals.
+    if let Some(kind) = other_format(&file.name) {
+        parser.report(1, None, Problem::Unsupported(kind), None);
+        parser.conclude();
+        return;
+    }
     let mut state = State::Top;
-    let lines: Vec<&str> = text.split('\n').collect();
     let last = lines.len() - 1;
-    for (i, raw) in lines.iter().enumerate() {
+    let mut i = 0;
+    while let Some(raw) = lines.get(i) {
         let line_no = u32::try_from(i + 1).unwrap_or(u32::MAX);
         let line = raw.strip_suffix('\r').unwrap_or(raw);
         // The reference tool fails on a final line of only blanks that has no newline after it.
@@ -155,9 +189,22 @@ pub(crate) fn parse_file(file_index: usize, file: &SourceFile, out: &mut Output)
             return;
         }
         state = parser.line(state, line_no, line);
+        // A directive may have taken the lines after its own (a plain `alias`).
+        i = (i + 1).max(parser.consumed);
     }
     parser.finish(state);
     parser.conclude();
+}
+
+/// The kind of a file that is not a journal, by its extension, however it is capitalised.
+fn other_format(name: &str) -> Option<Unsupported> {
+    let (_, extension) = name.rsplit_once('.')?;
+    match extension.to_ascii_lowercase().as_str() {
+        "timeclock" => Some(Unsupported::Timeclock),
+        "timedot" => Some(Unsupported::Timedot),
+        "csv" | "tsv" | "ssv" => Some(Unsupported::Csv),
+        _ => None,
+    }
 }
 
 fn finding(
@@ -213,14 +260,24 @@ impl FileParser<'_> {
 
     fn line(&mut self, state: State, line_no: u32, line: &str) -> State {
         if let State::CommentBlock = state {
-            return if trim_end(line) == "end comment" {
-                State::Top
-            } else {
-                State::CommentBlock
+            let Some(after) = line.strip_prefix("end comment") else {
+                return State::CommentBlock;
             };
+            if !trim_blank(after).is_empty() {
+                self.report(
+                    line_no,
+                    None,
+                    Problem::Invalid("Unexpected text after end comment."),
+                    None,
+                );
+            }
+            return State::Top;
         }
-        // Blank line: ends a transaction or a directive's indented lines.
+        // Blank line: ends a transaction or a directive's indented lines (not a python block).
         if line.chars().all(|c| c == ' ' || c == '\t') {
+            if let State::InDirective(DirectiveBody::Python) = state {
+                return state;
+            }
             self.finish(state);
             return State::Top;
         }
@@ -251,7 +308,10 @@ impl FileParser<'_> {
                 }
             };
         }
-        match self.directive(line) {
+        if matches!(first, '=' | '~') {
+            return self.rule_header(line_no, line);
+        }
+        match self.directive(line_no, line) {
             Ok(body) => match body {
                 Some(body) => State::InDirective(body),
                 None => State::CommentBlock,
@@ -261,6 +321,90 @@ impl FileParser<'_> {
                 State::Skipping
             }
         }
+    }
+
+    /// `= QUERY` or `~ PERIOD  DESCRIPTION`. The query of an automated rule is not read (it is
+    /// only an error when the rule is applied); the period of a periodic one is.
+    fn rule_header(&mut self, line_no: u32, line: &str) -> State {
+        let automated = line.starts_with('=');
+        if !automated {
+            let expression = period::header_expression(line.get(1..).unwrap_or(""));
+            let problem = match period::judge(expression) {
+                Verdict::Valid => None,
+                Verdict::Invalid => Some(Problem::Invalid(
+                    "A periodic rule needs a valid period expression.",
+                )),
+                Verdict::Unsettled => Some(Problem::Unsupported(Unsupported::PeriodExpression)),
+            };
+            if let Some(problem) = problem {
+                self.report(line_no, None, problem, None);
+                return State::Skipping;
+            }
+        }
+        let (construct, message) = if automated {
+            (
+                "automated-rule",
+                "An automated rule is read and left out: it only applies with --auto.",
+            )
+        } else {
+            (
+                "periodic-rule",
+                "A periodic rule is read and left out: it only applies with --forecast.",
+            )
+        };
+        self.out.findings.push((
+            self.file_index,
+            Finding {
+                code: "ignored-syntax".into(),
+                severity: Severity::Warning,
+                file: self.file.name.clone(),
+                line: line_no,
+                column: None,
+                details: json!({ "construct": construct }),
+                message: message.into(),
+            },
+        ));
+        // An automated rule has no year at all; a periodic one takes the `Y` directive's, or
+        // else the current year.
+        let lot_year = self.st.year.map_or(YearSource::Current, YearSource::Fixed);
+        State::InRule(RuleDraft {
+            mode: if automated {
+                Mode::AutomatedRule
+            } else {
+                Mode::PeriodicRule
+            },
+            styles: Styles {
+                shape_only: true,
+                ..self.st.styles.clone()
+            },
+            comment_year: if automated {
+                YearSource::Missing
+            } else {
+                lot_year
+            },
+            lot_year,
+            has_posting: false,
+        })
+    }
+
+    /// An indented line of a rule: a posting, or a comment (read once a posting is above it).
+    fn rule_line(&mut self, mut rule: RuleDraft, line_no: u32, content: &str) -> State {
+        let comment = if let Some(comment) = content.strip_prefix(';') {
+            rule.has_posting.then(|| comment.to_string())
+        } else {
+            rule.has_posting = true;
+            match parse_posting(content, &rule.styles, rule.lot_year, rule.mode) {
+                Ok(posting) => posting.comment,
+                Err(problem) => {
+                    self.report(line_no, None, problem, Some(content));
+                    None
+                }
+            }
+        };
+        if let Some(Err(problem)) = comment.map(|c| check_posting_comment(&c, rule.comment_year)) {
+            self.report(line_no, None, problem, None);
+        }
+        State::InRule(rule)
     }
 
     fn header(&self, line_no: u32, line: &str) -> Parsed<TxDraft> {
@@ -308,16 +452,21 @@ impl FileParser<'_> {
     }
 
     /// A column-0 line that is not a transaction or a comment. `Ok(None)` opens a comment block.
-    fn directive(&mut self, line: &str) -> Parsed<Option<DirectiveBody>> {
+    fn directive(&mut self, line_no: u32, line: &str) -> Parsed<Option<DirectiveBody>> {
+        // A line that starts with two dashes is read and dropped, whatever follows.
+        if line.starts_with("--") {
+            return Ok(Some(DirectiveBody::Plain));
+        }
         let (word, rest) = match line.find(is_blank) {
             Some(i) => (&line[..i], &line[i..]),
             None => (line, ""),
         };
         let arg = trim_blank(rest);
+        let plain = Ok(Some(DirectiveBody::Plain));
         match word {
             "comment" if arg.is_empty() => Ok(None),
-            "include" | "!include" => Err(Problem::Unsupported(Unsupported::Include)),
-            "~" | "=" => Err(Problem::Unsupported(Unsupported::Directive)),
+            "include" => Err(Problem::Unsupported(Unsupported::Include)),
+            "!include" => invalid("!include is not a directive; the reference tool rejects it."),
             "P" => self
                 .price_directive(rest)
                 .map(|()| Some(DirectiveBody::Plain)),
@@ -333,43 +482,160 @@ impl FileParser<'_> {
                     return invalid("decimal-mark takes `.` or `,`.");
                 };
                 self.st.styles.decimal_mark = Some(mark);
-                Ok(Some(DirectiveBody::Plain))
+                plain
             }
             "commodity" => self.commodity(rest),
             "account" => self.account(rest),
-            "alias" => {
-                let alias = parse_alias(rest)?;
-                self.st.aliases.push(alias);
-                Ok(Some(DirectiveBody::Plain))
-            }
-            "end" => match arg {
-                "aliases" => {
-                    self.st.aliases.clear();
-                    Ok(Some(DirectiveBody::Plain))
-                }
-                "apply account" => {
-                    if self.st.parents.pop().is_none() {
-                        return invalid("end apply account without apply account.");
-                    }
-                    Ok(Some(DirectiveBody::Plain))
-                }
-                "apply tag" | "apply fixed" | "tag" | "apply year" => {
-                    Ok(Some(DirectiveBody::Plain))
-                }
-                _ => invalid("Unknown end directive."),
-            },
-            "apply" => self.apply(arg),
+            "alias" => self.alias(line_no, rest),
+            "end" => self.end(rest),
+            "apply" => self.apply(rest),
             "Y" | "year" => self.year(arg),
             w if w.starts_with('Y') && w[1..].starts_with(|c: char| c.is_ascii_digit()) => {
                 self.year(&line[1..])
             }
-            "payee" | "tag" if arg.is_empty() => invalid("This directive needs an argument."),
-            "payee" | "tag" | "N" | "C" | "A" | "bucket" | "assert" | "capture" | "check"
-            | "define" | "expr" | "eval" | "python" | "value" | "--" => {
-                Ok(Some(DirectiveBody::Plain))
+            w if w.starts_with("year") && w[4..].starts_with(|c: char| c.is_ascii_digit()) => {
+                self.year(&line[4..])
+            }
+            "payee" => {
+                // The name is what comes before a comment.
+                if trim_blank(rest.split(';').next().unwrap_or("")).is_empty() {
+                    return invalid("payee needs a name.");
+                }
+                Ok(Some(DirectiveBody::Free))
+            }
+            "tag" => {
+                // One word, then at most a comment.
+                let name = rest.trim_start_matches([' ', '\t']);
+                let after = name.trim_start_matches(|c| c != ' ' && c != '\t');
+                let after = after.trim_start_matches([' ', '\t']);
+                if name.is_empty() {
+                    return invalid("tag needs a name.");
+                }
+                if !(after.is_empty() || after.starts_with(';')) {
+                    return invalid("A tag name is one word.");
+                }
+                Ok(Some(DirectiveBody::Free))
+            }
+            // These two need a space after the word, and take anything.
+            "bucket" | "A" if rest.starts_with(' ') => plain,
+            "bucket" | "A" => invalid("This directive needs an account."),
+            "N" => {
+                let mut cur = Cursor::new(rest);
+                cur.take_while(is_blank);
+                read_symbol(&mut cur)
+                    .transpose()?
+                    .ok_or(Problem::Invalid("N needs a commodity symbol."))?;
+                plain
+            }
+            "C" => self
+                .conversion_rate(rest)
+                .map(|()| Some(DirectiveBody::Plain)),
+            // Any word that starts this way: the indented lines after it are code.
+            w if w.starts_with("python") => Ok(Some(DirectiveBody::Python)),
+            // Ledger's directives, which hledger reads and drops; any word that starts this way.
+            w if [
+                "assert", "capture", "check", "define", "eval", "expr", "value",
+            ]
+            .iter()
+            .any(|d| w.starts_with(d)) =>
+            {
+                plain
             }
             _ => invalid("This line is not a transaction or a directive."),
         }
+    }
+
+    /// `C AMOUNT = AMOUNT`: checked only; what follows the second amount is not read.
+    fn conversion_rate(&self, rest: &str) -> Parsed<()> {
+        let mut cur = Cursor::new(rest);
+        cur.take_while(is_blank);
+        read_amount(&mut cur, &self.st.styles, Default::Ignore)?;
+        cur.take_while(is_blank);
+        if !cur.eat('=') {
+            return invalid("C needs an `=` between its two amounts.");
+        }
+        cur.take_while(is_blank);
+        read_amount(&mut cur, &self.st.styles, Default::Ignore)?;
+        Ok(())
+    }
+
+    /// `alias OLD = NEW`. A plain name reads on past its line to the first `=` of the file, so
+    /// the lines in between belong to it; with no `=` left the error is at the end of the file.
+    fn alias(&mut self, line_no: u32, rest: &str) -> Parsed<Option<DirectiveBody>> {
+        let text = rest.trim_start_matches([' ', '\t']);
+        if rest.is_empty() || text.starts_with('=') {
+            return invalid("An alias needs something before the `=`.");
+        }
+        if text.starts_with('/') || text.contains('=') {
+            self.st.aliases.push(parse_alias(rest)?);
+            return Ok(Some(DirectiveBody::Plain));
+        }
+        let mut old = text.to_string();
+        for (i, later) in self.lines.iter().enumerate().skip(line_no as usize) {
+            old.push('\n');
+            if let Some((before, new)) = later.split_once('=') {
+                old.push_str(before);
+                self.consumed = i + 1;
+                // Nothing with a line break in it can name an account.
+                let old = old.trim_end_matches(is_blank);
+                if !old.is_empty() && !old.contains('\n') {
+                    self.st.aliases.push(Alias::Plain {
+                        old: old.to_string(),
+                        new: trim_blank(new).to_string(),
+                    });
+                }
+                return Ok(Some(DirectiveBody::Plain));
+            }
+            old.push_str(later);
+        }
+        self.consumed = self.lines.len();
+        let last = u32::try_from(self.lines.len()).unwrap_or(u32::MAX);
+        self.report(last, None, Problem::Invalid("An alias needs `=`."), None);
+        Ok(Some(DirectiveBody::Plain))
+    }
+
+    /// `end ...`. What may follow depends on the word.
+    fn end(&mut self, rest: &str) -> Parsed<Option<DirectiveBody>> {
+        let plain = Ok(Some(DirectiveBody::Plain));
+        let name = rest.trim_start_matches(is_blank);
+        let comment_or_nothing = |t: &str| {
+            let t = t.trim_start_matches(is_blank);
+            t.is_empty() || t.starts_with(';')
+        };
+        if let Some(after) = name.strip_prefix("aliases") {
+            if !comment_or_nothing(after) {
+                return invalid("Unexpected text after end aliases.");
+            }
+            self.st.aliases.clear();
+            return plain;
+        }
+        if let Some(after) = name.strip_prefix("tag") {
+            if !trim_blank(after).is_empty() {
+                return invalid("Unexpected text after end tag.");
+            }
+            return plain;
+        }
+        if let Some(after) = name
+            .strip_prefix("apply")
+            .filter(|a| a.starts_with(is_blank))
+        {
+            let word = after.trim_start_matches(is_blank);
+            if let Some(after) = word.strip_prefix("account") {
+                if !comment_or_nothing(after) {
+                    return invalid("Unexpected text after end apply account.");
+                }
+                if self.st.parents.pop().is_none() {
+                    return invalid("end apply account without apply account.");
+                }
+                return plain;
+            }
+            // These three read nothing after their words, and want one blank after `end`.
+            let literal = rest.starts_with(" apply year") || rest.starts_with(" apply fixed");
+            if literal || (rest.starts_with(" apply") && word.starts_with("tag")) {
+                return plain;
+            }
+        }
+        invalid("Unknown end directive.")
     }
 
     fn year(&mut self, arg: &str) -> Parsed<Option<DirectiveBody>> {
@@ -381,8 +647,14 @@ impl FileParser<'_> {
         Ok(Some(DirectiveBody::Plain))
     }
 
-    fn apply(&mut self, arg: &str) -> Parsed<Option<DirectiveBody>> {
-        if let Some(name) = arg.strip_prefix("account") {
+    /// `apply account NAME`, `apply year YEAR`, `apply fixed ...`, `apply tag ...`. Only
+    /// `account` may have more than one blank before it.
+    fn apply(&mut self, rest: &str) -> Parsed<Option<DirectiveBody>> {
+        let plain = Ok(Some(DirectiveBody::Plain));
+        if let Some(name) = rest.trim_start_matches(is_blank).strip_prefix("account") {
+            if !(name.is_empty() || name.starts_with(is_blank)) {
+                return invalid("apply account needs a blank before the account.");
+            }
             let name = trim_blank(name);
             if name.is_empty() {
                 return invalid("apply account needs an account.");
@@ -392,12 +664,14 @@ impl FileParser<'_> {
             }
             let full = self.full_account(name);
             self.st.parents.push(full);
-            return Ok(Some(DirectiveBody::Plain));
+            return plain;
         }
-        if let Some(year) = arg.strip_prefix("year") {
-            return self.year(year);
+        let one_space = rest.strip_prefix(' ').filter(|r| !r.starts_with(is_blank));
+        match one_space {
+            Some(r) if r.starts_with("fixed") || r.starts_with("tag") => plain,
+            Some(r) if r.starts_with("year") => self.year(&r[4..]),
+            _ => invalid("This apply directive is not known."),
         }
-        Ok(Some(DirectiveBody::Plain))
     }
 
     /// `P DATE [TIME] COMMODITY AMOUNT`: checked only; prices change nothing raw output shows.
@@ -428,7 +702,7 @@ impl FileParser<'_> {
 
     /// The sample amount of a `commodity` or `D` directive. It is read like any amount, so the
     /// marks already in force decide a lone `.`/`,`; it must end up with a decimal mark.
-    fn sample_mark(&self, text: &str) -> Parsed<(String, Option<Mark>)> {
+    fn sample_mark(&self, text: &str, trailing_ok: bool) -> Parsed<(String, Option<Mark>)> {
         let mut cur = Cursor::new(text);
         cur.take_while(is_blank);
         let amount = read_amount(&mut cur, &self.st.styles, Default::Ignore)?;
@@ -436,7 +710,7 @@ impl FileParser<'_> {
             return invalid("A commodity directive's number needs a decimal mark.");
         }
         let after = trim_blank(cur.rest());
-        if !(after.is_empty() || after.starts_with(';')) {
+        if !(trailing_ok || after.is_empty() || after.starts_with(';')) {
             return invalid("Unexpected text after the amount.");
         }
         Ok((amount.commodity, amount.mark))
@@ -444,7 +718,8 @@ impl FileParser<'_> {
 
     fn default_commodity(&mut self, rest: &str) -> Parsed<()> {
         let text = rest.split(';').next().unwrap_or("");
-        let (commodity, mark) = self.sample_mark(text)?;
+        // Text after the amount is not read.
+        let (commodity, mark) = self.sample_mark(text, true)?;
         self.st.styles.default_commodity = Some((commodity, mark));
         Ok(())
     }
@@ -455,8 +730,9 @@ impl FileParser<'_> {
         if arg.is_empty() {
             return invalid("commodity needs a symbol or an amount.");
         }
-        let starts_number =
-            arg.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '-' | '+' | '.' | ','));
+        // A lone `,` is a commodity symbol; a mark is part of a number only before a digit.
+        let starts_number = arg.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '-' | '+'))
+            || (arg.starts_with(['.', ',']) && arg[1..].starts_with(|c: char| c.is_ascii_digit()));
         let quoted_then_number = {
             let mut c = Cursor::new(arg);
             matches!(read_symbol(&mut c), Some(Ok(_))) && {
@@ -465,7 +741,7 @@ impl FileParser<'_> {
             }
         };
         if starts_number || quoted_then_number {
-            let (commodity, mark) = self.sample_mark(arg)?;
+            let (commodity, mark) = self.sample_mark(arg, false)?;
             if let Some(mark) = mark {
                 self.st.styles.commodity_marks.insert(commodity, mark);
             }
@@ -487,6 +763,10 @@ impl FileParser<'_> {
             Some(i) => (&rest[..i], trim_blank(&rest[i..])),
             None => (rest, ""),
         };
+        // The brackets that make a posting virtual do not belong to a declared name.
+        if name.starts_with(['(', '[']) {
+            return invalid("A declared account cannot be virtual.");
+        }
         let name = self.full_account(trim_blank(name));
         if !after.is_empty() {
             let Some(comment) = after.strip_prefix(';') else {
@@ -563,11 +843,14 @@ impl FileParser<'_> {
                 State::Top
             }
             State::InDirective(body) => self.directive_line(body, line_no, content),
+            State::InRule(rule) => self.rule_line(rule, line_no, content),
             State::InTransaction(mut tx) => {
                 if let Some(comment) = content.strip_prefix(';') {
                     match tx.postings.last_mut() {
                         Some(posting) => {
-                            if let Err(p) = check_posting_comment(comment, tx.date.year()) {
+                            if let Err(p) =
+                                check_posting_comment(comment, YearSource::Fixed(tx.date.year()))
+                            {
                                 self.report(line_no, None, p, None);
                                 tx.refused = true;
                             }
@@ -596,7 +879,7 @@ impl FileParser<'_> {
         if let (DirectiveBody::Commodity(symbol), Some(format)) =
             (&body, content.strip_prefix("format"))
         {
-            match self.sample_mark(format) {
+            match self.sample_mark(format, false) {
                 Ok((commodity, Some(mark))) if &commodity == symbol => {
                     self.st.styles.commodity_marks.insert(commodity, mark);
                 }
@@ -611,7 +894,10 @@ impl FileParser<'_> {
             return State::InDirective(body);
         }
         match body {
-            DirectiveBody::Account(_) | DirectiveBody::Commodity(_) => State::InDirective(body),
+            DirectiveBody::Account(_)
+            | DirectiveBody::Commodity(_)
+            | DirectiveBody::Python
+            | DirectiveBody::Free => State::InDirective(body),
             DirectiveBody::Plain => {
                 self.report(
                     line_no,
@@ -635,7 +921,12 @@ impl FileParser<'_> {
     }
 
     fn posting(&mut self, tx: &mut TxDraft, line_no: u32, line: &str, content: &str) {
-        let parsed = parse_posting(content, &self.st.styles, tx.date.year());
+        let parsed = parse_posting(
+            content,
+            &self.st.styles,
+            YearSource::Fixed(tx.date.year()),
+            Mode::Transaction,
+        );
         let p = match parsed {
             Ok(p) => p,
             Err(problem) => {
@@ -655,7 +946,7 @@ impl FileParser<'_> {
         if let Some(Err(problem)) = p
             .comment
             .as_deref()
-            .map(|c| check_posting_comment(c, tx.date.year()))
+            .map(|c| check_posting_comment(c, YearSource::Fixed(tx.date.year())))
         {
             self.report(line_no, None, problem, None);
             tx.refused = true;
@@ -935,10 +1226,6 @@ fn column_after(indent: &str, before: &str) -> u32 {
         };
     }
     column.saturating_add(1)
-}
-
-fn trim_end(line: &str) -> &str {
-    line.trim_end_matches(is_blank)
 }
 
 /// Byte offset of the first of two blanks in a row (blanks may be several bytes long).

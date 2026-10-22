@@ -70,6 +70,10 @@ const specPairs: [string, string][] = [
   ["assert-file-late-fail", "assert-file-unbalanced"],
   ["assert-file-unbalanced", "assert-file-late-fail"],
   ["assert-file-a", "assign-file-b"],
+  // Rules (spec/hledger/rules-ignored.md): a file is read to its end before the next starts.
+  ["rule-file-a", "rule-file-b"],
+  ["rule-file-b", "rule-file-a"],
+  ["rule-file-c", "rule-file-a"],
 ];
 
 const cases: { name: string; paths: string[]; ignorePlaces?: boolean }[] = [];

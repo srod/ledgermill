@@ -10,12 +10,15 @@ use std::collections::HashMap;
 
 /// What a file has declared about numbers so far (`decimal-mark`, `commodity`, `D`). Directives
 /// only affect the lines after them, in their own file.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct Styles {
     pub decimal_mark: Option<Mark>,
     pub commodity_marks: HashMap<String, Mark>,
     /// `D`: the commodity of amounts written without one, and the mark of its sample amount.
     pub default_commodity: Option<(String, Option<Mark>)>,
+    /// Nobody reads the values read with these styles (a rule's amounts): only their shape is
+    /// checked.
+    pub shape_only: bool,
 }
 
 impl Styles {
@@ -106,7 +109,7 @@ pub(crate) fn read_amount(
         (None, Some((symbol, _)), Default::Apply) => symbol.clone(),
         (None, _, _) => String::new(),
     };
-    let number = raw.settle(styles.mark_for(&commodity))?;
+    let number = raw.settle(styles.mark_for(&commodity), styles.shape_only)?;
     // Exact as written; rounding to ten places happens only when a quantity is reported.
     let value = number.value;
     let quantity = if negative { value.negated() } else { value };

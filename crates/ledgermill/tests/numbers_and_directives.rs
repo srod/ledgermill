@@ -302,3 +302,25 @@ fn directives_that_change_nothing_and_comment_blocks_are_read() {
         json!([[7, [["a", "", "1"], ["b", "", "-1"]]]])
     );
 }
+
+#[test]
+fn more_than_255_decimal_places_is_an_error_even_through_an_exponent() {
+    for probe in [
+        include_str!("../../../spec/hledger/probes/numbers-too-many-places.journal"),
+        include_str!("../../../spec/hledger/probes/numbers-too-many-places-exponent.journal"),
+    ] {
+        let found = short_findings("n.journal", probe);
+        assert_eq!(found, json!([[3, "parse-error", null]]), "{probe}");
+    }
+    // The exponent moves the point: 255 places remain in each of these.
+    let zeros = "0".repeat(255);
+    for number in [
+        format!("1.{zeros}"),
+        format!("1.{zeros}e0"),
+        format!("1.0{zeros}e1"),
+        "1e-255".to_string(),
+    ] {
+        let journal = format!("2026-01-01 t\n  a  {number}\n  b\n");
+        assert_eq!(short_findings("n.journal", &journal), json!([]), "{number}");
+    }
+}

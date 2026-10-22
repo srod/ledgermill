@@ -45,10 +45,14 @@ fn number(digits: &str) -> Parsed<u32> {
     digits.parse().or(invalid("This is not a valid date."))
 }
 
-/// Read a date. A date without a year takes `year`; with no year to take, the reference tool
-/// would use the current year, so it is unsupported (the result would depend on the clock),
-/// unless the date is wrong in every year.
-pub(crate) fn parse_date(cur: &mut Cursor, year: Option<u32>) -> Parsed<Date> {
+/// A date as written: the year when it has one.
+struct Parts {
+    year: Option<u32>,
+    month: u32,
+    day: u32,
+}
+
+fn read_parts(cur: &mut Cursor) -> Parsed<Parts> {
     let first = cur.take_while(|c| c.is_ascii_digit());
     if first.is_empty() {
         return invalid("A date was expected.");
@@ -61,7 +65,7 @@ pub(crate) fn parse_date(cur: &mut Cursor, year: Option<u32>) -> Parsed<Date> {
     if second.is_empty() {
         return invalid("A month or day was expected.");
     }
-    let (written_year, month, day) = match cur.peek().filter(|&c| is_sep(c)) {
+    let (year, month, day) = match cur.peek().filter(|&c| is_sep(c)) {
         Some(c) => {
             if c != sep {
                 return invalid("This date mixes separators.");
@@ -78,7 +82,19 @@ pub(crate) fn parse_date(cur: &mut Cursor, year: Option<u32>) -> Parsed<Date> {
         }
         None => (None, number(first)?, number(second)?),
     };
-    let year = match written_year.or(year) {
+    Ok(Parts { year, month, day })
+}
+
+/// Read a date. A date without a year takes `year`; with no year to take, the reference tool
+/// would use the current year, so it is unsupported (the result would depend on the clock),
+/// unless the date is wrong in every year.
+pub(crate) fn parse_date(cur: &mut Cursor, year: Option<u32>) -> Parsed<Date> {
+    let Parts {
+        year: written,
+        month,
+        day,
+    } = read_parts(cur)?;
+    let year = match written.or(year) {
         Some(year) => year,
         // 2000 is a leap year: a date wrong in 2000 is wrong in every year.
         None if !valid(2000, month, day) => return invalid("This is not a valid date."),
@@ -88,6 +104,43 @@ pub(crate) fn parse_date(cur: &mut Cursor, year: Option<u32>) -> Parsed<Date> {
         return invalid("This is not a valid date.");
     }
     Ok(Date { year, month, day })
+}
+
+/// Where a date written without a year gets its year.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum YearSource {
+    /// The transaction's year, or the `Y` directive's.
+    Fixed(u32),
+    /// The current year, which a periodic rule outside a `Y` uses: no clock is read, so only a
+    /// date that is right in every year can be answered for.
+    Current,
+    /// No year at all: the reference tool rejects the date (the posting comment of an automated
+    /// rule).
+    Missing,
+}
+
+/// Check a date as [`parse_date`] does but keep nothing. Gives the year the date settled on, if
+/// it is known: a bracket's second date takes the first one's.
+pub(crate) fn check_date(cur: &mut Cursor, source: YearSource) -> Parsed<Option<u32>> {
+    let Parts {
+        year: written,
+        month,
+        day,
+    } = read_parts(cur)?;
+    let year = match (written, source) {
+        (Some(year), _) | (None, YearSource::Fixed(year)) => year,
+        (None, _) if !valid(2000, month, day) => return invalid("This is not a valid date."),
+        // 29 February is right in some years only, and the current one is not read.
+        (None, YearSource::Current) if (month, day) == (2, 29) => {
+            return Err(Problem::Unsupported(Unsupported::DateWithoutYear));
+        }
+        (None, YearSource::Current) => return Ok(None),
+        (None, YearSource::Missing) => return invalid("This date has no year to take."),
+    };
+    if !valid(year, month, day) {
+        return invalid("This is not a valid date.");
+    }
+    Ok(Some(year))
 }
 
 fn valid(year: u32, month: u32, day: u32) -> bool {

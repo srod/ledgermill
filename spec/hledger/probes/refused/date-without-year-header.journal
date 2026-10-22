@@ -1,4 +1,4 @@
-; A transaction date with no year and no Y directive (the same case as ../directive-date-without-year.journal,
+; A transaction date with no year and no Y directive (the same case as directive-date-without-year.journal,
 ; with a full second date: hledger reads the secondary date's year from the primary one, so the primary
 ; is the one without a year).
 01-02=2026-01-05 t

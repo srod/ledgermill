@@ -4,7 +4,6 @@
 /// Something ledgermill does not read yet. The reference tool accepts it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Unsupported {
-    Directive,
     Include,
     /// A date without a year and no `Y` directive: the reference tool uses the current year.
     DateWithoutYear,
@@ -13,23 +12,33 @@ pub(crate) enum Unsupported {
     NumberTooLarge,
     /// Conversion postings and prices in a shape whose rule is not pinned down.
     ConversionPostings,
+    /// A period expression whose verdict the spec notes do not settle.
+    PeriodExpression,
+    /// A timeclock file, read by the reference tool by its extension.
+    Timeclock,
+    /// A timedot file, read by the reference tool by its extension.
+    Timedot,
+    /// A CSV file, read by the reference tool by its extension (with rules of its own).
+    Csv,
 }
 
 impl Unsupported {
     pub(crate) fn id(self) -> &'static str {
         match self {
-            Unsupported::Directive => "directive",
             Unsupported::Include => "include",
             Unsupported::DateWithoutYear => "date-without-year",
             Unsupported::ControlCharacter => "control-character",
             Unsupported::NumberTooLarge => "number-too-large",
             Unsupported::ConversionPostings => "conversion-postings",
+            Unsupported::PeriodExpression => "period-expression",
+            Unsupported::Timeclock => "timeclock",
+            Unsupported::Timedot => "timedot",
+            Unsupported::Csv => "csv",
         }
     }
 
     pub(crate) fn message(self) -> &'static str {
         match self {
-            Unsupported::Directive => "This directive is not supported yet.",
             Unsupported::Include => "Including other files is not supported.",
             Unsupported::DateWithoutYear => {
                 "A date without a year needs a Y directive before it to be read here."
@@ -39,6 +48,12 @@ impl Unsupported {
             Unsupported::ConversionPostings => {
                 "Conversion postings in this arrangement are not supported yet."
             }
+            Unsupported::PeriodExpression => {
+                "This period expression is not one ledgermill can tell the reference tool's verdict on."
+            }
+            Unsupported::Timeclock => "Timeclock files are not supported.",
+            Unsupported::Timedot => "Timedot files are not supported.",
+            Unsupported::Csv => "CSV files are not supported.",
         }
     }
 }

@@ -14,6 +14,7 @@ mod decimal;
 mod model;
 mod number;
 mod parse;
+mod period;
 mod posting;
 mod problem;
 mod tags;
