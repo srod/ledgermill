@@ -567,29 +567,28 @@ fn failure(error: &booking::BookingError) -> BookFailure {
         }
         E::Posting(_, P::NotEnoughLotsToReduce) => BookFailure::Booking("not-enough-lots"),
         E::Posting(_, P::NoPositionMatches) => BookFailure::Booking("no-matching-lot"),
-        // What cannot be categorized or worked out is reported at its posting.
+        // Probed (spec/beancount/check-errors.md): these are reported at their posting.
         E::Posting(at, P::AmbiguousAutoPost) => {
             BookFailure::OnPosting("ambiguous-auto-posting", *at)
         }
-        E::Posting(at, P::CannotInferUnits) => BookFailure::OnPosting("cannot-infer-units", *at),
         E::Posting(at, P::CannotInferCurrency) => {
             BookFailure::OnPosting("cannot-infer-currency", *at)
         }
-        E::Posting(at, P::CannotInferAnything) => {
-            BookFailure::OnPosting("cannot-infer-anything", *at)
-        }
-        E::Posting(at, P::CannotInferPricePerUnit) => {
-            BookFailure::OnPosting("cannot-infer-price", *at)
-        }
-        E::Posting(at, P::CannotInferPriceCurrency) => {
-            BookFailure::OnPosting("cannot-infer-price-currency", *at)
-        }
-        E::Posting(at, P::CannotInferPrice) => BookFailure::OnPosting("cannot-infer-price", *at),
         E::Posting(at, P::InferredNegativeCostPerUnit) => {
             BookFailure::OnPosting("negative-cost", *at)
         }
         E::Posting(at, P::InferredNegativePricePerUnit) => {
             BookFailure::OnPosting("negative-price", *at)
+        }
+        // No probe journal produces these (ordinary shapes are caught earlier, the others make the
+        // reference crash), so they keep the transaction's line rather than a guess.
+        E::Posting(_, P::CannotInferUnits) => BookFailure::Booking("cannot-infer-units"),
+        E::Posting(_, P::CannotInferAnything) => BookFailure::Booking("cannot-infer-anything"),
+        E::Posting(_, P::CannotInferPricePerUnit | P::CannotInferPrice) => {
+            BookFailure::Booking("cannot-infer-price")
+        }
+        E::Posting(_, P::CannotInferPriceCurrency) => {
+            BookFailure::Booking("cannot-infer-price-currency")
         }
     }
 }

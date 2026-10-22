@@ -1,0 +1,8 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "x"
+  Assets:A  1 EUR
+  Assets:B
+  Assets:B
+  Assets:A

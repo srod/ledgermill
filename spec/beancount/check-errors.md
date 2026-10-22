@@ -86,6 +86,26 @@ returns no transaction for a file with a parse error (spec/README.md).
 **Open with a bad booking method.** `Invalid booking method: M` on the `open` line (ledgermill:
 `unsupported-booking-method`, lots-and-booking.md).
 
+**Which line a booking error is on.** Matching a reduction against the lots is reported on the
+transaction's *header* (`Not enough lots to reduce`, `No position matches`, `Ambiguous matches`). The others
+are on the *posting* the reference blames, never the header:
+
+- `You may not have more than one auto-posting per currency`: the **last** posting without an amount (the
+  second of two, the third of three; with an amount-bearing posting first, still the last elided one).
+- `Could not resolve units currency` (a posting with neither units nor currency, next to a cost `{10 EUR}`
+  or a price `@ 12.5 EUR`): that posting.
+- `Too many missing numbers for currency group` and `Failed to categorize posting N`: the first posting of
+  the group that lacks a number (a cost to work out `4 BTC {}`, or `BTC {}` with no units, or an incomplete
+  `EUR` amount), whichever of them is written first; `N` is not a line.
+- `Negative prices are not allowed`: the posting (the reference then also prints `Transaction does not
+  balance` on the header, later).
+- `Cost is negative` (an inferred cost): the posting (`lots-inferred-cost-negative-result`).
+
+ledgermill reports `booking-error` on those lines. Its reasons `cannot-infer-units`, `cannot-infer-anything`,
+`cannot-infer-price` and `cannot-infer-price-currency` come from a case the probes above do not produce
+(ordinary shapes end in one of the errors above, the rest make the reference crash), so their line is
+**unprobed**: they stay on the header.
+
 ## Probe
 
 `probes/check-account-unknown.beancount`, `probes/check-account-dates.beancount`,
@@ -96,7 +116,12 @@ returns no transaction for a file with a parse error (spec/README.md).
 `probes/check-document-missing.beancount`, `probes/check-document-existing.beancount`,
 `probes/check-commodity-duplicate.beancount`, `probes/check-tags-and-meta.beancount`,
 `probes/check-account-names.beancount`, `probes/check-parse-errors.beancount`,
-`probes/check-accepted.beancount`
+`probes/check-accepted.beancount`, and for the booking lines `probes/booking-line-no-units-currency.beancount`,
+`probes/booking-line-price-without-units.beancount`, `probes/booking-line-units-missing-number.beancount`,
+`probes/booking-line-negative-price.beancount`, `probes/booking-line-second-posting.beancount`,
+`probes/booking-line-missing-number-first.beancount`, `probes/booking-line-three-elided.beancount`,
+`probes/booking-line-elided-after-amounts.beancount`, `probes/booking-line-not-enough-lots.beancount`,
+`probes/booking-line-no-matching-lot.beancount` (and the existing `lots-inferred-cost-negative-result`)
 
 Command:
 
@@ -117,6 +142,7 @@ spec/beancount/show.sh spec/beancount/probes/check-tags-and-meta.beancount
 spec/beancount/show.sh spec/beancount/probes/check-account-names.beancount
 spec/beancount/show.sh spec/beancount/probes/check-parse-errors.beancount
 spec/beancount/show.sh spec/beancount/probes/check-accepted.beancount
+spec/beancount/verdicts.sh spec/beancount/probes/booking-line-*.beancount   # the first error of each
 ```
 
 `show.sh` prints one row per posting and one per transaction; here only the `bean-check:` lines and the transaction rows `id,type,line,date,flag,payee,narration` are kept. `bean-check:` lines are the errors it printed (the copy of the directive after each is left out), in its order; `(no output, exit 0)` means it accepts.
@@ -275,3 +301,18 @@ d239d7,transaction,4,2026-01-02,*,,"one posting,amount elided"
 8e6682,transaction,11,2026-01-05,*,,money before the close
 ```
 
+booking-line-* (the first error `bean-check` printed; the header of each is two lines above the first posting, the
+probes have one or two transactions):
+
+```text
+bean-check: booking-line-no-units-currency.beancount:7: Could not resolve units currency
+bean-check: booking-line-price-without-units.beancount:7: Could not resolve units currency
+bean-check: booking-line-units-missing-number.beancount:7: Too many missing numbers for currency group 'EUR'
+bean-check: booking-line-negative-price.beancount:7: Negative prices are not allowed: -12.5 EUR (see ...)
+bean-check: booking-line-second-posting.beancount:8: Failed to categorize posting 2
+bean-check: booking-line-missing-number-first.beancount:6: Too many missing numbers for currency group 'EUR'
+bean-check: booking-line-three-elided.beancount:9: You may not have more than one auto-posting per currency
+bean-check: booking-line-elided-after-amounts.beancount:8: You may not have more than one auto-posting per currency
+bean-check: booking-line-not-enough-lots.beancount:10: Not enough lots to reduce "-2 BTC {}": 1 BTC {10 EUR, 2026-01-02}
+bean-check: booking-line-no-matching-lot.beancount:10: No position matches "Posting(account='Assets:Stock', units=-1 BTC, ...
+```

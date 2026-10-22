@@ -1,0 +1,9 @@
+2026-01-01 open Assets:Stock BTC,EUR,USD
+2026-01-01 open Assets:Bank EUR,USD
+2026-01-01 open Assets:Other EUR,USD
+2026-01-01 open Income:Gain EUR,USD
+
+2026-01-02 * "the failing posting is the second one"
+  Assets:Other  1 USD
+  Assets:Stock  4 BTC @ 12.5
+  Assets:Bank  -50.00 EUR

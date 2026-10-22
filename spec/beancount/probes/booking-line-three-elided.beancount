@@ -1,0 +1,9 @@
+2026-01-01 open Assets:Stock BTC,EUR,USD
+2026-01-01 open Assets:Bank EUR,USD
+2026-01-01 open Assets:Other EUR,USD
+2026-01-01 open Income:Gain EUR,USD
+
+2026-01-02 * "three postings without an amount"
+  Assets:Other
+  Assets:Bank
+  Assets:Stock

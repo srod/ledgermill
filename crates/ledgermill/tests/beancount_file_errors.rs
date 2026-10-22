@@ -133,3 +133,45 @@ fn a_document_on_an_unknown_account_is_an_error_besides_the_warning() {
         ]
     );
 }
+
+/// A booking error is on the line of the posting the reference blames for what it cannot
+/// categorize or work out, and on the transaction's header for matching a reduction to lots
+/// (spec/beancount/check-errors.md, "Which line a booking error is on").
+#[test]
+fn a_booking_error_is_on_the_posting_the_reference_blames_or_on_the_header_for_lots() {
+    for (name, line, reason) in [
+        ("booking-line-no-units-currency", 7, "cannot-infer-currency"),
+        (
+            "booking-line-price-without-units",
+            7,
+            "cannot-infer-currency",
+        ),
+        (
+            "booking-line-units-missing-number",
+            7,
+            "too-many-missing-numbers",
+        ),
+        ("booking-line-negative-price", 7, "negative-price"),
+        ("booking-line-second-posting", 8, "cannot-infer-currency"),
+        (
+            "booking-line-missing-number-first",
+            6,
+            "cannot-infer-currency",
+        ),
+        ("booking-line-three-elided", 9, "ambiguous-auto-posting"),
+        (
+            "booking-line-elided-after-amounts",
+            8,
+            "ambiguous-auto-posting",
+        ),
+        ("booking-line-not-enough-lots", 10, "not-enough-lots"),
+        ("booking-line-no-matching-lot", 10, "no-matching-lot"),
+        ("lots-inferred-cost-negative-result", 7, "negative-cost"),
+    ] {
+        let found = findings("b.beancount", &probe(name));
+        let first = &found[0];
+        assert_eq!(first["code"], json!("booking-error"), "{name}");
+        assert_eq!(first["line"], json!(line), "{name}");
+        assert_eq!(first["details"]["reason"], json!(reason), "{name}");
+    }
+}

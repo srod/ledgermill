@@ -93,6 +93,12 @@ fn is_auto(p: &RawPosting) -> bool {
     p.units.is_none() && p.currency.is_none() && p.cost.is_none() && p.price.is_none()
 }
 
+/// The posting the reference blames when several have no amount: the last of them
+/// (spec/beancount/check-errors.md, "Which line a booking error is on").
+fn last_auto(postings: &[RawPosting]) -> usize {
+    postings.iter().rposition(is_auto).unwrap_or(0)
+}
+
 /// A row's currency for balancing: its lot's cost currency, else its price's, else its own.
 fn weight_currency(
     row_currency: &str,
@@ -187,19 +193,20 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
     if others().any(|(_, p)| open_cost(p)) {
         return Err(BookFailure::Unsupported(construct));
     }
-    if others().any(|(_, p)| is_auto(p) || p.units.is_none()) {
+    // The reference blames the first posting of the group that lacks a number.
+    if let Some((first, _)) = others().find(|(_, p)| is_auto(p) || p.units.is_none()) {
         return Err(BookFailure::OnPosting(
             if is_cost {
                 "cannot-infer-currency"
             } else {
                 "too-many-missing-numbers"
             },
-            at,
+            at.min(first),
         ));
     }
     let mut sums: Vec<(String, Decimal)> = Vec::new();
-    for (_, p) in others() {
-        let (currency, weight) = weight_of(p).map_err(|e| e.on(at))?;
+    for (index, p) in others() {
+        let (currency, weight) = weight_of(p).map_err(|e| e.on(at.min(index)))?;
         match sums.iter_mut().find(|(c, _)| *c == currency) {
             Some((_, sum)) => *sum = sum.add(&weight),
             None => sums.push((currency, weight)),
@@ -282,8 +289,10 @@ pub(super) fn book(
                 postings: Vec::new(),
                 residuals: Vec::new(),
             }),
-            // The reference blames the second posting without an amount.
-            _ => Err(BookFailure::OnPosting("ambiguous-auto-posting", 1)),
+            _ => Err(BookFailure::OnPosting(
+                "ambiguous-auto-posting",
+                last_auto(&tx.postings),
+            )),
         };
     }
     let mut feeds: Vec<Feed> = tx.postings.iter().map(feed_of).collect::<Result<_, _>>()?;
@@ -319,6 +328,9 @@ pub(super) fn book(
     }
     // The crate counts the postings it was fed; the reference blames them as written.
     let rows = rows.map_err(|failure| match failure {
+        BookFailure::OnPosting("ambiguous-auto-posting", _) => {
+            BookFailure::OnPosting("ambiguous-auto-posting", last_auto(&tx.postings))
+        }
         BookFailure::OnPosting(reason, fed) => {
             BookFailure::OnPosting(reason, origins.get(fed).copied().unwrap_or(fed))
         }

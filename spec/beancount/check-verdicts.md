@@ -14,10 +14,10 @@ inferred-cost-and-price.md say on which line each error is reported). The harnes
 line of the first error (README of the harness); this note records both, for every journal that is in the corpus:
 `harness/journals/app/*.beancount`, `probes/*.beancount` and `probes/refused/*.beancount` (in `spec/beancount/`).
 
-**Accepted**: 91 of the 144 journals. That is all 12 of `harness/journals/app/*.beancount` and every
+**Accepted**: 91 of the 154 journals. That is all 12 of `harness/journals/app/*.beancount` and every
 probe not listed below. The list is what `verdicts.sh` prints with `accepts`.
 
-**Rejected**: the 53 below, with the first line `bean-check` printed (the directory is cut from the
+**Rejected**: the 63 below, with the first line `bean-check` printed (the directory is cut from the
 file name). The last column is what the harness says now: `PASS, same first line` (ledgermill's first error
 finding is on the same file and line), `SKIP` for the one journal whose only error is a `document` file that
 is not there (ledgermill does not look at files and warns instead), or not run (`refused/` is outside the
@@ -53,6 +53,16 @@ Rejected journals (`probes/` unless a directory is given):
 | `balance-fails-two-elided.beancount` | balance-fails-two-elided.beancount:6: You may not have more than one auto-posting per currency | PASS, same first line |
 | `balance-total-price-rounding.beancount` | balance-total-price-rounding.beancount:4: Transaction does not balance: (-0.000000000000000000000000001 EUR) | PASS, same first line |
 | `booking-default-is-strict.beancount` | booking-default-is-strict.beancount:9: Ambiguous matches for "-1 BTC {}": 1 BTC {10 EUR, 2026-01-02}, 1 BTC {20 EUR, 2026-01-02} | PASS, same first line |
+| `booking-line-elided-after-amounts.beancount` | booking-line-elided-after-amounts.beancount:8: You may not have more than one auto-posting per currency | PASS, same first line |
+| `booking-line-missing-number-first.beancount` | booking-line-missing-number-first.beancount:6: Too many missing numbers for currency group 'EUR' | PASS, same first line |
+| `booking-line-negative-price.beancount` | booking-line-negative-price.beancount:7: Negative prices are not allowed: -12.5 EUR (see http://furius.ca/beancount/doc/bug-negative-prices for workaround) | PASS, same first line |
+| `booking-line-no-matching-lot.beancount` | booking-line-no-matching-lot.beancount:10: No position matches "Posting(account='Assets:Stock', units=-1 BTC, cost=CostSpec(number_per=Decimal('20'), number_total=None, currency='EUR', date=None, label=None, merge=False), price=None, flag=None, meta={'filename': '/Users/rodolphe/Developer/ledgermill/.worktrees/pad-balance-check/spec/beancount/probes/booking-line-no-matching-lot.beancount', 'lineno': 12})" against balance (1 BTC {10 EUR, 2026-01-02}) | PASS, same first line |
+| `booking-line-no-units-currency.beancount` | booking-line-no-units-currency.beancount:7: Could not resolve units currency | PASS, same first line |
+| `booking-line-not-enough-lots.beancount` | booking-line-not-enough-lots.beancount:10: Not enough lots to reduce "-2 BTC {}": 1 BTC {10 EUR, 2026-01-02} | PASS, same first line |
+| `booking-line-price-without-units.beancount` | booking-line-price-without-units.beancount:7: Could not resolve units currency | PASS, same first line |
+| `booking-line-second-posting.beancount` | booking-line-second-posting.beancount:8: Failed to categorize posting 2 | PASS, same first line |
+| `booking-line-three-elided.beancount` | booking-line-three-elided.beancount:9: You may not have more than one auto-posting per currency | PASS, same first line |
+| `booking-line-units-missing-number.beancount` | booking-line-units-missing-number.beancount:7: Too many missing numbers for currency group 'EUR' | PASS, same first line |
 | `booking-strict-ambiguous.beancount` | booking-strict-ambiguous.beancount:9: Ambiguous matches for "-1 BTC {}": 1 BTC {10 EUR, 2026-01-02}, 1 BTC {20 EUR, 2026-01-02} | PASS, same first line |
 | `check-account-dates.beancount` | check-account-dates.beancount:6: Invalid reference to inactive account 'Expenses:Food' | PASS, same first line |
 | `check-account-names.beancount` | check-account-names.beancount:5: Invalid account name: Asset:Typo | PASS, same first line |

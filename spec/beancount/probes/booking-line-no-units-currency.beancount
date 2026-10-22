@@ -1,0 +1,8 @@
+2026-01-01 open Assets:Stock BTC,EUR,USD
+2026-01-01 open Assets:Bank EUR,USD
+2026-01-01 open Assets:Other EUR,USD
+2026-01-01 open Income:Gain EUR,USD
+
+2026-01-02 * "a cost, no units and no currency"
+  Assets:Stock  {10 EUR}
+  Assets:Bank  -50.00 EUR
