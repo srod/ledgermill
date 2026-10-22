@@ -101,6 +101,14 @@ are on the *posting* the reference blames, never the header:
   balance` on the header, later).
 - `Cost is negative` (an inferred cost): the posting (`lots-inferred-cost-negative-result`).
 
+**Zero units at a cost.** `Amount is zero: "0 BTC"` on the *posting* of zero units that has a written cost
+(`0 BTC {10 EUR}`, also `-0` and `0.00`, in any position of the transaction). Zero units plain, or with a price
+(`@ 10 EUR`), are accepted, and `0 BTC {}` is another case (inferred-cost-and-price.md). bean-query **still lists**
+the transaction, with its cost (`10 EUR`, dated) on the zero posting, and the zero counts for nothing in balances.
+It comes before the balance errors in the order of check-order.md (booking step). `0 BTC {{10 EUR}}` (zero units
+with a total cost) makes bean-query crash with a Python error, so it is not probed and must not be run.
+ledgermill reports `booking-error` with `details.reason: zero-amount-at-cost` on the posting and keeps the transaction.
+
 ledgermill reports `booking-error` on those lines. Its reasons `cannot-infer-units`, `cannot-infer-anything`,
 `cannot-infer-price` and `cannot-infer-price-currency` come from a case the probes above do not produce
 (ordinary shapes end in one of the errors above, the rest make the reference crash), so their line is
@@ -121,7 +129,10 @@ ledgermill reports `booking-error` on those lines. Its reasons `cannot-infer-uni
 `probes/booking-line-negative-price.beancount`, `probes/booking-line-second-posting.beancount`,
 `probes/booking-line-missing-number-first.beancount`, `probes/booking-line-three-elided.beancount`,
 `probes/booking-line-elided-after-amounts.beancount`, `probes/booking-line-not-enough-lots.beancount`,
-`probes/booking-line-no-matching-lot.beancount` (and the existing `lots-inferred-cost-negative-result`)
+`probes/booking-line-no-matching-lot.beancount`, `probes/booking-zero-amount-at-cost.beancount`,
+`probes/booking-zero-amount-at-cost-places.beancount`, `probes/booking-zero-amount-at-cost-negative.beancount`,
+`probes/booking-zero-amount-at-cost-second.beancount`, `probes/booking-zero-amount-plain.beancount`,
+`probes/booking-zero-amount-with-price.beancount` (and the existing `lots-inferred-cost-negative-result`)
 
 Command:
 
@@ -316,3 +327,14 @@ bean-check: booking-line-elided-after-amounts.beancount:8: You may not have more
 bean-check: booking-line-not-enough-lots.beancount:10: Not enough lots to reduce "-2 BTC {}": 1 BTC {10 EUR, 2026-01-02}
 bean-check: booking-line-no-matching-lot.beancount:10: No position matches "Posting(account='Assets:Stock', units=-1 BTC, ...
 ```
+
+booking-zero-amount-at-cost (bean-query still lists both postings; the plain and price probes print no error):
+
+```text
+bean-check: booking-zero-amount-at-cost.beancount:5: Amount is zero: "0 BTC"
+5,Assets:Stock,0,10,EUR,2026-01-02
+6,Assets:Bank,0,,,
+```
+
+The `-0`, `0.00` and second-position variants give the same error on the zero posting's line
+(`0.00 BTC` in the message for the second).
