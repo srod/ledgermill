@@ -31,4 +31,30 @@ impl Ledger {
     pub fn check(&self) -> Result<String, JsError> {
         Ok(serde_json::to_string(&self.0.check())?)
     }
+
+    /// JSON array of transactions as `hledger print --cost` gives them (`Ledger::at_cost`).
+    ///
+    /// When the core refuses, this throws an `Error` whose `message` is the finding as JSON
+    /// (`code`, `severity`, `file`, `line`, `details`, `message`), as it does for any other failure.
+    #[wasm_bindgen(js_name = atCost)]
+    pub fn at_cost(&self) -> Result<String, JsError> {
+        answer(self.0.at_cost())
+    }
+
+    /// JSON array of transactions as `hledger print --value=DATE,COMMODITY` gives them
+    /// (`Ledger::value`); `date` is `YYYY-MM-DD`. A refusal or an invalid date throws an `Error`
+    /// whose `message` is the finding as JSON, as for `atCost`.
+    pub fn value(&self, date: &str, commodity: &str) -> Result<String, JsError> {
+        answer(self.0.value(date, commodity))
+    }
+}
+
+/// The transactions as JSON, or the finding as the message of the error.
+fn answer(
+    result: Result<Vec<ledgermill::Transaction>, ledgermill::Finding>,
+) -> Result<String, JsError> {
+    match result {
+        Ok(transactions) => Ok(serde_json::to_string(&transactions)?),
+        Err(finding) => Err(JsError::new(&serde_json::to_string(&finding)?)),
+    }
 }
