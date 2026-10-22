@@ -7,7 +7,7 @@ use crate::cursor::Cursor;
 use crate::date::parse_date;
 use crate::decimal::Decimal;
 use crate::model::PostingKind;
-use crate::problem::{Parsed, Problem, Unsupported, invalid};
+use crate::problem::{Parsed, invalid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CostKind {
@@ -188,9 +188,6 @@ fn parse_assertion(
     let amount = parse_amount_tail(cur, styles, year)?;
     if amount.lot.is_some() {
         return invalid("The amount of a balance assertion has no lot.");
-    }
-    if total || inclusive {
-        return Err(Problem::Unsupported(Unsupported::BalanceAssertion));
     }
     Ok(WrittenAssertion {
         total,

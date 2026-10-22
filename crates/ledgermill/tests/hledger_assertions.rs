@@ -245,3 +245,168 @@ fn a_malformed_assertion_is_a_parse_error_on_its_posting() {
         );
     }
 }
+
+#[test]
+fn journals_whose_assertions_all_hold_raise_no_finding() {
+    let probes: [(&str, &str); 5] = [
+        (
+            "every form, commodity and exactness rule",
+            include_str!("../../../spec/hledger/probes/assert-compare.journal"),
+        ),
+        (
+            "the four kinds, spacing, marks and amount forms",
+            include_str!("../../../spec/hledger/probes/assert-forms.journal"),
+        ),
+        (
+            "later-dated transactions written first, elided amounts, virtual postings",
+            include_str!("../../../spec/hledger/probes/assert-order-date.journal"),
+        ),
+        (
+            "posting dates before and after the transaction's",
+            include_str!("../../../spec/hledger/probes/assert-order-posting-date.journal"),
+        ),
+        (
+            "the other ways to write a posting date",
+            include_str!("../../../spec/hledger/probes/assert-order-posting-date-forms.journal"),
+        ),
+    ];
+    for (name, probe) in probes {
+        assert_eq!(findings("x.journal", probe), json!([]), "{name}");
+    }
+}
+
+#[test]
+fn double_equals_wants_every_other_commodity_at_zero_and_names_the_first_that_is_not() {
+    // [probe, line, column, commodity, expected, actual]
+    let cases: [(&str, &str, Value); 4] = [
+        (
+            "another commodity holds something",
+            include_str!("../../../spec/hledger/probes/assert-fail-total-other.journal"),
+            json!([8, 12, "USD", "0", "5"]),
+        ),
+        (
+            "the asserted commodity is absent",
+            include_str!("../../../spec/hledger/probes/assert-fail-total-absent.journal"),
+            json!([6, 12, "USD", "10", "0"]),
+        ),
+        (
+            "of several, the first in code point order",
+            include_str!("../../../spec/hledger/probes/assert-fail-total-several.journal"),
+            json!([8, 12, "GBP", "0", "1"]),
+        ),
+        (
+            "the asserted commodity first, though another is wrong too",
+            include_str!("../../../spec/hledger/probes/assert-fail-total-asserted-first.journal"),
+            json!([7, 12, "USD", "10", "5"]),
+        ),
+    ];
+    for (name, probe, expected) in cases {
+        assert_eq!(only_failure("x.journal", probe), expected, "{name}");
+        let all = failures("x.journal", probe);
+        assert_eq!(all[0][6], json!(true), "{name}: total");
+        assert_eq!(all[0][7], json!(false), "{name}: inclusive");
+    }
+}
+
+#[test]
+fn a_star_adds_the_sub_accounts_and_only_the_sub_accounts() {
+    let cases: [(&str, &str, Value, bool); 3] = [
+        (
+            "= leaves the sub-accounts out",
+            include_str!("../../../spec/hledger/probes/assert-fail-exclusive.journal"),
+            json!([7, 12, "EUR", "9", "7"]),
+            false,
+        ),
+        (
+            "=* counts them",
+            include_str!("../../../spec/hledger/probes/assert-fail-inclusive.journal"),
+            json!([7, 12, "EUR", "7", "9"]),
+            true,
+        ),
+        (
+            "ab is not below a",
+            include_str!("../../../spec/hledger/probes/assert-fail-sibling.journal"),
+            json!([7, 12, "EUR", "9", "7"]),
+            true,
+        ),
+    ];
+    for (name, probe, expected, inclusive) in cases {
+        assert_eq!(only_failure("x.journal", probe), expected, "{name}");
+        assert_eq!(
+            failures("x.journal", probe)[0][7],
+            json!(inclusive),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn a_posting_is_in_the_balance_from_its_own_date() {
+    let cases: [(&str, &str, Value); 5] = [
+        (
+            "a posting dated after the assertion is not in yet",
+            include_str!("../../../spec/hledger/probes/assert-fail-order-posting-date.journal"),
+            json!([6, 12, "EUR", "6", "1"]),
+        ),
+        (
+            "in one transaction, the earlier-dated posting is looked at first",
+            include_str!(
+                "../../../spec/hledger/probes/assert-fail-order-posting-date-in-transaction.journal"
+            ),
+            json!([3, 12, "EUR", "8", "3"]),
+        ),
+        (
+            "of two failures, the earlier-dated one is first",
+            include_str!("../../../spec/hledger/probes/assert-fail-first-by-date.journal"),
+            json!([6, 12, "EUR", "77", "1"]),
+        ),
+        (
+            "whichever account it is on",
+            include_str!("../../../spec/hledger/probes/assert-fail-first-by-date-accounts.journal"),
+            json!([6, 12, "EUR", "77", "1"]),
+        ),
+        (
+            "in one transaction, posting order",
+            include_str!("../../../spec/hledger/probes/assert-fail-first-in-transaction.journal"),
+            json!([2, 12, "EUR", "99", "1"]),
+        ),
+    ];
+    for (name, probe, first) in cases {
+        let all = failures("x.journal", probe);
+        let all = all.as_array().unwrap();
+        let f = all[0].as_array().unwrap();
+        assert_eq!(json!([f[0], f[1], f[3], f[4], f[5]]), first, "{name}");
+    }
+}
+
+#[test]
+fn the_first_date_in_a_posting_s_comment_is_its_date() {
+    // 15 January is before the tag's February date, 15 March after the bracket's.
+    let journal = |comment: &str, day: &str| {
+        format!(
+            "2026-01-01 t\n  x  5 EUR  ; {comment}\n  z\n\n{day} check\n  x  0 EUR = 5 EUR\n  y\n"
+        )
+    };
+    let cases: [(&str, &str); 5] = [
+        ("date:2026-02-01 [2026-03-01]", "2026-02-15"),
+        ("[2026-03-01] date:2026-02-01", "2026-03-15"),
+        ("[=2026-05-05] [2026-03-01]", "2026-03-15"),
+        ("date2:2026-03-01 date:2026-02-01", "2026-01-15"),
+        ("[2026-02-01 ]", "2026-01-15"),
+    ];
+    for (comment, day) in cases {
+        assert_eq!(
+            findings("x.journal", &journal(comment, day)),
+            json!([]),
+            "{comment}: in by {day}"
+        );
+    }
+    assert_ne!(
+        findings(
+            "x.journal",
+            &journal("date:2026-02-01 [2026-03-01]", "2026-01-15")
+        ),
+        json!([]),
+        "not in before February"
+    );
+}
