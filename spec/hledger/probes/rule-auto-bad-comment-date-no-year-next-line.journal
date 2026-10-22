@@ -1,4 +1,4 @@
-; Invalid posting of a rule, on line 7: a date without a year, whose full date is on another line
+; Invalid posting of a rule, on line 8: a date without a year, whose full date is on another line
 2026-01-01 before
     a   1 EUR
     b

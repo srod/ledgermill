@@ -1,4 +1,4 @@
-; Invalid posting of a rule, on line 7: a blank line ends the rule: line 9 is an indented line with nothing above it
+; Error on line 9: a blank line ends the rule: line 9 is an indented line with nothing above it
 2026-01-01 before
     a   1 EUR
     b
