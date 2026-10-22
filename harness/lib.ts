@@ -49,8 +49,7 @@ export type FlatPosting = {
 };
 type Finding = { code: string; severity: "error" | "warning"; file: string; line: number; details: { construct?: string } };
 
-/** `rejected` marks a SKIP where the reference tool rejects the journal and we report no error (`check()` comes later). */
-export type Verdict = { status: "PASS" | "FAIL" | "SKIP"; note: string; rejected?: boolean };
+export type Verdict = { status: "PASS" | "FAIL" | "SKIP"; note: string };
 
 // ───────────── hledger side ─────────────
 /** `-12.50` from mantissa -1250 and 2 places, exact (BigInt, never Number). */
@@ -335,9 +334,22 @@ async function run(cmd: string[]): Promise<{ stdout: string; exitCode: number }>
   return { stdout, exitCode };
 }
 
+/**
+ * The file (basename) and line of the first error `bean-check` printed. Its errors are lines
+ * `FILE:LINE: MESSAGE`, each followed by a copy of the directive it is about (indented) and a blank
+ * line, in the order the reference found them; line 0 is a file-level error.
+ */
+export function firstBeancountError(output: string): { file: string; line: number } | null {
+  for (const text of output.split("\n")) {
+    const m = /^(\S.*?):(\d+): /.exec(text);
+    if (m) return { file: basename(m[1] as string), line: Number(m[2]) };
+  }
+  return null;
+}
+
 type BeancountReference =
   | { ok: true; transactions: Transaction[]; postings: FlatPosting[] }
-  | { ok: false; message: string };
+  | { ok: false; message: string; first: { file: string; line: number } | null };
 
 async function runBeancount(path: string): Promise<BeancountReference> {
   // bean-query exits 0 even for an invalid journal, so bean-check decides.
@@ -347,7 +359,10 @@ async function runBeancount(path: string): Promise<BeancountReference> {
     new Response(check.stderr).text(),
     check.exited,
   ]);
-  if (code !== 0) return { ok: false, message: (out + err).split("\n").find((l) => l.trim()) ?? "" };
+  if (code !== 0) {
+    const printed = out + err;
+    return { ok: false, message: printed.split("\n").find((l) => l.trim()) ?? "", first: firstBeancountError(printed) };
+  }
   const [entries, postings, flat] = await Promise.all([
     run(["bean-query", "-f", "csv", path, ENTRIES_QUERY]),
     run(["bean-query", "-f", "csv", path, POSTINGS_QUERY]),
@@ -368,6 +383,30 @@ function normalizeOurs(txs: Transaction[]): Transaction[] {
   });
 }
 
+/**
+ * The reference rejects the journal: our first error must be on the same file and line as its first.
+ * An error-free result is a FAIL, except when the reference's error is a missing `document` file and we
+ * read the directive and warn: we do not look at files, so that one is a SKIP.
+ */
+export function compareFirstError(
+  ref: { message: string; first: { file: string; line: number } | null },
+  errors: Finding[],
+  findings: Finding[],
+): Verdict {
+  const ours = errors[0];
+  if (!ours) {
+    const ignored = findings.find((f) => f.code === "ignored-syntax" && f.details.construct === "document");
+    if (ignored && ref.message.includes("File does not exist"))
+      return { status: "SKIP", note: `ignored: document (we do not look at files): ${ref.message}` };
+    return { status: "FAIL", note: `reference rejects (${ref.message}), ours reports no error` };
+  }
+  if (!ref.first) return { status: "FAIL", note: `cannot read the first error of: ${ref.message}` };
+  const mine = `${basename(ours.file)}:${ours.line}`;
+  const theirs = `${ref.first.file}:${ref.first.line}`;
+  if (mine === theirs) return { status: "PASS", note: "both fail, same first error" };
+  return { status: "FAIL", note: `first error: bean-check ${theirs} (${ref.message}), ours ${ours.code} at ${mine}` };
+}
+
 async function compareBeancountCase(path: string): Promise<Verdict> {
   const ref = await runBeancount(path);
   const ours = runOurs([path]);
@@ -375,10 +414,7 @@ async function compareBeancountCase(path: string): Promise<Verdict> {
   const errors = ours.findings.filter((f) => f.severity === "error");
   const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
   if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
-  if (!ref.ok) {
-    if (errors.length > 0) return { status: "PASS", note: "both fail" };
-    return { status: "SKIP", note: `reference rejects (check() comes later): ${ref.message}`, rejected: true };
-  }
+  if (!ref.ok) return compareFirstError(ref, errors, ours.findings);
   if (errors[0]) return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, bean-check accepts` };
   const diff = firstDiff(withBasenames(ref.transactions), withBasenames(normalizeOurs(ours.transactions)));
   if (diff) return { status: "FAIL", note: diff };
@@ -427,18 +463,16 @@ export async function runCases(cases: { name: string; paths: string[] }[], quiet
   await Promise.all(Array.from({ length: JOBS }, worker));
 
   const totals = {
-    hledger: { PASS: 0, FAIL: 0, SKIP: 0, rejected: 0 },
-    beancount: { PASS: 0, FAIL: 0, SKIP: 0, rejected: 0 },
+    hledger: { PASS: 0, FAIL: 0, SKIP: 0 },
+    beancount: { PASS: 0, FAIL: 0, SKIP: 0 },
   };
   for (const [i, v] of verdicts.entries()) {
     const c = cases[i] as { name: string; paths: string[] };
     const t = totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"];
     t[v.status]++;
-    if (v.rejected) t.rejected++;
     if (!quiet || v.status !== "PASS") console.log(`${v.status} ${c.name}${v.note ? `  ${v.note}` : ""}`);
   }
-  const line = (t: { PASS: number; FAIL: number; SKIP: number; rejected: number }) =>
-    `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip${t.rejected ? ` (${t.rejected} of them: reference rejects, check() comes later)` : ""}`;
+  const line = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
   const { hledger: h, beancount: b } = totals;
   if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${line(h)}\nbeancount: ${line(b)}`);
   console.log(`\n${h.PASS + b.PASS} pass, ${h.FAIL + b.FAIL} fail, ${h.SKIP + b.SKIP} skip`);

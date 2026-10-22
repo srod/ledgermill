@@ -40,7 +40,14 @@ impl Ledger {
         &self.postings
     }
 
-    /// Problems found while loading, ordered by file (as given) then line.
+    /// Problems found while loading.
+    ///
+    /// hledger: ordered by file (as given), then line.
+    ///
+    /// Beancount: in the order `bean-check` prints them, which is not line order: by step (parsing,
+    /// booking, pads, balance assertions, then the validations), and within a step by date, with a
+    /// `balance` before the rest of its day (spec/beancount/check-order.md). The first error is
+    /// therefore the reference's first. A warning (`ignored-syntax`) comes before the errors.
     pub fn check(&self) -> &[Finding] {
         &self.findings
     }

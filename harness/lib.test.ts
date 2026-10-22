@@ -1,6 +1,15 @@
 // bun test harness/lib.test.ts (needs the wasm built into pkg/, like the harness itself)
 import { expect, test } from "bun:test";
-import { decimalString, decodeCsv, firstDiff, projectBeancount, projectFlatPostings, projectHledger } from "./lib.ts";
+import {
+  compareFirstError,
+  decimalString,
+  decodeCsv,
+  firstBeancountError,
+  firstDiff,
+  projectBeancount,
+  projectFlatPostings,
+  projectHledger,
+} from "./lib.ts";
 
 test("decimalString keeps places and sign exactly", () => {
   expect(decimalString(-1250n, 2)).toBe("-12.50");
@@ -114,4 +123,49 @@ test("projectFlatPostings starts at the header when errors come first and takes 
   const noise = "/a/b.beancount:4: Transaction does not balance: (-0.4 EUR)\n\n";
   expect(projectFlatPostings(`${noise}${FLAT}\r\n`)).toEqual([]);
   expect(() => projectFlatPostings("nothing here")).toThrow("no CSV header");
+});
+
+test("firstBeancountError takes the file and line of the first error, not the copy of the directive under it", () => {
+  const output =
+    "/tmp/a dir/check-order.beancount:39: Invalid account name: Foo:Bad\n\n   2026-01-03 open Foo:Bad\n\n" +
+    "/tmp/a dir/check-order.beancount:0: Unbalanced pushed tag: 'left-open'\n";
+  expect(firstBeancountError(output)).toEqual({ file: "check-order.beancount", line: 39 });
+});
+
+test("firstBeancountError reads a file-level error on line 0 and the include error on <load>", () => {
+  expect(firstBeancountError("b.beancount:0: Unbalanced pushed tag: 'x'\n")).toEqual({ file: "b.beancount", line: 0 });
+  expect(firstBeancountError('<load>:0: File glob "other.beancount" does not match any files\n')).toEqual({
+    file: "<load>",
+    line: 0,
+  });
+});
+
+test("firstBeancountError skips the indented copy of a directive that looks like FILE:LINE and finds nothing in plain text", () => {
+  expect(firstBeancountError("   2026-01-03 balance Assets:A  1 EUR: 5: x\n")).toBeNull();
+  expect(firstBeancountError("")).toBeNull();
+});
+
+const finding = (file: string, line: number, severity: "error" | "warning" = "error", code = "assertion-failed") => ({
+  code,
+  severity,
+  file,
+  line,
+  details: {},
+});
+const ref = (file: string, line: number) => ({ message: `${file}:${line}: x`, first: { file, line } });
+
+test("compareFirstError passes on the same basename and line, fails on another line or no error", () => {
+  expect(compareFirstError(ref("a.beancount", 5), [finding("/x/a.beancount", 5)], []).status).toBe("PASS");
+  expect(compareFirstError(ref("a.beancount", 5), [finding("/x/a.beancount", 6)], []).status).toBe("FAIL");
+  expect(compareFirstError(ref("a.beancount", 5), [finding("/x/b.beancount", 5)], []).status).toBe("FAIL");
+  expect(compareFirstError(ref("a.beancount", 5), [], []).status).toBe("FAIL");
+  // Only our first error counts.
+  expect(compareFirstError(ref("a.beancount", 5), [finding("a.beancount", 6), finding("a.beancount", 5)], []).status).toBe("FAIL");
+});
+
+test("compareFirstError skips only a missing document that we read and warned about", () => {
+  const warning = { ...finding("a.beancount", 2, "warning", "ignored-syntax"), details: { construct: "document" } };
+  const missing = { message: 'a.beancount:2: File does not exist: "/x.pdf"', first: { file: "a.beancount", line: 2 } };
+  expect(compareFirstError(missing, [], [warning]).status).toBe("SKIP");
+  expect(compareFirstError(ref("a.beancount", 2), [], [warning]).status).toBe("FAIL");
 });
