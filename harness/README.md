@@ -69,7 +69,7 @@ Every rejected journal of the corpus is compared by line today, except those thr
 `check` command (undeclared accounts and the like) are not reported by `check()` yet and no journal of the
 corpus depends on them; when they are built, their journals are compared by line too.
 
-Two corpus journals are compared by value only, with the places of the quantities ignored
+One corpus journal is compared by value only, with the places of the quantities ignored
 (`placesMayDiffer` in `compare.ts`; the PASS note says so): `assign-inclusive-order-names-x123` is one of a
 pair where hledger adds the sub-accounts of `a =* 4` in an order that follows no rule we know, which changes
 the places of a sum that passes through zero (`spec/hledger/assignments.md`). We add them in name order.
