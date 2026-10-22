@@ -1,0 +1,18 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Bank:Sub
+2026-01-01 open Assets:Bank:Sub:Deep
+2026-01-01 open Equity:Opening
+
+2026-01-02 * "child"
+  Assets:Bank:Sub  100.00 EUR
+  Equity:Opening
+2026-01-02 * "grandchild"
+  Assets:Bank:Sub:Deep  50.00 EUR
+  Equity:Opening
+2026-01-02 * "parent"
+  Assets:Bank  1.00 EUR
+  Equity:Opening
+
+2026-01-03 balance Assets:Bank  151.00 EUR
+2026-01-03 balance Assets:Bank:Sub  150.00 EUR
+2026-01-03 balance Assets:Bank:Sub:Deep  50.00 EUR

@@ -1,0 +1,31 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:C
+2026-01-01 open Assets:D
+2026-01-01 open Assets:E
+2026-01-01 open Assets:F
+2026-01-01 open Assets:G
+2026-01-01 open Assets:H
+2026-01-01 open Assets:I
+2026-01-01 open Equity:Opening
+
+2026-01-02 * "all the accounts"
+  Assets:A  500.011 EUR
+  Assets:B  499.989 EUR
+  Assets:C  500.0001 EUR
+  Assets:D  500.51 EUR
+  Assets:E  500 EUR
+  Assets:F  500 EUR
+  Assets:H  500.0011 EUR
+  Assets:I  500.11 EUR
+  Equity:Opening
+
+2026-01-09 balance Assets:A  500.00 EUR
+2026-01-08 balance Assets:B  500.00 EUR
+2026-01-07 balance Assets:C  500 EUR
+2026-01-06 balance Assets:D  500 ~ 0.5 EUR
+2026-01-05 balance Assets:E  500 ~ -0.5 EUR
+2026-01-04 balance Assets:F  -500.00 EUR
+2026-01-03 balance Assets:G  5 USD
+2026-01-10 balance Assets:H  500.000 EUR
+2026-01-11 balance Assets:I  500.0 EUR

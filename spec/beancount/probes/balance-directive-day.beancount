@@ -1,0 +1,12 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-01-02 * "spends on the day of the first assertion"
+  Expenses:Food  10.00 EUR
+  Assets:Bank
+2026-01-02 balance Assets:Bank  0.00 EUR
+2026-01-03 balance Assets:Bank  -10.00 EUR
+2026-01-03 balance Assets:Bank  -10.00 EUR
+2026-01-03 balance Assets:Bank  -10 EUR
+2026-01-03 balance Assets:Bank  0 USD
+2026-01-03 balance Expenses:Food  10 EUR

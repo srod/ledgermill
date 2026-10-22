@@ -1,0 +1,17 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Unbalanced
+2026-01-01 open Assets:Auto1
+2026-01-01 open Assets:Auto2
+2026-01-01 open Assets:Other
+
+2026-01-02 * "does not balance, but the postings count"
+  Assets:Unbalanced  10 EUR
+  Assets:Other  -9 EUR
+2026-01-02 * "two elided postings, left out by the reference"
+  Assets:Bank  10 EUR
+  Assets:Auto1
+  Assets:Auto2
+
+2026-01-03 balance Assets:Unbalanced  10 EUR
+2026-01-03 balance Assets:Other  -9 EUR
+2026-01-03 balance Assets:Bank  0 EUR

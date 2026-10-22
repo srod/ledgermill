@@ -1,0 +1,14 @@
+2026-01-01 open Assets:Stock
+2026-01-01 open Assets:Bank
+2026-01-01 open Equity:Opening
+
+2026-01-02 * "buy lot 1"
+  Assets:Stock  3 BTC {10 EUR}
+  Assets:Bank  -30 EUR
+2026-01-03 * "buy lot 2"
+  Assets:Stock  2 BTC {12 EUR}
+  Assets:Bank  -24 EUR
+
+2026-01-03 pad Assets:Stock Equity:Opening
+2026-01-04 balance Assets:Stock  7 BTC
+2026-01-04 balance Assets:Stock  50 EUR

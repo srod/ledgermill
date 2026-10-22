@@ -1,0 +1,9 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Bank:Sub
+2026-01-01 open Equity:Opening
+
+2026-01-02 * "the child holds 100"
+  Assets:Bank:Sub  100.00 EUR
+  Equity:Opening
+2026-01-03 pad Assets:Bank:Sub Equity:Opening
+2026-01-04 balance Assets:Bank  500.00 EUR

@@ -1,0 +1,18 @@
+2026-01-01 open Assets:Parent
+2026-01-01 open Assets:Parent:Child
+2026-01-01 open Assets:Q
+2026-01-01 open Assets:Q:Sub
+2026-01-01 open Equity:Opening
+
+2026-01-02 * "the child holds 100"
+  Assets:Parent:Child  100.00 EUR
+  Equity:Opening
+2026-01-02 * "the parent holds 1"
+  Assets:Parent  1.00 EUR
+  Equity:Opening
+2026-01-03 pad Assets:Parent Equity:Opening
+2026-01-04 balance Assets:Parent  500.00 EUR
+
+2026-01-02 pad Assets:Q:Sub Equity:Opening
+2026-01-03 pad Assets:Q Equity:Opening
+2026-01-04 balance Assets:Q:Sub  100.00 EUR

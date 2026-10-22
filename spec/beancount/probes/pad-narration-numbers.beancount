@@ -1,0 +1,18 @@
+option "render_commas" "TRUE"
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:C
+2026-01-01 open Assets:D
+2026-01-01 open Assets:E
+2026-01-01 open Equity:Opening
+
+2026-01-02 pad Assets:A Equity:Opening
+2026-01-05 balance Assets:A  1,000.50 EUR
+2026-01-02 pad Assets:B Equity:Opening
+2026-01-05 balance Assets:B  007.50 EUR
+2026-01-02 pad Assets:C Equity:Opening
+2026-01-05 balance Assets:C  -12.0 EUR
+2026-01-02 pad Assets:D Equity:Opening
+2026-01-05 balance Assets:D  +5 EUR
+2026-01-02 pad Assets:E Equity:Opening
+2026-01-05 balance Assets:E  0.0000005 ~ 0 EUR

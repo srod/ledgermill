@@ -1,0 +1,15 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Equity:Opening
+2026-01-01 open Expenses:Food
+
+2026-01-05 * "A: written before the pad, same date"
+  Expenses:Food  1.00 EUR
+  Assets:Bank
+2026-01-05 pad Assets:Bank Equity:Opening
+2026-01-05 * "B: written after the pad, same date"
+  Expenses:Food  2.00 EUR
+  Assets:Bank
+2026-01-06 balance Assets:Bank  100.00 EUR
+2026-01-06 * "C: same date as the balance, not counted"
+  Expenses:Food  4.00 EUR
+  Assets:Bank

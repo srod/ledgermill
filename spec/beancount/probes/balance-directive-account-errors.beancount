@@ -1,0 +1,10 @@
+2026-01-01 open Assets:Euro EUR
+2026-01-05 open Assets:Late
+2026-01-01 open Assets:Closed
+2026-01-02 close Assets:Closed
+
+2026-01-03 balance Assets:Euro  0 USD
+2026-01-03 balance Assets:Never  0 EUR
+2026-01-03 balance Assets:Late  0 EUR
+2026-01-03 balance Assets:Closed  0 EUR
+2026-01-06 balance Assets:Late  0 EUR

@@ -1,0 +1,29 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:C
+2026-01-01 open Assets:D
+2026-01-01 open Assets:E
+2026-01-01 open Assets:F
+2026-01-01 open Equity:Opening
+
+2026-01-02 pad Assets:A Equity:Opening
+2026-01-02 * "B already holds the balance"
+  Assets:B  500.00 EUR
+  Equity:Opening
+2026-01-03 pad Assets:B Equity:Opening
+2026-01-04 balance Assets:B  500.00 EUR
+2026-01-02 * "C is within the tolerance of the balance"
+  Assets:C  500.004 EUR
+  Equity:Opening
+2026-01-03 pad Assets:C Equity:Opening
+2026-01-04 balance Assets:C  500.00 EUR
+2026-01-03 pad Assets:D Equity:Opening
+2026-01-04 pad Assets:D Equity:Opening
+2026-01-05 balance Assets:D  300.00 EUR
+2026-01-03 pad Assets:E Equity:Opening
+2026-01-05 balance Assets:E  0 EUR
+2026-01-02 * "F is within an explicit tolerance of the balance"
+  Assets:F  500 EUR
+  Equity:Opening
+2026-01-03 pad Assets:F Equity:Opening
+2026-01-05 balance Assets:F  500.5 ~ 0.5 EUR

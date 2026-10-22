@@ -1,0 +1,19 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:C
+2026-01-01 open Assets:D EUR
+2026-01-01 open Equity:Closed
+2026-01-01 open Equity:Usd USD
+2026-01-01 open Equity:Opening
+2026-01-02 close Equity:Closed
+
+2026-01-03 pad Assets:A Equity:Missing
+2026-01-04 balance Assets:A  10.00 EUR
+2026-01-03 pad Assets:B Equity:Closed
+2026-01-04 balance Assets:B  10.00 EUR
+2026-01-03 pad Assets:C Equity:Usd
+2026-01-04 balance Assets:C  10.00 EUR
+2026-01-03 pad Assets:D Equity:Opening
+2026-01-04 balance Assets:D  10.00 USD
+2026-01-03 pad Assets:Never Equity:Opening
+2026-01-04 balance Assets:Never  10.00 EUR
