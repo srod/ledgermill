@@ -266,6 +266,26 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
     Ok(out)
 }
 
+/// Lines of the postings with zero units and a cost written per unit (`0 BTC {10 EUR}`): the
+/// reference rejects each as a booking error but still lists the transaction
+/// (spec/beancount/check-errors.md, "Zero units at a cost").
+///
+/// A cost with a total (`{{10 EUR}}`, or `{1 # 5 EUR}`) is left out on purpose: the reference
+/// crashes on zero units with a total cost, so the rule was never probed for it. Such a posting
+/// cannot reach here anyway, because `feed_of` divides the total by the units and refuses
+/// (`number-too-precise`) when they are zero. We refuse what we cannot check rather than guess.
+pub(super) fn zero_units_at_cost(tx: &RawTransaction) -> impl Iterator<Item = u32> + '_ {
+    tx.postings
+        .iter()
+        .filter(|p| {
+            p.units.as_ref().is_some_and(Decimal::is_zero)
+                && p.cost
+                    .as_ref()
+                    .is_some_and(|c| c.per_unit.is_some() && c.total.is_none())
+        })
+        .map(|p| p.line)
+}
+
 pub(super) fn book(
     books: &mut Books,
     date: Day,

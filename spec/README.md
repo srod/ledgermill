@@ -123,7 +123,8 @@ them). `details.reason` is one of `ambiguous-lot-match`,
 `cannot-determine-currency`, `cannot-infer-units`, `cannot-infer-currency`,
 `cannot-infer-anything`, `cannot-infer-price`, `cannot-infer-price-currency`,
 `several-cost-currencies-match`, `negative-cost`, `negative-price`, `unbalanced`,
-`unsupported-booking-method` or `auto-posting-with-several-currencies`.
+`unsupported-booking-method`, `zero-amount-at-cost` (zero units with a cost per unit; on the
+posting, and the transaction stays listed) or `auto-posting-with-several-currencies`.
 
 `unbalanced-transaction` (error): a currency group is outside the tolerance
 (`details.residual`: a `{commodity, quantity}` per group). bean-check reports it but bean-query

@@ -175,3 +175,34 @@ fn a_booking_error_is_on_the_posting_the_reference_blames_or_on_the_header_for_l
         assert_eq!(first["details"]["reason"], json!(reason), "{name}");
     }
 }
+
+/// Zero units with a written cost per unit is a booking error on that posting, and the
+/// transaction is still listed; zero units plain or with a price are fine
+/// (spec/beancount/check-errors.md, "Zero units at a cost").
+#[test]
+fn zero_units_at_a_written_cost_is_a_booking_error_on_the_posting_and_the_transaction_is_kept() {
+    for (name, line) in [
+        ("booking-zero-amount-at-cost", 5),
+        ("booking-zero-amount-at-cost-places", 5),
+        ("booking-zero-amount-at-cost-negative", 5),
+        ("booking-zero-amount-at-cost-second", 6),
+    ] {
+        let found = findings("b.beancount", &probe(name));
+        assert_eq!(found.as_array().unwrap().len(), 1, "{name}");
+        assert_eq!(found[0]["code"], json!("booking-error"), "{name}");
+        assert_eq!(found[0]["line"], json!(line), "{name}");
+        assert_eq!(
+            found[0]["details"]["reason"],
+            json!("zero-amount-at-cost"),
+            "{name}"
+        );
+        let listed = transactions("b.beancount", &probe(name));
+        assert_eq!(listed.as_array().unwrap().len(), 1, "{name}");
+    }
+    for name in [
+        "booking-zero-amount-plain",
+        "booking-zero-amount-with-price",
+    ] {
+        assert_eq!(findings("b.beancount", &probe(name)), json!([]), "{name}");
+    }
+}

@@ -363,6 +363,16 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                         ));
                     }
                     Ok(booked) => {
+                        for line in book::zero_units_at_cost(tx) {
+                            // The transaction stays: bean-query lists it, unlike other booking errors.
+                            findings.push(finding(
+                                &file.name,
+                                line,
+                                "booking-error",
+                                json!({ "reason": "zero-amount-at-cost" }),
+                                "A posting of zero units cannot have a cost.",
+                            ));
+                        }
                         if !booked.residuals.is_empty() {
                             let residual: Vec<Value> = booked
                                 .residuals
