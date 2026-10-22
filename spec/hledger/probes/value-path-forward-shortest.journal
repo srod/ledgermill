@@ -1,0 +1,15 @@
+; among forward paths the shortest wins, whatever the prices; at equal length the smaller names
+P 2026-01-01 A 2 B
+P 2026-01-01 B 3 E
+P 2026-01-01 A 5 E
+P 2026-01-01 A 7 C
+P 2026-01-01 C 11 G
+P 2026-01-01 A 13 D
+P 2026-01-01 D 17 G
+P 2026-01-01 A 19 Z
+P 2026-01-01 Z 23 H
+P 2026-01-01 A 29 a
+P 2026-01-01 a 31 H
+
+2026-01-02 t
+    (x)  1 A

@@ -7,16 +7,19 @@
 # then " @ AMOUNT" or " @@ AMOUNT" for a price and " {AMOUNT}" for a lot cost ("{}" when the
 # lot has none). A posting without an amount shows "-".
 set -e
-args=""
-opts=""
-for f in "$@"; do
-  case "$f" in
-    -*) opts="$opts $f" ;;
-    *) args="$args -f $f" ;;
+files=""
+n=$#
+while [ "$n" -gt 0 ]; do
+  a=$1
+  shift
+  n=$((n - 1))
+  case "$a" in
+    -*) set -- "$@" "$a" ;; # kept, in order, for hledger (it may hold a space)
+    *) files="$files -f $a" ;;
   esac
 done
 # shellcheck disable=SC2086
-hledger --no-conf $args print -O json $opts | jq -r '
+hledger --no-conf $files print -O json "$@" | jq -r '
   def num: (.aquantity.decimalPlaces) as $p
     | (.aquantity.decimalMantissa | if . < 0 then -. else . end | tostring) as $m
     | (if .aquantity.decimalMantissa < 0 then "-" else "" end) as $s

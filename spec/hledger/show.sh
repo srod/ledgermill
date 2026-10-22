@@ -6,16 +6,19 @@
 # An amount is [commodity, mantissa, places], followed by its price as
 # ["@"|"@@", commodity, mantissa, places] and its lot as {cost, date, label} when it has them.
 set -e
-args=""
-opts=""
-for f in "$@"; do
-  case "$f" in
-    -*) opts="$opts $f" ;;
-    *) args="$args -f $f" ;;
+files=""
+n=$#
+while [ "$n" -gt 0 ]; do
+  a=$1
+  shift
+  n=$((n - 1))
+  case "$a" in
+    -*) set -- "$@" "$a" ;; # kept, in order, for hledger (it may hold a space)
+    *) files="$files -f $a" ;;
   esac
 done
 # shellcheck disable=SC2086
-hledger --no-conf $args print -O json $opts | jq -c '
+hledger --no-conf $files print -O json "$@" | jq -c '
   def q: [.acommodity, .aquantity.decimalMantissa, .aquantity.decimalPlaces];
   .[] | {
   date: .tdate, status: .tstatus, code: .tcode, description: .tdescription, comment: .tcomment,

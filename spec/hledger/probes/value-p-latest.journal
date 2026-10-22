@@ -1,0 +1,9 @@
+; which P line is used on DATE: the latest date up to and including DATE; on one date, the later line
+P 2026-01-01 X 2 EUR
+P 2026-01-05 X 3 EUR
+P 2026-01-05 X 4 EUR
+P 2026-01-09 X 5 EUR
+P 2026-01-03 X 7 EUR
+
+2026-02-01 the transaction date plays no part
+    (a)  1 X

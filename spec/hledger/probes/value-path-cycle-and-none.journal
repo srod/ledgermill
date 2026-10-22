@@ -1,0 +1,12 @@
+; cycles are harmless; an amount with no path to the target is left as it is, price and lot included
+P 2026-01-01 A 2 B
+P 2026-01-01 B 3 C
+P 2026-01-01 C 5 A
+P 2026-01-01 K 2 L
+
+2026-01-02 t
+    (x)  1 A
+    (x)  1 C
+    (x)  4 K @ 3 L
+    (x)  2 K {4 L}
+    (x)  1 Q

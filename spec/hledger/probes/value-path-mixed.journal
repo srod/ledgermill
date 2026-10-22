@@ -1,0 +1,9 @@
+; mixed paths of equal length: the first step is a forward edge if there is one (A to B, a
+; forward edge, before A to C, an inverse one), then names, forward edges before inverse ones
+P 2026-01-01 A 2 B
+P 2026-01-01 C 3 A
+P 2026-01-01 D 5 B
+P 2026-01-01 D 7 C
+
+2026-01-02 t
+    (x)  1 A

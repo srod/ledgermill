@@ -1,0 +1,7 @@
+; a price without a commodity takes the commodity of the D directive
+D 1000.00 EUR
+P 2026-01-01 X 2
+
+2026-01-02 t
+    (a)  3 X
+    (b)  1

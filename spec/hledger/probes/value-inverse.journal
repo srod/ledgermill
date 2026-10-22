@@ -1,0 +1,14 @@
+; the inverse of a price is 1/p rounded to 255 places (half even); the inverse of 0 is 0
+P 2026-01-01 X 3 EUR
+P 2026-01-01 Y 8 EUR
+P 2026-01-01 W 0 EUR
+P 2026-01-01 V 0.207 EUR
+P 2026-01-01 U 7 EUR
+
+2026-01-02 t
+    (a)  1 EUR
+    (b)  3 EUR
+    (c)  9 EUR
+    (d)  2 EUR
+    (e)  0.9 EUR
+    (f)  1000000 EUR

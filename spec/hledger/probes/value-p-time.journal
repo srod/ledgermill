@@ -1,0 +1,8 @@
+; a time of day on a P line is read and ignored: on one date the later line wins
+P 2026-01-05 10:00 X 3 EUR
+P 2026-01-05 09:00:30 X 4 EUR
+P 2026-01-06 08:00 X 6 EUR
+P 2026-01-06 X 7 EUR
+
+2026-01-01 t
+    (a)  1 X

@@ -1,0 +1,7 @@
+; the price is kept with all its places; only the result is rounded, to ten places
+P 2026-01-01 X 0.123456789012345678901234567890 EUR
+
+2026-01-02 t
+    (a)  1 X
+    (b)  1000000 X
+    (c)  0.0000000001 X

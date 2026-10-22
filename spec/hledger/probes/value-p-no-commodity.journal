@@ -1,0 +1,6 @@
+; with no D directive a price without a commodity is in the empty commodity, a real commodity
+P 2026-01-01 X 2
+
+2026-01-02 t
+    (a)  3
+    (b)  3 X

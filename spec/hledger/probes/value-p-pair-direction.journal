@@ -1,0 +1,8 @@
+; each ordered pair has its own latest price; the two directions do not replace one another
+P 2026-01-01 X 2 EUR
+P 2026-01-02 EUR 0.25 X
+P 2026-01-03 X 3 EUR
+
+2026-01-04 t
+    (a)  1 X
+    (b)  1 EUR

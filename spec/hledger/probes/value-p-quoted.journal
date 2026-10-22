@@ -1,0 +1,7 @@
+; a quoted commodity is named without its quotes on the command line
+P 2026-01-01 X 2 "E F"
+P 2026-01-01 "E F" 3 €
+
+2026-01-02 t
+    (a)  1 X
+    (b)  1 "E F"

@@ -1,0 +1,8 @@
+; no forward path, two inverse first steps: the smaller name wins
+P 2026-01-01 C 3 A
+P 2026-01-01 B 2 A
+P 2026-01-01 C 7 D
+P 2026-01-01 B 5 D
+
+2026-01-02 t
+    (x)  1 A

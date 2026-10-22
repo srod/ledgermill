@@ -1,0 +1,10 @@
+; forward neighbours are tried before inverse ones, whatever the names: A reaches M by a forward
+; edge to Z then an inverse one, and by an inverse edge to B then a forward one; Z wins although
+; B sorts first
+P 2026-01-01 A 2 Z
+P 2026-01-01 M 3 Z
+P 2026-01-01 B 5 A
+P 2026-01-01 B 7 M
+
+2026-01-02 t
+    (x)  1 A

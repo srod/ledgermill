@@ -1,0 +1,9 @@
+; a forward chain, however long, beats an inverse edge, even a direct one and a newer one
+P 2026-01-01 A 2 B
+P 2026-01-01 B 3 C
+P 2026-01-01 C 5 D
+P 2026-01-02 D 7 A
+
+2026-01-03 t
+    (a)  1 A
+    (b)  1 D

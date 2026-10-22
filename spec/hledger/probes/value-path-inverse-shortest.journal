@@ -1,0 +1,10 @@
+; with no forward path, the shortest path over forward and inverse edges
+P 2026-01-01 B 2 A
+P 2026-01-01 C 3 B
+P 2026-01-01 D 5 C
+P 2026-01-01 D 7 A
+P 2026-01-01 E 11 A
+P 2026-01-01 F 13 E
+
+2026-01-02 t
+    (x)  1 A

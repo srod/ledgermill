@@ -1,0 +1,12 @@
+; zero and negative prices are edges; a price of a commodity in itself is nothing
+P 2026-01-01 X 0 EUR
+P 2026-01-01 Y -2 EUR
+P 2026-01-01 Z 2 Z
+P 2026-01-01 V 4 EUR
+
+2026-01-02 t
+    (a)  5 X
+    (a)  5 Y
+    (a)  5 Z
+    (a)  5 EUR
+    (a)  5 V

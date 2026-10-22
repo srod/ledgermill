@@ -1,0 +1,8 @@
+; A and B have a price each way: the forward edge A to B (2) is the one a path through B uses,
+; not the inverse of B to A (1/5)
+P 2026-01-01 A 2 B
+P 2026-01-01 B 5 A
+P 2026-01-01 C 3 B
+
+2026-01-02 t
+    (x)  1 A

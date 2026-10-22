@@ -1,0 +1,9 @@
+; the rate of a path is a product of 255-place numbers, not a fraction: 0.9 A over two thirds
+P 2026-01-01 X 3 A
+P 2026-01-01 Y 3 X
+
+2026-01-02 t
+    (a)  1 A
+    (b)  0.9 A
+    (c)  9 A
+    (d)  27 A
