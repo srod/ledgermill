@@ -7,6 +7,7 @@
 
 mod support;
 
+use serde_json::json;
 use std::path::PathBuf;
 use support::*;
 
@@ -36,6 +37,20 @@ fn every_refused_probe_is_refused() {
             .iter()
             .any(|f| f["code"] == "unsupported-syntax" && f["severity"] == "error");
         assert!(refused, "{name}: no unsupported-syntax error");
+        // A file in a format ledgermill does not read gives one finding, on line 1, and nothing else.
+        let foreign = [
+            ("timeclock.timeclock", "timeclock"),
+            ("timedot.timedot", "timedot"),
+            ("csv.csv", "csv"),
+        ];
+        if let Some((_, construct)) = foreign.iter().find(|(file, _)| *file == name) {
+            assert_eq!(
+                short_findings(&name, &content),
+                json!([[1, "unsupported-syntax", construct]]),
+                "{name}"
+            );
+            assert_eq!(transactions(&name, &content), json!([]), "{name}");
+        }
         checked += 1;
     }
     assert!(checked > 0, "no probe found in {}", dir.display());

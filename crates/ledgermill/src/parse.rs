@@ -578,7 +578,12 @@ impl FileParser<'_> {
             return Ok(Some(DirectiveBody::Plain));
         }
         let mut old = text.to_string();
-        for (i, later) in self.lines.iter().enumerate().skip(line_no as usize) {
+        for (i, later) in self
+            .lines
+            .iter()
+            .enumerate()
+            .skip(usize::try_from(line_no).unwrap_or(usize::MAX))
+        {
             old.push('\n');
             if let Some((before, new)) = later.split_once('=') {
                 old.push_str(before);

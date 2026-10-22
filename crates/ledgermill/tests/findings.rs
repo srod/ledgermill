@@ -282,44 +282,6 @@ fn findings_are_ordered_by_file_then_line_and_name_their_file() {
     );
 }
 
-/// Files of `refused/` that are not meant to be loaded on their own: the file `include.journal`
-/// includes, and the rules file of `csv.csv`.
-const SUPPORT_FILES: [&str; 2] = ["include-target.journal", "csv.csv.rules"];
-
-#[test]
-fn every_probe_hledger_reads_and_ledgermill_refuses_is_refused() {
-    let dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spec/hledger/probes/refused");
-    let mut checked = 0;
-    for entry in std::fs::read_dir(&dir).unwrap() {
-        let path = entry.unwrap().path();
-        let name = path.file_name().unwrap().to_str().unwrap().to_string();
-        if SUPPORT_FILES.contains(&name.as_str()) {
-            continue;
-        }
-        let content = std::fs::read_to_string(&path).unwrap();
-        let found = short(&name, &content);
-        let found = found.as_array().unwrap();
-        assert!(
-            found.iter().any(|f| f[1] == "unsupported-syntax"),
-            "{name}: {found:?}"
-        );
-        // A file in a format ledgermill does not read gives one finding, on line 1, and nothing
-        // else.
-        let foreign = [
-            ("timeclock", "timeclock.timeclock"),
-            ("timedot", "timedot.timedot"),
-            ("csv", "csv.csv"),
-        ];
-        if let Some((construct, _)) = foreign.iter().find(|(_, file)| *file == name) {
-            assert_eq!(found, &vec![refused(1, construct)], "{name}");
-            assert_eq!(transactions(&name, &content), json!([]), "{name}");
-        }
-        checked += 1;
-    }
-    assert_eq!(checked, 13);
-}
-
 #[test]
 fn a_file_in_another_format_is_refused_by_its_extension_in_any_case() {
     for name in ["a.TimeClock", "b.TIMEDOT", "c.Csv", "d.tsv", "e.ssv"] {
