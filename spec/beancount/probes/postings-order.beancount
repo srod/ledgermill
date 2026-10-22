@@ -1,0 +1,38 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:Stock BTC "FIFO"
+
+2026-01-05 * "Shop" "same date, written first"
+  Assets:A   1 EUR
+  Assets:B  -1 EUR
+2026-01-05 ! "same date, no payee, pending"
+  Assets:A   2.50 EUR
+  Assets:B
+2026-01-05 * "a transaction with no posting"
+2026-01-05 txn "same date, txn word"
+  Assets:A   3 EUR
+  Assets:B  -3 EUR
+2026-01-05 * "same date, flag on a posting"
+  ! Assets:A   4 EUR
+  Assets:B  -4 EUR
+2026-01-05 *
+  Assets:A   5 EUR
+  Assets:B  -5 EUR
+2026-01-05 * ""
+  Assets:A   6 EUR
+  Assets:B  -6 EUR
+2026-01-05 * "Payee only?" ""
+  Assets:A   7 EUR
+  Assets:B  -7 EUR
+2026-01-04 P "written last, earlier date, other flag"
+  Assets:A   8 EUR
+  Assets:B  -8 EUR
+2026-01-06 * "buy two lots same day"
+  Assets:Stock  1 BTC {10 EUR}
+  Assets:Stock  1 BTC {20.50 EUR}
+  Assets:A     -30.50 EUR
+2026-01-07 ! "sell both, with a posting before and two after"
+  Assets:A      30.50 EUR
+  Assets:Stock  -2 BTC {}
+  Assets:B       1 EUR
+  Assets:A      -1 EUR

@@ -23,6 +23,7 @@ pub use model::*;
 #[derive(Debug, Default)]
 pub struct Ledger {
     transactions: Vec<Transaction>,
+    postings: Vec<FlatPosting>,
     findings: Vec<Finding>,
 }
 
@@ -30,6 +31,13 @@ impl Ledger {
     /// Transactions in the order the reference tool prints them: by date, then source order.
     pub fn transactions(&self) -> &[Transaction] {
         &self.transactions
+    }
+
+    /// One row per booked posting, by date, then file and line (Beancount only).
+    ///
+    /// Empty for hledger: its flat postings are not built yet (planned separately).
+    pub fn postings(&self) -> &[FlatPosting] {
+        &self.postings
     }
 
     /// Problems found while loading, ordered by file (as given) then line.
@@ -42,6 +50,7 @@ impl Ledger {
 fn refuse_set(construct: &str, at: &SourceFile) -> Ledger {
     Ledger {
         transactions: Vec::new(),
+        postings: Vec::new(),
         findings: vec![Finding {
             code: "unsupported-syntax".into(),
             severity: Severity::Error,
@@ -76,6 +85,7 @@ pub fn load(files: &[SourceFile]) -> Ledger {
         }
         let loaded = beancount::load(first);
         return Ledger {
+            postings: beancount::flatten(&loaded.transactions),
             transactions: loaded.transactions,
             findings: loaded.findings,
         };
@@ -93,6 +103,7 @@ pub fn load(files: &[SourceFile]) -> Ledger {
         .sort_by_key(|(file, finding)| (*file, finding.line));
     Ledger {
         transactions: out.transactions.into_iter().map(|(t, _)| t).collect(),
+        postings: Vec::new(),
         findings: out.findings.into_iter().map(|(_, f)| f).collect(),
     }
 }

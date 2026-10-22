@@ -13,11 +13,12 @@ journal.
 ```text
 load(files) → ledger
 ledger.transactions()   booked transactions with their file and line
+ledger.postings()       one row per posting (Beancount for now; empty for hledger)
 ledger.check()          problems found, as structured findings
 ledger.free()
 ```
 
-More questions follow: values at a date in a currency, holdings, postings, prices, and a
+More questions follow: values at a date in a currency, holdings, prices, and a
 formatter that only realigns whitespace. See the issue tracker for the plan.
 
 ledgermill is not a command-line clone of hledger or Beancount. It does not print their

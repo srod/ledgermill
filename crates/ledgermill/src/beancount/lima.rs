@@ -571,8 +571,22 @@ impl Books {
             let units_currency = p.currency.to_string();
             match &p.cost {
                 Some(costs) => {
-                    for (cost_currency, c) in costs.iter() {
-                        let account = feed.get(origin).map_or("", |f| f.account.as_str());
+                    let account = feed.get(origin).map_or("", |f| f.account.as_str());
+                    let mut lots: Vec<_> = costs.iter().collect();
+                    // The crate lists the lots in its own order (oldest first) when a sale takes
+                    // everything held; the reference lists them in the order they were consumed,
+                    // and the sort is stable, so equal lots keep the order given.
+                    if adds.get(origin) != Some(&true) {
+                        match self.method_of(account) {
+                            Method::Fifo => lots.sort_by_key(|(_, c)| c.date),
+                            Method::Lifo => lots.sort_by_key(|(_, c)| std::cmp::Reverse(c.date)),
+                            Method::Hifo => {
+                                lots.sort_by_key(|(_, c)| std::cmp::Reverse(c.per_unit))
+                            }
+                            _ => {}
+                        }
+                    }
+                    for (cost_currency, c) in lots {
                         let label = c.label.as_ref().map(|l| l.to_string());
                         let key = cost_key(
                             account,

@@ -1,6 +1,6 @@
 // bun test harness/lib.test.ts (needs the wasm built into pkg/, like the harness itself)
 import { expect, test } from "bun:test";
-import { decimalString, decodeCsv, firstDiff, projectBeancount, projectHledger } from "./lib.ts";
+import { decimalString, decodeCsv, firstDiff, projectBeancount, projectFlatPostings, projectHledger } from "./lib.ts";
 
 test("decimalString keeps places and sign exactly", () => {
   expect(decimalString(-1250n, 2)).toBe("-12.50");
@@ -93,4 +93,25 @@ test("projectBeancount keeps two postings with the same id and line (a sale over
     [15, "10"],
     [15, "30"],
   ]);
+});
+
+const FLAT = "date,flag,payee,narration,account,number,currency,filename,lineno";
+
+test("projectFlatPostings trims numbers and leaves a missing payee out, keeping rows in the order given", () => {
+  const csv =
+    `${FLAT}\r\n` +
+    "2026-01-04,*,,pay,Assets:A,   8.50   ,EUR,/a/b.beancount,28\r\n" +
+    '2026-01-05,!,"Shop, Ltd","say ""hi""",Assets:B,  -1  ,BTC,/a/b.beancount,36\r\n' +
+    '2026-01-05,!,"Shop, Ltd","say ""hi""",Assets:B,  -2  ,BTC,/a/b.beancount,36\r\n';
+  expect(projectFlatPostings(csv)).toEqual([
+    { date: "2026-01-04", flag: "*", narration: "pay", account: "Assets:A", number: "8.50", currency: "EUR", file: "/a/b.beancount", line: 28 },
+    { date: "2026-01-05", flag: "!", payee: "Shop, Ltd", narration: 'say "hi"', account: "Assets:B", number: "-1", currency: "BTC", file: "/a/b.beancount", line: 36 },
+    { date: "2026-01-05", flag: "!", payee: "Shop, Ltd", narration: 'say "hi"', account: "Assets:B", number: "-2", currency: "BTC", file: "/a/b.beancount", line: 36 },
+  ]);
+});
+
+test("projectFlatPostings starts at the header when errors come first and takes an empty result", () => {
+  const noise = "/a/b.beancount:4: Transaction does not balance: (-0.4 EUR)\n\n";
+  expect(projectFlatPostings(`${noise}${FLAT}\r\n`)).toEqual([]);
+  expect(() => projectFlatPostings("nothing here")).toThrow("no CSV header");
 });

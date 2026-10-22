@@ -118,6 +118,34 @@ pub struct Transaction {
     pub postings: Vec<Posting>,
 }
 
+/// One row of the flat posting list: a booked posting with the header fields of its transaction.
+///
+/// A posting booked against several lots gives one row per lot, all with the same `line`, in the
+/// order the lots were consumed. Rows are ordered by date, then by file and line (spec note
+/// `spec/beancount/postings.md`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlatPosting {
+    /// The transaction's date, `YYYY-MM-DD`.
+    pub date: String,
+    /// The transaction's flag, one character (`txn` reads as `*`); not the posting's own flag.
+    pub flag: String,
+    /// The payee when the transaction header has two strings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payee: Option<String>,
+    /// The narration; empty when the header has none.
+    pub narration: String,
+    /// The posting's account.
+    pub account: String,
+    /// The units as an exact decimal string, places as printed or worked out, e.g. `"-2.50"`.
+    pub number: String,
+    /// The units' commodity.
+    pub currency: String,
+    /// The file the transaction was read from, as given to `load`.
+    pub file: String,
+    /// The line of the posting itself.
+    pub line: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {

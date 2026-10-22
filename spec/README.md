@@ -67,6 +67,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [inferred-cost-and-price](beancount/inferred-cost-and-price.md) | `{}` and `@ EUR`: the cost or price left to balancing |
 | [balancing](beancount/balancing.md) | tolerance, unbalanced transactions, two elided postings |
 | [source-lines-and-ordering](beancount/source-lines-and-ordering.md) | reported lines, output order |
+| [postings](beancount/postings.md) | the flat posting list: row order, lot rows, flags |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
 | [refused](beancount/refused.md) | what ledgermill refuses, and what the reference says |
 

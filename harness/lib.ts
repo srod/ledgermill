@@ -35,6 +35,18 @@ export type Transaction = {
   source: { file: string; line: number };
   postings: Posting[];
 };
+/** One row of `postings()` (Beancount only for now). */
+export type FlatPosting = {
+  date: string;
+  flag: string; // the transaction's
+  payee?: string;
+  narration: string;
+  account: string;
+  number: string;
+  currency: string;
+  file: string;
+  line: number;
+};
 type Finding = { code: string; severity: "error" | "warning"; file: string; line: number; details: { construct?: string } };
 
 /** `rejected` marks a SKIP where the reference tool rejects the journal and we report no error (`check()` comes later). */
@@ -131,14 +143,18 @@ async function runHledger(paths: string[]): Promise<Reference> {
 }
 
 // ───────────── our side ─────────────
-type Ours = { transactions: Transaction[]; findings: Finding[] } | { thrown: string };
+type Ours = { transactions: Transaction[]; postings: FlatPosting[]; findings: Finding[] } | { thrown: string };
 
 function runOurs(paths: string[]): Ours {
   const files = paths.map((name) => ({ name, content: readFileSync(name, "utf8") }));
   let ledger: ReturnType<typeof wasm.load> | undefined;
   try {
     ledger = wasm.load(JSON.stringify(files));
-    return { transactions: JSON.parse(ledger.transactions()), findings: JSON.parse(ledger.check()) };
+    return {
+      transactions: JSON.parse(ledger.transactions()),
+      postings: JSON.parse(ledger.postings()),
+      findings: JSON.parse(ledger.check()),
+    };
   } catch (error) {
     return { thrown: String(error) };
   } finally {
@@ -172,6 +188,8 @@ export function firstDiff(a: unknown, b: unknown, path = ""): string | null {
 
 const withBasenames = (txs: Transaction[]): Transaction[] =>
   txs.map((t) => ({ ...t, source: { ...t.source, file: basename(t.source.file) } }));
+
+const postingBasenames = (rows: FlatPosting[]): FlatPosting[] => rows.map((r) => ({ ...r, file: basename(r.file) }));
 
 // ───────────── Beancount side ─────────────
 /**
@@ -225,24 +243,48 @@ export function decodeCsv(text: string): string[][] {
 
 const ENTRIES_QUERY =
   "SELECT id, type, filename, lineno, date, flag, payee, narration FROM entries WHERE type = 'transaction'";
+/** The flat list: one row per booked posting, in the order `postings()` promises. */
+const FLAT_POSTINGS_QUERY =
+  "SELECT date, flag, payee, narration, account, number, currency, filename, lineno ORDER BY date, filename, lineno";
 const POSTINGS_QUERY =
   "SELECT id, account, posting_flag, number, currency, cost_number, cost_currency, cost_date, cost_label, number(price), currency(price), filename, lineno FROM postings";
+
+/** Rows of a CSV as objects keyed by column name. bean-query prints its errors in front of the CSV, so decoding starts at the header. */
+function csvRows(csv: string, header: string): Record<string, string>[] {
+  const at = csv.indexOf(header);
+  if (at < 0) throw new Error(`no CSV header "${header}" in: ${csv.slice(0, 200)}`);
+  const [names = [], ...data] = decodeCsv(csv.slice(at));
+  return data.map((cells) => Object.fromEntries(names.map((n, i) => [n, cells[i] ?? ""])) as Record<string, string>);
+}
+
+/** Project the result of `FLAT_POSTINGS_QUERY` onto our FlatPosting shape; the padding around numbers is trimmed. */
+export function projectFlatPostings(csv: string): FlatPosting[] {
+  return csvRows(csv, "date,flag,payee,narration,account").map((r) => {
+    const row: FlatPosting = {
+      date: r.date as string,
+      flag: r.flag as string,
+      narration: r.narration as string,
+      account: r.account as string,
+      number: (r.number as string).trim(),
+      currency: r.currency as string,
+      file: r.filename as string,
+      line: Number(r.lineno),
+    };
+    // bean-query prints a missing payee as an empty field, like an empty one.
+    if (r.payee) row.payee = r.payee;
+    return row;
+  });
+}
 
 /**
  * Join the two query results on `id` (a transaction without postings stays) and project them onto our
  * Transaction shape. bean-query prints its errors in front of the CSV, so decoding starts at the header.
  */
 export function projectBeancount(entriesCsv: string, postingsCsv: string): Transaction[] {
-  const rows = (csv: string, header: string) => {
-    const at = csv.indexOf(header);
-    if (at < 0) throw new Error(`no CSV header "${header}" in: ${csv.slice(0, 200)}`);
-    const [names = [], ...data] = decodeCsv(csv.slice(at));
-    return data.map((cells) => Object.fromEntries(names.map((n, i) => [n, cells[i] ?? ""])) as Record<string, string>);
-  };
-  const postings = rows(postingsCsv, "id,account,posting_flag");
+  const postings = csvRows(postingsCsv, "id,account,posting_flag");
   const byId = new Map<string, Record<string, string>[]>();
   for (const p of postings) byId.set(p.id as string, [...(byId.get(p.id as string) ?? []), p]);
-  return rows(entriesCsv, "id,type,filename").map((e) => {
+  return csvRows(entriesCsv, "id,type,filename").map((e) => {
     const flag = e.flag as string;
     const tx: Transaction = {
       date: e.date as string,
@@ -293,7 +335,9 @@ async function run(cmd: string[]): Promise<{ stdout: string; exitCode: number }>
   return { stdout, exitCode };
 }
 
-type BeancountReference = { ok: true; transactions: Transaction[] } | { ok: false; message: string };
+type BeancountReference =
+  | { ok: true; transactions: Transaction[]; postings: FlatPosting[] }
+  | { ok: false; message: string };
 
 async function runBeancount(path: string): Promise<BeancountReference> {
   // bean-query exits 0 even for an invalid journal, so bean-check decides.
@@ -304,11 +348,16 @@ async function runBeancount(path: string): Promise<BeancountReference> {
     check.exited,
   ]);
   if (code !== 0) return { ok: false, message: (out + err).split("\n").find((l) => l.trim()) ?? "" };
-  const [entries, postings] = await Promise.all([
+  const [entries, postings, flat] = await Promise.all([
     run(["bean-query", "-f", "csv", path, ENTRIES_QUERY]),
     run(["bean-query", "-f", "csv", path, POSTINGS_QUERY]),
+    run(["bean-query", "-f", "csv", path, FLAT_POSTINGS_QUERY]),
   ]);
-  return { ok: true, transactions: projectBeancount(entries.stdout, postings.stdout) };
+  return {
+    ok: true,
+    transactions: projectBeancount(entries.stdout, postings.stdout),
+    postings: projectFlatPostings(flat.stdout),
+  };
 }
 
 /** What our side reports for a Beancount journal, in the shape the reference gives. */
@@ -333,6 +382,8 @@ async function compareBeancountCase(path: string): Promise<Verdict> {
   if (errors[0]) return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, bean-check accepts` };
   const diff = firstDiff(withBasenames(ref.transactions), withBasenames(normalizeOurs(ours.transactions)));
   if (diff) return { status: "FAIL", note: diff };
+  const postingsDiff = firstDiff(postingBasenames(ref.postings), postingBasenames(ours.postings));
+  if (postingsDiff) return { status: "FAIL", note: `postings: ${postingsDiff}` };
   return { status: "PASS", note: "" };
 }
 

@@ -1,0 +1,28 @@
+2026-01-01 open Assets:Lifo BTC "LIFO"
+2026-01-01 open Assets:Hifo BTC "HIFO"
+2026-01-01 open Assets:Fifo BTC "FIFO"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+; Lot sizes differ (1, 2, 3), so the rows of one sale show which lot each came from.
+2026-01-02 * "buy 1 at 30"
+  Assets:Lifo  1 BTC {30 EUR}
+  Assets:Hifo  1 BTC {30 EUR}
+  Assets:Fifo  1 BTC {30 EUR}
+  Assets:Bank  -90 EUR
+2026-01-03 * "buy 2 at 10"
+  Assets:Lifo  2 BTC {10 EUR}
+  Assets:Hifo  2 BTC {10 EUR}
+  Assets:Fifo  2 BTC {10 EUR}
+  Assets:Bank  -60 EUR
+2026-01-04 * "buy 3 at 20"
+  Assets:Lifo  3 BTC {20 EUR}
+  Assets:Hifo  3 BTC {20 EUR}
+  Assets:Fifo  3 BTC {20 EUR}
+  Assets:Bank  -180 EUR
+2026-01-10 * "sell all six in each account"
+  Assets:Lifo  -6 BTC {}
+  Assets:Hifo  -6 BTC {}
+  Assets:Fifo  -6 BTC {}
+  Assets:Bank   330 EUR
+  Income:Gain

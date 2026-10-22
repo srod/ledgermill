@@ -15,8 +15,8 @@ mod pydec;
 mod text;
 
 use crate::model::{
-    Amount, Cost, Finding, Lot, Posting, PostingKind, Quantity, Severity, Source, SourceFile,
-    Status, Transaction,
+    Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, Quantity, Severity, Source,
+    SourceFile, Status, Transaction,
 };
 use plain::{BookFailure, Item, Method};
 use serde_json::{Value, json};
@@ -117,6 +117,33 @@ fn posting(p: &book::BookedPosting) -> Posting {
         flag: p.flag.map(|c| c.to_string()),
         line: Some(p.line),
     }
+}
+
+/// The flat posting list of booked transactions: sorted by date and line like the reference's
+/// `ORDER BY date, filename, lineno`. A transaction lists its postings grouped by currency, so the
+/// line sort puts them back in the order written; rows tied on a line (a posting split over lots)
+/// keep booking order because the sort is stable.
+pub(crate) fn flatten(transactions: &[Transaction]) -> Vec<FlatPosting> {
+    let mut rows: Vec<FlatPosting> = transactions
+        .iter()
+        .flat_map(|t| {
+            t.postings.iter().flat_map(move |p| {
+                p.amounts.iter().map(move |a| FlatPosting {
+                    date: t.date.clone(),
+                    flag: t.flag.clone().unwrap_or_default(),
+                    payee: t.payee.clone(),
+                    narration: t.description.clone(),
+                    account: p.account.clone(),
+                    number: a.quantity.clone(),
+                    currency: a.commodity.clone(),
+                    file: t.source.file.clone(),
+                    line: p.line.unwrap_or(t.source.line),
+                })
+            })
+        })
+        .collect();
+    rows.sort_by(|a, b| (&a.date, &a.file, a.line).cmp(&(&b.date, &b.file, b.line)));
+    rows
 }
 
 /// Read, book and report one Beancount file.

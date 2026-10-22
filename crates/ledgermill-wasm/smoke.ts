@@ -1,5 +1,5 @@
 // bun crates/ledgermill-wasm/smoke.ts [JOURNAL...]
-// Loads the wasm built into pkg/ (see harness/README.md) and prints transactions and findings.
+// Loads the wasm built into pkg/ (see harness/README.md) and prints transactions, postings and findings.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { initSync, load } from "../../pkg/ledgermill_wasm.js";
@@ -13,7 +13,17 @@ const files = (paths.length > 0 ? paths : [join(root, "spec/hledger/probes/basic
 );
 const ledger = load(JSON.stringify(files));
 try {
-  console.log(JSON.stringify({ transactions: JSON.parse(ledger.transactions()), findings: JSON.parse(ledger.check()) }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        transactions: JSON.parse(ledger.transactions()),
+        postings: JSON.parse(ledger.postings()),
+        findings: JSON.parse(ledger.check()),
+      },
+      null,
+      2,
+    ),
+  );
 } finally {
   ledger.free();
 }

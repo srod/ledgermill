@@ -22,6 +22,11 @@ impl Ledger {
         Ok(serde_json::to_string(&self.0.transactions())?)
     }
 
+    /// JSON array of flat postings (Beancount only; `[]` for hledger).
+    pub fn postings(&self) -> Result<String, JsError> {
+        Ok(serde_json::to_string(&self.0.postings())?)
+    }
+
     /// JSON array of findings.
     pub fn check(&self) -> Result<String, JsError> {
         Ok(serde_json::to_string(&self.0.check())?)

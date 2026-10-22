@@ -65,20 +65,27 @@ For a `.beancount` or `.bean` file (a single file; a Beancount pair is not run),
 
 1. runs `bean-check FILE`. `bean-query` exits 0 even for an invalid journal, so `bean-check`
    decides whether the reference accepts the file (a non-zero exit means it does not);
-2. if it accepts, runs `bean-query -f csv FILE` twice:
+2. if it accepts, runs `bean-query -f csv FILE` three times:
    - the transactions: `SELECT id, type, filename, lineno, date, flag, payee, narration FROM
      entries WHERE type = 'transaction'`;
    - the postings: `SELECT id, account, posting_flag, number, currency, cost_number,
      cost_currency, cost_date, cost_label, number(price), currency(price), filename, lineno FROM
      postings`;
-3. decodes both CSVs (`decodeCsv`: CRLF rows, quoted fields with commas, doubled quotes and
+   - the flat postings: `SELECT date, flag, payee, narration, account, number, currency,
+     filename, lineno ORDER BY date, filename, lineno`;
+3. decodes the first two CSVs (`decodeCsv`: CRLF rows, quoted fields with commas, doubled quotes and
    newlines) and joins them on `id`. A transaction without postings stays; several postings may
    share an `id` and a line (a sale over several lots). Decoding starts at the header, because
    `bean-query` prints errors in front of the CSV. The padding `bean-query` puts around numbers is
    trimmed. The result is projected onto our `Transaction` shape (flag, payee, narration, each
    posting's flag and line, its price, and its lot from the cost columns). A transaction's
    comment is always empty;
-4. diffs that with what the wasm returns, like for hledger.
+4. diffs that with what the wasm returns, like for hledger;
+5. decodes the flat postings the same way (starting at the header, numbers trimmed), projects each
+   row onto our `FlatPosting` JSON shape (a missing payee is left out) and diffs the list with
+   `postings()`, `file` by basename. The row order is part of the comparison. A case passes only if
+   the transactions and the postings both match; a postings difference is reported as
+   `postings: [3].line: ...`.
 
 Verdicts are as above, with two Beancount cases:
 
@@ -90,7 +97,7 @@ Verdicts are as above, with two Beancount cases:
 - we report `unsupported-syntax`: SKIP, whether or not the reference accepts.
 
 The summary prints a line per format when both are run. A FAIL is also: we report an error where
-`bean-check` accepts, or the transactions differ.
+`bean-check` accepts, or the transactions or the postings differ.
 
 The fuzzer (`fuzz.ts`) writes random, mostly valid journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
