@@ -104,6 +104,35 @@ fn longest_number(code: &str) -> usize {
     longest
 }
 
+/// A number in a piece of a cost: a token that starts with a digit or a dot, not a date.
+fn has_number(part: &str) -> bool {
+    part.split(|c: char| c == ',' || c.is_whitespace())
+        .any(|t| {
+            let t = t.trim_start_matches(['+', '-']);
+            t.starts_with(|c: char| c.is_ascii_digit() || c == '.') && !t.contains('-')
+        })
+}
+
+/// `{# 5 EUR}` and `{2 # EUR}`: a `#` with a number missing on one side. The reference works the
+/// missing part out (inferred-cost-and-price.md); the rewrite of `{{ total }}` into `{# total}`
+/// would make it look like a written total, so it is refused here, on the text as written.
+fn has_partial_cost(code: &str) -> bool {
+    let mut rest = code;
+    while let Some(open) = rest.find('{') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('}') else {
+            return false;
+        };
+        if let Some((left, right)) = after[..close].split_once('#')
+            && !(has_number(left) && has_number(right))
+        {
+            return true;
+        }
+        rest = &after[close + 1..];
+    }
+    false
+}
+
 fn option_name(line: &str) -> Option<String> {
     let rest = line.strip_prefix("option")?;
     let start = rest.find('"')? + 1;
@@ -143,6 +172,8 @@ pub(super) fn prescan(text: &str) -> Vec<Refusal> {
                 out.push(refuse("number-expression", None));
             } else if longest_number(&code) > MAX_NUMBER_CHARS {
                 out.push(refuse("number-too-large", None));
+            } else if has_partial_cost(&code) {
+                out.push(refuse("cost-partial", None));
             }
         } else if longest_number(&code_of(raw)) > MAX_NUMBER_CHARS {
             out.push(refuse("number-too-large", None));
@@ -186,6 +217,61 @@ fn posting_flag_at(line: &str) -> Option<usize> {
         && account.starts_with(|c: char| c.is_ascii_uppercase())
         && first_word.contains(':'))
     .then_some(start)
+}
+
+/// `{{}}` as `{}`, and a comma right after `{` dropped (`{ , "label"}`), outside strings and
+/// comments: the reference reads both, the parser neither.
+fn braces_tidied(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let (mut in_string, mut escaped) = (false, false);
+    let mut skip_to = 0;
+    for (i, c) in line.char_indices() {
+        if i < skip_to {
+            continue;
+        }
+        if in_string {
+            out.push(c);
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => {
+                in_string = true;
+                out.push(c);
+            }
+            ';' => {
+                out.push_str(&line[i..]);
+                break;
+            }
+            '{' => {
+                let rest = &line[i + 1..];
+                let trimmed = rest.trim_start();
+                let empty_total = trimmed
+                    .strip_prefix('{')
+                    .and_then(|r| r.trim_start().strip_prefix("}}"));
+                let after_comma = trimmed
+                    .strip_prefix(',')
+                    .filter(|r| !r.trim_start().starts_with('}'));
+                if let Some(left) = empty_total {
+                    out.push_str("{}");
+                    skip_to = i + 1 + rest.len() - left.len();
+                } else if let Some(left) = after_comma {
+                    out.push('{');
+                    skip_to = i + 1 + rest.len() - left.len();
+                } else {
+                    out.push(c);
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// `{{ total }}` as `{# total}`, outside strings and comments.
@@ -296,6 +382,9 @@ pub(super) fn normalize(text: &str) -> String {
             Some((before, after)) => format!("{before}'{after}"),
             None => body.to_string(),
         };
+        if line.starts_with([' ', '\t']) && line.contains('{') {
+            line = braces_tidied(&line);
+        }
         if line.starts_with([' ', '\t']) && line.contains("{{") {
             line = single_braces(&line);
         }

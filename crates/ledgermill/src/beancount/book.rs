@@ -5,7 +5,7 @@
 //! The lot matching itself is the booking crate's (through `lima.rs`); the figures are ours.
 
 use super::lima::{Books, Feed, FeedCost};
-use super::plain::{BookFailure, Day, Lot, RawPosting, RawTransaction};
+use super::plain::{BookFailure, Day, Lot, RawPosting, RawPrice, RawTransaction};
 use super::pydec::Num as Decimal;
 use std::collections::HashMap;
 
@@ -64,12 +64,21 @@ fn feed_of(p: &RawPosting) -> Result<Feed, BookFailure> {
     };
     let price = match &p.price {
         None => None,
-        Some(price) if !price.total => Some((price.number.clone(), price.currency.clone())),
-        Some(price) => {
-            let units = p.units.as_ref().ok_or(BookFailure::TooPrecise)?;
-            let value = per_unit(&price.number, units).ok_or(BookFailure::TooPrecise)?;
-            Some((value, price.currency.clone()))
+        Some(RawPrice {
+            number: Some(number),
+            total,
+            currency: Some(currency),
+        }) => {
+            if *total {
+                let units = p.units.as_ref().ok_or(BookFailure::TooPrecise)?;
+                let value = per_unit(number, units).ok_or(BookFailure::TooPrecise)?;
+                Some((value, currency.clone()))
+            } else {
+                Some((number.clone(), currency.clone()))
+            }
         }
+        // `infer` fills every part in before a posting is fed.
+        Some(_) => return Err(BookFailure::Unsupported("inferred-price")),
     };
     Ok(Feed {
         account: p.account.clone(),
@@ -97,11 +106,163 @@ fn weight_currency(
     }
 }
 
+/// A cost with no number at all (`{}`, `{EUR}`, `{"label"}`, `{date}`).
+fn open_cost(p: &RawPosting) -> bool {
+    p.cost
+        .as_ref()
+        .is_some_and(|c| c.per_unit.is_none() && c.total.is_none())
+}
+
+/// A price missing its number, its currency or both.
+fn open_price(p: &RawPosting) -> bool {
+    p.price
+        .as_ref()
+        .is_some_and(|p| p.number.is_none() || p.currency.is_none())
+}
+
+/// The currency a posting balances in and its weight; a cost or price must be complete.
+fn weight_of(p: &RawPosting) -> Result<(String, Decimal), BookFailure> {
+    let (Some(units), Some(currency)) = (&p.units, &p.currency) else {
+        return Err(BookFailure::Booking("too-many-missing-numbers"));
+    };
+    let feed = feed_of(p)?;
+    match (feed.cost, feed.price) {
+        (
+            Some(FeedCost {
+                per_unit: Some(value),
+                currency: Some(cost_currency),
+                ..
+            }),
+            _,
+        ) => Ok((cost_currency, units.mul(&value))),
+        (Some(_), _) => Err(BookFailure::Unsupported("inferred-cost")),
+        (None, Some((value, price_currency))) => Ok((price_currency, units.mul(&value))),
+        (None, None) => Ok((currency.clone(), units.clone())),
+    }
+}
+
+/// Work out the one cost (on a posting that adds a lot) or price that is left to balancing, as
+/// the figure that makes the other postings of its currency add up to zero
+/// (spec/beancount/inferred-cost-and-price.md). Returns the transaction with it filled in.
+fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailure> {
+    let mut out = tx.clone();
+    // The lots of an AVERAGE account are not tracked, and `book` refuses them anyway.
+    if tx.postings.iter().any(|p| books.averages(&p.account)) {
+        return Ok(out);
+    }
+    let wanted: Vec<usize> = tx
+        .postings
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| {
+            open_price(p)
+                || (open_cost(p)
+                    && match (&p.units, &p.currency) {
+                        (Some(units), Some(currency)) => {
+                            books.adds_lot(&p.account, currency, units)
+                        }
+                        _ => true,
+                    })
+        })
+        .map(|(i, _)| i)
+        .collect();
+    let Some(&at) = wanted.first() else {
+        return Ok(out);
+    };
+    if wanted.len() > 1 {
+        return Err(BookFailure::Booking("too-many-missing-numbers"));
+    }
+    let target = &tx.postings[at];
+    let is_cost = open_cost(target);
+    let construct = if is_cost {
+        "inferred-cost"
+    } else {
+        "inferred-price"
+    };
+    let Some(units) = &target.units else {
+        return Err(BookFailure::Booking("too-many-missing-numbers"));
+    };
+    let others = || tx.postings.iter().enumerate().filter(|(i, _)| *i != at);
+    // A reduction with an open cost weighs what its lots cost, known only after matching.
+    if others().any(|(_, p)| open_cost(p)) {
+        return Err(BookFailure::Unsupported(construct));
+    }
+    if others().any(|(_, p)| is_auto(p) || p.units.is_none()) {
+        return Err(BookFailure::Booking(if is_cost {
+            "cannot-infer-currency"
+        } else {
+            "too-many-missing-numbers"
+        }));
+    }
+    let mut sums: Vec<(String, Decimal)> = Vec::new();
+    for (_, p) in others() {
+        let (currency, weight) = weight_of(p)?;
+        match sums.iter_mut().find(|(c, _)| *c == currency) {
+            Some((_, sum)) => *sum = sum.add(&weight),
+            None => sums.push((currency, weight)),
+        }
+    }
+    let written = if is_cost {
+        target
+            .cost
+            .as_ref()
+            .and_then(|c| c.currency.clone())
+            .or_else(|| target.price.as_ref().and_then(|p| p.currency.clone()))
+    } else {
+        target.price.as_ref().and_then(|p| p.currency.clone())
+    };
+    let group = match (written, sums.as_slice()) {
+        (Some(currency), _) => currency,
+        (None, [(currency, _)]) => currency.clone(),
+        _ => return Err(BookFailure::Booking("cannot-infer-currency")),
+    };
+    let sum = sums
+        .iter()
+        .find(|(c, _)| *c == group)
+        .map_or_else(Decimal::zero, |(_, s)| s.clone());
+    // A price written with its number needs no figure, only the currency.
+    let needs_figure = is_cost || target.price.as_ref().is_some_and(|p| p.number.is_none());
+    let value = if !needs_figure {
+        Decimal::zero()
+    } else if units.is_zero() {
+        // Nothing is added, so a payment is left unbalanced (the reference says so). With a price,
+        // or with nothing to pay, the reference crashes or was not probed: refuse.
+        if is_cost && !sum.is_zero() {
+            Decimal::zero()
+        } else {
+            return Err(BookFailure::Unsupported(construct));
+        }
+    } else if sum.is_zero() {
+        Decimal::zero()
+    } else {
+        sum.negated().div(units).ok_or(BookFailure::TooPrecise)?
+    };
+    let slot = &mut out.postings[at];
+    if is_cost {
+        if value.is_negative() {
+            return Err(BookFailure::Booking("negative-cost"));
+        }
+        if let Some(cost) = slot.cost.as_mut() {
+            cost.per_unit = Some(value);
+            cost.currency = Some(group);
+        }
+    } else if let Some(price) = slot.price.as_mut() {
+        if price.number.is_none() {
+            price.number = Some(value.abs());
+            price.total = false;
+        }
+        price.currency = Some(group);
+    }
+    Ok(out)
+}
+
 pub(super) fn book(
     books: &mut Books,
     date: Day,
     tx: &RawTransaction,
 ) -> Result<Booked, BookFailure> {
+    let filled = infer(books, tx)?;
+    let tx = &filled;
     if tx.postings.iter().all(is_auto) {
         // Nothing to balance: a lone elided posting vanishes, two cannot be told apart.
         return match tx.postings.len() {

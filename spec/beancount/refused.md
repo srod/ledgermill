@@ -14,6 +14,8 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `average-booking` | rejects: "AVERAGE method is not supported", at the sale | `average-booking` (`details.account`) |
 | `balance` | accepts | `balance` |
 | `cost-merge` | rejects: "Cost merging is not supported yet" | `cost-merge` |
+| `cost-partial-per-unit`, `cost-partial-total` | accept: the missing part of `{2 # EUR}` / `{# 1 EUR}` is worked out | `cost-partial` |
+| `inferred-price-with-cost` | rejects: "Too many missing numbers" | `inferred-price` |
 | `include` | rejects here, the file is missing: "File glob ... does not match any files" | `include` |
 | `number-expression` | accepts: `(1 + 2) * 3 EUR` is `9` | `number-expression` |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
@@ -32,9 +34,10 @@ Also refused, without a probe because nothing needs a reference to confirm it:
 
 - `number-too-large`: more than 22 characters in a number. `number-too-precise`: a figure that
   needs more digits than ledgermill handles.
-- `inferred-price`: a price with its number or currency left out. `inferred-cost`: a new lot
-  whose cost is left to be worked out. What the reference does with both is in
-  inferred-cost-and-price.md; they stay refused until that is built.
+- `inferred-price`: a price with its number or currency left out, next to a cost on the same
+  posting, or with zero units. `inferred-cost`: a cost to work out in a transaction that also has
+  a reduction with an open cost, or with zero units and nothing to pay. Everything else about
+  both is built; see inferred-cost-and-price.md, which lists what stays refused.
 - `several-beancount-files` and `mixed-formats`: more than one Beancount file in one `load`, or
   Beancount and hledger files together (reported at line 1: of the first Beancount file for a mix,
   of the second one for several). Only a single root file is read, so an `include` cannot be followed either.

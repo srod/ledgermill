@@ -72,9 +72,10 @@ fn refusal_message(construct: &str) -> &'static str {
         "balance" => "Balance assertions are not supported yet.",
         "number-expression" => "Arithmetic in a number is not supported yet.",
         "number-too-large" => "This number is too large to handle.",
-        "inferred-price" => "A price without a number is not supported yet.",
+        "inferred-price" => "A price to work out next to a cost is not supported.",
+        "cost-partial" => "A cost with one part of `#` left out is not supported yet.",
         "cost-merge" => "Merging lots with {*} is not supported.",
-        "inferred-cost" => "A lot cost left to be worked out is not supported yet.",
+        "inferred-cost" => "A lot cost to work out is not supported in this form.",
         "average-booking" => "AVERAGE booking is not supported.",
         "number-too-precise" => "This number needs more digits than are handled.",
         _ => "This is not supported yet.",
@@ -223,14 +224,14 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                             ));
                         }
                     }
-                    Err(BookFailure::InferredCost) => {
+                    Err(BookFailure::Unsupported(construct)) => {
                         refused = true;
                         findings.push(unsupported(
                             &file.name,
                             tx.line,
-                            "inferred-cost",
+                            construct,
                             json!({}),
-                            refusal_message("inferred-cost"),
+                            refusal_message(construct),
                         ));
                     }
                     Err(BookFailure::TooPrecise) => {

@@ -76,6 +76,13 @@ fn method(booking: parser::Booking) -> Method {
     }
 }
 
+fn scoped(value: &parser::ScopedExprValue) -> (&parser::ExprValue, bool) {
+    match value {
+        parser::ScopedExprValue::PerUnit(v) => (v, false),
+        parser::ScopedExprValue::Total(v) => (v, true),
+    }
+}
+
 /// A posting, or the construct that makes it unreadable for now.
 fn posting(
     p: &parser::Spanned<parser::Posting<'_>>,
@@ -109,21 +116,43 @@ fn posting(
     };
     let price = match p.price_annotation() {
         None => None,
-        Some(spec) => match spec.item() {
-            parser::PriceSpec::CurrencyAmount(scoped, currency) => {
-                let (value, total) = match scoped {
-                    parser::ScopedExprValue::PerUnit(v) => (v, false),
-                    parser::ScopedExprValue::Total(v) => (v, true),
-                };
-                Some(RawPrice {
-                    number: literal(value).ok_or("number-expression")?,
+        Some(spec) => Some(match spec.item() {
+            parser::PriceSpec::CurrencyAmount(s, currency) => {
+                let (value, total) = scoped(s);
+                RawPrice {
+                    number: Some(literal(value).ok_or("number-expression")?),
                     total,
-                    currency: currency.to_string(),
-                })
+                    currency: Some(currency.to_string()),
+                }
             }
-            _ => return Err("inferred-price"),
-        },
+            parser::PriceSpec::BareAmount(s) => {
+                let (value, total) = scoped(s);
+                RawPrice {
+                    number: Some(literal(value).ok_or("number-expression")?),
+                    total,
+                    currency: None,
+                }
+            }
+            parser::PriceSpec::BareCurrency(currency) => RawPrice {
+                number: None,
+                total: false,
+                currency: Some(currency.to_string()),
+            },
+            parser::PriceSpec::Unspecified => RawPrice {
+                number: None,
+                total: false,
+                currency: None,
+            },
+        }),
     };
+    // A price to work out next to a cost is not mapped by the reference (nor by us).
+    if cost.is_some()
+        && price
+            .as_ref()
+            .is_some_and(|p| p.number.is_none() || p.currency.is_none())
+    {
+        return Err("inferred-price");
+    }
     Ok(RawPosting {
         account: p.account().item().to_string(),
         flag: p.flag().map(|f| flag_char(*f.item())),
@@ -443,15 +472,41 @@ impl Books {
         self.methods.get(account).copied().unwrap_or(self.default)
     }
 
+    /// Whether the account books by AVERAGE, which `book` refuses before anything else.
+    pub(super) fn averages(&self, account: &str) -> bool {
+        self.method_of(account) == Method::Average
+    }
+
+    /// Whether a posting of these units adds a lot: the account holds none of the commodity with
+    /// the opposite sign (which the posting would reduce).
+    pub(super) fn adds_lot(&self, account: &str, currency: &str, units: &Number) -> bool {
+        let negative = units.is_negative();
+        self.inventory.get(account).is_none_or(|positions| {
+            !positions.iter().any(|p| {
+                &*p.currency == currency
+                    && !p.units.is_zero()
+                    && p.units.is_sign_negative() != negative
+            })
+        })
+    }
+
     /// Book one transaction's postings; on success the inventory moves on.
     pub(super) fn book(&mut self, date: Day, feed: &[Feed]) -> Result<Vec<Row>, BookFailure> {
         // Refuse AVERAGE here, before any call that could reach the crate's `todo!`.
-        if let Some(f) = feed
-            .iter()
-            .find(|f| self.method_of(&f.account) == Method::Average)
-        {
+        if let Some(f) = feed.iter().find(|f| self.averages(&f.account)) {
             return Err(BookFailure::Average(f.account.clone()));
         }
+        // A lot added here shows the cost as written, even when an equal lot is held with other
+        // digits; a reduction shows the digits of the lot held.
+        let adds: Vec<bool> = feed
+            .iter()
+            .map(|f| match (&f.cost, &f.units, &f.currency) {
+                (Some(_), Some(units), Some(currency)) => {
+                    self.adds_lot(&f.account, currency, units)
+                }
+                _ => false,
+            })
+            .collect();
         let postings: Vec<PostingIn> = feed
             .iter()
             .map(to_posting)
@@ -526,13 +581,20 @@ impl Books {
                             label.as_deref(),
                             &c.per_unit,
                         );
-                        // A cost nobody wrote (`{}` on a new lot): its number comes from balancing
-                        // the others, which this does not reproduce digit for digit yet.
-                        let per_unit = self
-                            .costs
-                            .get(&key)
-                            .cloned()
-                            .ok_or(BookFailure::InferredCost)?;
+                        // Every new lot was written or filled in by `book.rs` and remembered above.
+                        let written = feed
+                            .get(origin)
+                            .and_then(|f| f.cost.as_ref())
+                            .and_then(|c| c.per_unit.clone())
+                            .filter(|_| adds.get(origin) == Some(&true));
+                        let per_unit = match written {
+                            Some(written) => written,
+                            None => self
+                                .costs
+                                .get(&key)
+                                .cloned()
+                                .ok_or(BookFailure::Unsupported("inferred-cost"))?,
+                        };
                         rows.push(Row {
                             origin,
                             units: number(c.units),

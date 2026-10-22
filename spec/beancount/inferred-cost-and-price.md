@@ -2,8 +2,9 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-22.
 
-Status: **not built yet.** ledgermill refuses these with `unsupported-syntax` (`inferred-cost`,
-`inferred-price`, see refused.md). This note is what the reference does, so they can be built.
+Status: **built**, except the shapes listed at the end of the Rule section (they stay refused with
+`unsupported-syntax`: `inferred-price` and `inferred-cost` for the ones named there, and
+`cost-partial`). This note is what the reference does.
 Written by the agent session listed in EXPOSURE.md for 2026-10-22 (it saw two lines of the
 reference's booking code in a tool crash); a human should check that it only records tool output.
 
@@ -100,23 +101,33 @@ Cases the reference accepts give the postings above. Cases it rejects give `book
 `cannot-infer-currency`, ...) or `unbalanced-transaction` and no transaction, which is all the
 harness compares for two failures (the reason need not match).
 
-Two shapes are known gaps today, found while probing: `{ , "lot1"}` and `{{}}` make our parser
-report `parse-error` where the reference accepts them (`probes/pending/`; both need a rewrite
-in `text.rs`), and `{# 5 EUR}` / `{2 # EUR}` are read as an explicit total or per-unit cost, so
-ours reports `unbalanced-transaction` where the reference accepts (`probes/refused/cost-partial-*`).
+`{ , "lot1"}` and `{{}}` are rewritten in `text.rs` (`{ , "lot1"}` loses its comma, `{{}}` becomes
+`{}`) so the parser reads them.
+
+### Still refused
+
+- `cost-partial`: `{# 5 EUR}` and `{2 # EUR}` (`probes/refused/cost-partial-*`), found in the text as
+  written, because the rewrite of `{{ total }}` makes them look like a written total.
+- `inferred-price`: a price with a number or currency left out on a posting that also has a cost
+  (`probes/refused/inferred-price-with-cost.beancount`; the reference crashes on some of these), and
+  zero units with a price to work out (the reference crashes).
+- `inferred-cost`: an addition with a cost to work out in a transaction that also holds a
+  reduction with an open cost (`-1 BTC {}`), whose weight is known only after lot matching; a
+  cost to work out with zero units and nothing to pay (not probed, the reference may crash); a
+  posting whose cost has a number but no currency, next to a cost to work out.
 
 ## Probe
 
-`probes/lots-inferred-cost.beancount`, `probes/lots-inferred-cost-currency.beancount`, `probes/pending/lots-inferred-cost-label-comma.beancount`, `probes/lots-inferred-cost-date-and-label.beancount`, `probes/pending/lots-inferred-cost-double-braces.beancount`, `probes/lots-inferred-cost-two-payments.beancount`, `probes/lots-inferred-cost-division.beancount`, `probes/lots-inferred-cost-integers.beancount`, `probes/lots-inferred-cost-zero-residual.beancount`, `probes/lots-inferred-cost-currency-without-payment.beancount`, `probes/lots-inferred-cost-with-price.beancount`, `probes/lots-inferred-cost-currency-with-price.beancount`, `probes/lots-inferred-cost-price-currency.beancount`, `probes/lots-inferred-cost-price-currency-paid.beancount`, `probes/lots-inferred-cost-paid-with-price.beancount`, `probes/lots-inferred-cost-negative-units.beancount`, `probes/lots-inferred-cost-negative-result.beancount`, `probes/lots-inferred-cost-then-sale.beancount`, `probes/lots-inferred-cost-equal-lots.beancount`, `probes/lots-inferred-cost-two-currencies.beancount`, `probes/lots-inferred-cost-elided-posting.beancount`, `probes/lots-inferred-cost-two-lots.beancount`, `probes/lots-inferred-cost-unbalanced.beancount`, `probes/lots-inferred-cost-zero-units.beancount`, `probes/refused/cost-partial-per-unit.beancount`, `probes/refused/cost-partial-total.beancount`, `probes/prices-inferred-number.beancount`, `probes/prices-inferred-currency.beancount`, `probes/prices-inferred-total.beancount`, `probes/prices-inferred-bare.beancount`, `probes/prices-inferred-total-number-only.beancount`, `probes/prices-inferred-division.beancount`, `probes/prices-inferred-negative-units.beancount`, `probes/prices-inferred-wrong-sign.beancount`, `probes/prices-inferred-other-currency.beancount`, `probes/prices-inferred-two-currencies.beancount`, `probes/prices-inferred-currency-two-groups.beancount`, `probes/prices-inferred-conversion.beancount`, `probes/refused/inferred-price-with-cost.beancount`
+`probes/lots-inferred-cost.beancount`, `probes/lots-inferred-cost-currency.beancount`, `probes/lots-inferred-cost-label-comma.beancount`, `probes/lots-inferred-cost-date-and-label.beancount`, `probes/lots-inferred-cost-double-braces.beancount`, `probes/lots-inferred-cost-two-payments.beancount`, `probes/lots-inferred-cost-division.beancount`, `probes/lots-inferred-cost-integers.beancount`, `probes/lots-inferred-cost-zero-residual.beancount`, `probes/lots-inferred-cost-currency-without-payment.beancount`, `probes/lots-inferred-cost-with-price.beancount`, `probes/lots-inferred-cost-currency-with-price.beancount`, `probes/lots-inferred-cost-price-currency.beancount`, `probes/lots-inferred-cost-price-currency-paid.beancount`, `probes/lots-inferred-cost-paid-with-price.beancount`, `probes/lots-inferred-cost-negative-units.beancount`, `probes/lots-inferred-cost-negative-result.beancount`, `probes/lots-inferred-cost-then-sale.beancount`, `probes/lots-inferred-cost-equal-lots.beancount`, `probes/lots-inferred-cost-two-currencies.beancount`, `probes/lots-inferred-cost-elided-posting.beancount`, `probes/lots-inferred-cost-two-lots.beancount`, `probes/lots-inferred-cost-unbalanced.beancount`, `probes/lots-inferred-cost-zero-units.beancount`, `probes/refused/cost-partial-per-unit.beancount`, `probes/refused/cost-partial-total.beancount`, `probes/prices-inferred-number.beancount`, `probes/prices-inferred-currency.beancount`, `probes/prices-inferred-total.beancount`, `probes/prices-inferred-bare.beancount`, `probes/prices-inferred-total-number-only.beancount`, `probes/prices-inferred-division.beancount`, `probes/prices-inferred-negative-units.beancount`, `probes/prices-inferred-wrong-sign.beancount`, `probes/prices-inferred-other-currency.beancount`, `probes/prices-inferred-two-currencies.beancount`, `probes/prices-inferred-currency-two-groups.beancount`, `probes/prices-inferred-conversion.beancount`, `probes/refused/inferred-price-with-cost.beancount`
 
 Command:
 
 ```sh
 spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost.beancount
 spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost-currency.beancount
-spec/beancount/show.sh spec/beancount/probes/pending/lots-inferred-cost-label-comma.beancount
+spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost-label-comma.beancount
 spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost-date-and-label.beancount
-spec/beancount/show.sh spec/beancount/probes/pending/lots-inferred-cost-double-braces.beancount
+spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost-double-braces.beancount
 spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost-two-payments.beancount
 spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost-division.beancount
 spec/beancount/show.sh spec/beancount/probes/lots-inferred-cost-integers.beancount

@@ -41,12 +41,13 @@ pub(super) struct RawCost {
     pub merge: bool,
 }
 
-/// A price as written: `@ number currency` (per unit) or `@@ number currency` (total).
+/// A price as written: `@ number currency` (per unit) or `@@ number currency` (total). A part
+/// left out is worked out from the other postings (inferred-cost-and-price.md).
 #[derive(Debug, Clone)]
 pub(super) struct RawPrice {
-    pub number: Decimal,
+    pub number: Option<Decimal>,
     pub total: bool,
-    pub currency: String,
+    pub currency: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -127,8 +128,8 @@ pub(super) enum BookFailure {
     TooPrecise,
     /// An elided posting with several currencies to balance: it stands for one posting each.
     SeveralCurrencies(Vec<String>),
-    /// A new lot whose cost is left to balancing (`{}` on an addition).
-    InferredCost,
+    /// A shape the reference accepts and this does not build; the construct's name.
+    Unsupported(&'static str),
     /// An account books by AVERAGE, which the booking code does not implement.
     Average(String),
 }

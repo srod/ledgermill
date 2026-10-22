@@ -27,8 +27,8 @@ Each note has:
   cost_number,cost_currency,cost_date,cost_label,price_number,price_currency,filename,lineno`;
   `id` is shortened to 6 characters and shared by the postings of a transaction. A price is the
   per-unit price, a cost the lot's cost per unit.
-- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses, and `beancount/probes/pending/` those it
-  gets wrong today and is to be fixed (neither is run by the harness).
+- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses (not run by the harness); a
+  `beancount/probes/pending/` directory holds the ones it gets wrong and is to fix, when there are any.
 
 ## Index (hledger 1.52.4)
 
@@ -64,7 +64,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [numbers-and-interpolation](beancount/numbers-and-interpolation.md) | number forms, exponents, elided amounts, places, currency groups |
 | [prices](beancount/prices.md) | `@`, `@@`, per-unit prices, the weight of a total price |
 | [lots-and-booking](beancount/lots-and-booking.md) | `{}` costs, reductions, negative lots, booking methods |
-| [inferred-cost-and-price](beancount/inferred-cost-and-price.md) | `{}` and `@ EUR`: the cost or price left to balancing (not built yet) |
+| [inferred-cost-and-price](beancount/inferred-cost-and-price.md) | `{}` and `@ EUR`: the cost or price left to balancing |
 | [balancing](beancount/balancing.md) | tolerance, unbalanced transactions, two elided postings |
 | [source-lines-and-ordering](beancount/source-lines-and-ordering.md) | reported lines, output order |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
@@ -96,8 +96,9 @@ A `.beancount` or `.bean` file is read on its own (see [refused](beancount/refus
 - `option` (`details.name`): any option outside the harmless list (options-and-directives);
 - `number-expression` (arithmetic in a number) and `number-too-large` (more than 22 characters);
 - `pad` and `balance`: directives not built yet;
-- `inferred-price` (a price without its number or currency), `inferred-cost` (a new lot whose
-  cost is left to be worked out), `cost-merge` (`{..., *}`), `number-too-precise`;
+- `inferred-price` (a price to work out next to a cost, or with zero units), `inferred-cost` (a
+  cost to work out next to a reduction with an open cost, or with zero units and nothing to pay),
+  `cost-partial` (`{# 5 EUR}`, `{2 # EUR}`), `cost-merge` (`{..., *}`), `number-too-precise`;
 - `average-booking` (`details.account`): an account booked with AVERAGE;
 - `several-beancount-files` and `mixed-formats`: reported at line 1 of a file when `load` gets
   several Beancount files, or Beancount and hledger files together.
