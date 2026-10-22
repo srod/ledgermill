@@ -493,3 +493,92 @@ fn a_journal_with_failed_assertions_still_returns_its_transactions() {
     // Printed by date: the transaction written second is first.
     assert_eq!(lines, vec![json!(5), json!(1)]);
 }
+
+/// The probes that are read together in the file tests, by short name.
+fn probe(name: &str) -> ledgermill::SourceFile {
+    let content = match name {
+        "a" => include_str!("../../../spec/hledger/probes/assert-file-a.journal"),
+        "b" => include_str!("../../../spec/hledger/probes/assert-file-b.journal"),
+        "c" => include_str!("../../../spec/hledger/probes/assert-file-c.journal"),
+        "early" => include_str!("../../../spec/hledger/probes/assert-file-early-fail.journal"),
+        "late" => include_str!("../../../spec/hledger/probes/assert-file-late-fail.journal"),
+        "parse" => include_str!("../../../spec/hledger/probes/assert-file-parse-error.journal"),
+        "unbalanced" => include_str!("../../../spec/hledger/probes/assert-file-unbalanced.journal"),
+        other => panic!("no probe {other}"),
+    };
+    file(&format!("{name}.journal"), content)
+}
+
+/// `[file, line, code]` of each finding when the probes are loaded together, in this order.
+fn together(names: &[&str]) -> Value {
+    let files: Vec<_> = names.iter().map(|n| probe(n)).collect();
+    let rows: Vec<Value> = ledgermill::load(&files)
+        .check()
+        .iter()
+        .map(|f| json!([f.file, f.line, f.code]))
+        .collect();
+    Value::Array(rows)
+}
+
+#[test]
+fn each_file_has_its_own_running_balances() {
+    // b asserts `a = 10 EUR` on a balance that only a's file builds.
+    let b = json!(["b.journal", 2, "assertion-failed"]);
+    assert_eq!(together(&["a", "b"]), json!([b]));
+    assert_eq!(together(&["b", "a"]), json!([b]));
+    assert_eq!(together(&["a", "c"]), json!([]));
+    // The same file twice is two files, each starting from nothing.
+    assert_eq!(together(&["c", "c"]), json!([]));
+}
+
+#[test]
+fn findings_come_file_by_file_so_the_first_file_with_an_error_has_the_first_finding() {
+    let at = |file: &str, line: u32, code: &str| json!([format!("{file}.journal"), line, code]);
+    let cases: [(&[&str], Vec<Value>); 6] = [
+        (
+            &["late", "early"],
+            vec![
+                at("late", 2, "assertion-failed"),
+                at("early", 2, "assertion-failed"),
+            ],
+        ),
+        (
+            &["early", "late"],
+            vec![
+                at("early", 2, "assertion-failed"),
+                at("late", 2, "assertion-failed"),
+            ],
+        ),
+        (
+            &["late", "parse"],
+            vec![
+                at("late", 2, "assertion-failed"),
+                at("parse", 5, "parse-error"),
+            ],
+        ),
+        (
+            &["parse", "late"],
+            vec![
+                at("parse", 5, "parse-error"),
+                at("late", 2, "assertion-failed"),
+            ],
+        ),
+        (
+            &["late", "unbalanced"],
+            vec![
+                at("late", 2, "assertion-failed"),
+                at("unbalanced", 1, "unbalanced-transaction"),
+            ],
+        ),
+        (
+            &["unbalanced", "late"],
+            vec![
+                at("unbalanced", 1, "unbalanced-transaction"),
+                at("late", 2, "assertion-failed"),
+            ],
+        ),
+    ];
+    for (names, expected) in cases {
+        assert_eq!(together(names), Value::Array(expected), "{names:?}");
+    }
+}

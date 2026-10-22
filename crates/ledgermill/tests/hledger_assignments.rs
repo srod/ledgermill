@@ -561,3 +561,20 @@ fn sub_accounts_are_added_in_name_order_so_places_can_differ_from_hledger_when_a
         );
     }
 }
+
+#[test]
+fn an_assignment_sees_only_the_postings_of_its_own_file() {
+    let a = file(
+        "a.journal",
+        include_str!("../../../spec/hledger/probes/assert-file-a.journal"),
+    );
+    let b = file(
+        "b.journal",
+        include_str!("../../../spec/hledger/probes/assign-file-b.journal"),
+    );
+    // File a posts 10 EUR to `a` on 1 January; file b assigns 20 EUR on 2 January from nothing.
+    assert_eq!(
+        rows_of(&[a, b]).last().unwrap(),
+        "1: a => 20 EUR | b => -20 EUR"
+    );
+}
