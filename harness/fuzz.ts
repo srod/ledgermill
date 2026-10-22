@@ -1,18 +1,23 @@
 // bun harness/fuzz.ts [COUNT] [SEED] [--keep]
+// bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep]
 // Random journals, mostly valid, compared like the corpus: hledger against our wasm. Covers
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
 // inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
-// numbers, so that assertions often hold) and big numbers. Every case must
+// numbers, so that assertions often hold) and big numbers. Journals sometimes have `P` lines. Each
+// journal is compared raw, under `--cost` and under one or two random `--value=DATE,COMM`.
+// With `--graph`: dense random networks of prices (9 to 11 commodities, 1 to 16 `P` lines) valued
+// by two random `--value` runs each, raw and `--cost` too. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { compareCase, type Verdict } from "./lib.ts";
+import { type Comparison, compareAll, type Query, summarize, tally } from "./lib.ts";
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const count = Number(args[0] ?? 500);
 const seed = Number(args[1] ?? 1);
 const keep = process.argv.includes("--keep");
+const graph = process.argv.includes("--graph");
 
 // xorshift32: the same seed gives the same journals on every machine.
 function rng(start: number): () => number {
@@ -324,7 +329,7 @@ function balanceTransaction(): string {
 }
 
 function balanceJournal(): { text: string; second?: string } {
-  let text = "";
+  let text = chance(0.3) ? `${priceLines(1 + int(3), ["EUR", "USD", "X"], PLAIN)}\n` : "";
   for (let k = 0, n = 1 + int(5); k < n; k++) text += `${balanceTransaction()}\n`;
   const second = chance(0.2) ? `${balanceTransaction()}\n` : undefined;
   return second === undefined ? { text } : { text, second };
@@ -350,6 +355,27 @@ function rule(style: Style): string {
   return t;
 }
 
+// ───────────── prices ─────────────
+/** `P` lines: dates 2026-01-01 to 06 (the same day twice sometimes), a time of day now and then, prices that are zero or negative now and then. */
+function priceLines(count: number, commodities: readonly string[], style: Style): string {
+  let t = "";
+  for (let k = 0; k < count; k++) {
+    const from = pick(commodities);
+    const to = chance(0.95) ? pick(commodities.filter((c) => c !== from)) : from;
+    const rate = chance(0.1) ? { v: 0n, dp: 0 } : randomN(pick([0, 1, 2, 5, 10]));
+    const price = chance(0.9) && rate.v < 0n ? neg(rate) : rate;
+    const time = chance(0.15) ? ` ${pick(["09:00", "10:30:15", "23:59"])}` : "";
+    t += `P 2026-01-0${1 + int(6)}${time} ${from} ${amount(to, price, style)}\n`;
+  }
+  return t;
+}
+
+/** A random `--value` question: a date around the `P` lines, a commodity of the fuzzer's. */
+function randomQuery(commodities: readonly string[]): Query {
+  const day = int(10);
+  return { date: day === 0 ? "2025-12-31" : `2026-01-${String(day).padStart(2, "0")}`, commodity: pick(commodities).replace(/^"|"$/g, "") };
+}
+
 function journal(): { text: string; second?: string } {
   if (chance(0.3)) return balanceJournal();
   const { style, header } = fileStyle();
@@ -357,7 +383,7 @@ function journal(): { text: string; second?: string } {
   if (chance(0.2)) text += "D 1.00 EUR\n";
   if (chance(0.1)) text += "alias e = expenses\n";
   if (chance(0.1)) text += "apply account top\n";
-  if (chance(0.3)) text += `P 2026-01-01 X ${digits({ v: 2n, dp: 0 }, style)} EUR\n`;
+  if (chance(0.45)) text += priceLines(1 + int(4), COMMODITIES, style);
   text += "\n";
   for (let k = 0, n = 1 + int(3); k < n; k++) {
     if (chance(0.25)) text += `${rule(style)}\n`;
@@ -368,28 +394,68 @@ function journal(): { text: string; second?: string } {
   return second === undefined ? { text } : { text, second };
 }
 
+// ───────────── dense networks of prices ─────────────
+const GRAPH_COMMODITIES = ["A", "B", "C", "D", "E", "F", "G", "H", "Z", "a", "EUR", "USD"] as const;
+const GRAPH_RATES = ["2", "3", "7", "0.5", "1.25", "0.3333333333", "1000.5", "0", "-4", "1.000", "0.00000000005", "12345.6789", "0.1", "1.1", "0.07", "0.3"] as const;
+const GRAPH_QUANTITIES = ["1", "3", "9", "0.9", "2.7", "0.207", "100", "-5", "0.01", "12345.678", "0.0000000009", "1.50"] as const;
+
+/** 9 to 11 commodities, 1 to 16 prices among them, an amount of each commodity to value, and now and then a posting with several amounts. */
+function graphJournal(): { text: string; used: string[] } {
+  const pool = [...GRAPH_COMMODITIES];
+  for (let k = pool.length - 1; k > 0; k--) {
+    const j = int(k + 1);
+    [pool[k], pool[j]] = [pool[j] as string, pool[k] as string];
+  }
+  const used = pool.slice(0, 9 + int(3));
+  let text = "";
+  for (let k = 0, n = 1 + int(16); k < n; k++) {
+    const from = pick(used);
+    const to = chance(0.95) ? pick(used.filter((c) => c !== from)) : from;
+    text += `P 2026-01-0${1 + int(6)} ${from} ${pick(GRAPH_RATES)} ${to}\n`;
+  }
+  text += "\n2026-01-03 t\n";
+  used.forEach((c, k) => {
+    const priced = chance(0.15) ? ` @ ${pick(["2", "3.5"])} ${pick(used)}` : "";
+    const lot = chance(0.1) ? " {1 EUR}" : "";
+    text += `  (v${k})  ${pick(GRAPH_QUANTITIES)} ${c}${priced}${lot}\n`;
+  });
+  if (chance(0.5)) {
+    // Several amounts in one posting: they must merge after conversion.
+    text += `  a  ${pick(["1", "2.5"])} ${pick(used)}\n  a  ${pick(["3", "0.7"])} ${pick(used)}\n  b  ${pick(["-1", "-4.25"])} ${pick(used)}\n  c\n`;
+  }
+  return { text, used };
+}
+
 // ───────────── run ─────────────
 const dir = mkdtempSync(join(tmpdir(), "ledgermill-fuzz-"));
-const total = { PASS: 0, FAIL: 0, SKIP: 0 };
+const raw = { PASS: 0, FAIL: 0, SKIP: 0 };
+const cost = { PASS: 0, FAIL: 0, SKIP: 0 };
+const value = { PASS: 0, FAIL: 0, SKIP: 0 };
 let valid = 0;
 for (let k = 0; k < count; k++) {
-  const j = journal();
+  const j = graph ? graphJournal() : journal();
+  const second = "second" in j ? j.second : undefined;
   const paths = [join(dir, `f${k}.journal`)];
   writeFileSync(paths[0] as string, j.text);
-  if (j.second !== undefined) {
+  if (second !== undefined) {
     paths.push(join(dir, `f${k}b.journal`));
-    writeFileSync(paths[1] as string, j.second);
+    writeFileSync(paths[1] as string, second);
   }
-  const v: Verdict = await compareCase(paths);
-  total[v.status]++;
-  if (v.status === "PASS" && v.note === "") valid++;
+  const commodities = "used" in j ? j.used : [...COMMODITIES];
+  const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(commodities));
+  const c: Comparison = await compareAll(paths, false, queries);
+  raw[c.raw.status]++;
+  tally(c, cost, value);
+  if (c.raw.status === "PASS" && c.raw.note === "") valid++;
+  const v = summarize(c);
   if (v.status === "FAIL") {
-    console.log(`FAIL fuzz#${k} ${v.note}\n${j.text}${j.second ? `--- second file\n${j.second}` : ""}`);
+    const queried = c.values.find((x) => x.verdict.status === "FAIL");
+    console.log(`FAIL fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${j.text}${second ? `--- second file\n${second}` : ""}`);
   }
 }
-console.log(
-  `fuzz (seed ${seed}): ${total.PASS} pass (${valid} valid, the rest fail in both), ${total.FAIL} fail, ${total.SKIP} skip`,
-);
+const counts = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
+console.log(`fuzz${graph ? " --graph" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${raw.FAIL} fail, ${raw.SKIP} skip`);
+console.log(`  --cost: ${counts(cost)}\n  --value: ${counts(value)}`);
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
-if (total.FAIL > 0) process.exitCode = 1;
+if (raw.FAIL + cost.FAIL + value.FAIL > 0) process.exitCode = 1;
