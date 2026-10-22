@@ -2,10 +2,11 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-21.
 
+Status: **built**. `pad` and `balance` are no longer refused; the rest of this note is as it was.
+
 ## Rule
 
-`pad` and `balance` are not refused for good: their rules are in pad.md and balance-directive.md, and the
-engine will learn them. Until it does, ledgermill reports them as `unsupported-syntax` (spec/README.md).
+`pad` and `balance` are not refused: they are read (pad.md, balance-directive.md).
 
 ledgermill refuses what could change which transactions or postings come out, or their figures,
 and that it does not reproduce yet. It reports `unsupported-syntax` (`details.construct` names it,

@@ -44,7 +44,8 @@ Each case ends in one verdict:
 - **PASS**: both give the same transactions, or both fail (hledger exits non-zero and we report an
   error finding).
 - **SKIP**: we report an `unsupported-syntax` finding (the line after `SKIP` says which construct):
-  not built yet.
+  not built yet. For Beancount, also the one journal whose only error is a `document` file that does
+  not exist: ledgermill does not look at files and warns instead.
 - **FAIL**: anything else. The line gives the first difference as a path, for example
   `[2].postings[0].amounts[0].quantity: hledger="3.51" ours="3.50"`, or says that hledger fails and
   we report no error, or that we report `unbalanced-transaction` while hledger accepts. A FAIL is a
@@ -87,13 +88,16 @@ For a `.beancount` or `.bean` file (a single file; a Beancount pair is not run),
    the transactions and the postings both match; a postings difference is reported as
    `postings: [3].line: ...`.
 
-Verdicts are as above, with two Beancount cases:
+Verdicts are as above, with these Beancount cases:
 
-- both reject: `bean-check` fails and we report an error finding (other than
-  `unsupported-syntax`): PASS, `both fail`;
-- **reference rejects (check() comes later)**: `bean-check` fails but we report no error. Our
-  `check()` does not yet raise everything `bean-check` does, so this is a SKIP, counted apart
-  (`N of them: reference rejects, check() comes later`) and not a FAIL;
+- `bean-check` rejects the journal: the harness takes the file and line of the **first error** it
+  printed (a line `FILE:LINE: MESSAGE`; the indented copy of the directive under it is skipped) and
+  compares them with our **first error-severity finding** (`check()` for Beancount is in
+  `bean-check`'s order, so this is the reference's first). Same file (by basename) and same line:
+  PASS, `both fail, same first error`. Another line or file: FAIL, with both. No error finding of
+  ours: FAIL. Warnings do not count. The exception is a missing `document` file (see SKIP);
+- `bean-check` accepts the journal and we report a warning (`ignored-syntax`): fine, the
+  transactions and postings are compared as usual;
 - we report `unsupported-syntax`: SKIP, whether or not the reference accepts.
 
 The summary prints a line per format when both are run. A FAIL is also: we report an error where

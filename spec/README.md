@@ -27,9 +27,8 @@ Each note has:
   cost_number,cost_currency,cost_date,cost_label,price_number,price_currency,filename,lineno`;
   `id` is shortened to 6 characters and shared by the postings of a transaction. A price is the
   per-unit price, a cost the lot's cost per unit.
-- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses (not run by the harness);
-  `beancount/probes/pending/` the ones it gets wrong and is to fix (not run either). `beancount/verdicts.sh` prints
-  bean-check's verdict and first error for every journal of the corpus.
+- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses (not run by the harness).
+  `beancount/verdicts.sh` prints bean-check's verdict and first error for every journal of the corpus.
 
 ## Index (hledger 1.52.4)
 
@@ -103,7 +102,6 @@ A `.beancount` or `.bean` file is read on its own (see [refused](beancount/refus
 - `include`, `plugin`: refused before the parser runs;
 - `option` (`details.name`): any option outside the harmless list (options-and-directives);
 - `number-expression` (arithmetic in a number) and `number-too-large` (more than 22 characters);
-- `pad` and `balance`: directives not built yet (pad.md, balance-directive.md say what to build);
 - `inferred-price` (a price to work out next to a cost, or with zero units), `inferred-cost` (a
   cost to work out next to a reduction with an open cost, or with zero units and nothing to pay),
   `cost-partial` (`{# 5 EUR}`, `{2 # EUR}`), `cost-merge` (`{..., *}`), `number-too-precise`;
@@ -128,14 +126,13 @@ leaves it out; ledgermill does the same. `details.reason` is one of `ambiguous-l
 (`details.residual`: a `{commodity, quantity}` per group). bean-check reports it but bean-query
 still lists the transaction; ledgermill returns it too.
 
-#### Proposed, not built yet: what `check()` should report
+#### What `check()` reports
 
 The rest of what `bean-check` rejects (check-errors.md, check-order.md, balance-directive.md, pad.md).
-`check()` should give the same verdict as `bean-check` and, as its first finding, the one on the same
-file and line as the first error `bean-check` prints. That order is not line order: it is the steps of
-check-order.md, and findings are ordered that way (today they are ordered by line, which would need to
-change). One finding per error is enough; an error `bean-check` prints twice need not be repeated.
-`details` names the account or currency, not the reference's message.
+`check()` gives the same verdict as `bean-check` and, as its first finding, the one on the same file and
+line as the first error `bean-check` prints. That order is not line order: it is the steps of
+check-order.md, and the Beancount findings come in that order. One finding per error; an error `bean-check`
+prints twice is reported once. `details` names the account or currency, not the reference's message.
 
 All are errors, on the line check-errors.md gives for each:
 
@@ -156,9 +153,18 @@ All are errors, on the line check-errors.md gives for each:
 - `unbalanced-push`: `details.kind` (`tag` or `metadata`), `details.name`, `details.reason`
   (`pop-without-push`, or `push-not-popped` on line 0).
 - `duplicate-metadata`: `details.key`, `details.scope` (`entry` or `posting`), on the transaction's header line.
-- `parse-error` (existing) also covers tokens, syntax errors and impossible dates; `booking-error` and
-  `unbalanced-transaction` stay as they are.
+- `parse-error` (existing) also covers tokens, syntax errors, impossible dates, and a lone `*` or `#` or a
+  tag at the margin; `booking-error` and `unbalanced-transaction` stay as they are, except that a
+  `booking-error` sits on the line of the posting the reference blames for what it cannot categorize or work
+  out, and on the transaction's header for lot matching.
 
 Warning: `ignored-syntax` (`details.construct`: `document`). The directive is read and skipped:
 ledgermill does not look at files, so it cannot give the `File does not exist` error `bean-check` gives.
 syntax.md lists what is supported, ignored with this warning, or refused.
+
+Padding transactions are in `transactions()` and `postings()` (pad.md): flag `P`, on the pad's line, their
+postings on the balance's line. `transactions()` on a journal with errors is for diagnostics only. It still lists
+what bean-query lists for the errors of the checks (accounts, currencies, duplicates, assertions, unused pads,
+unbalanced transactions); a transaction rejected by booking is left out, as there. A file with a parse-level error
+(syntax, a bad account root, a tag or metadata mistake) has no transaction at all, although bean-query lists some of
+them: the parser we build on gives up on the whole file. Any `unsupported-syntax` leaves the list empty.

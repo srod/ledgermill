@@ -2,6 +2,10 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-22.
 
+Status: **built**. every error below is a finding of `check()` (codes in spec/README.md), on the line given here, `document` excepted:
+ledgermill cannot look at files, so a `document` gives an `ignored-syntax` warning on its line and the missing-file
+error is not reported (the harness shows that one probe, `check-document-missing`, as a SKIP).
+
 `bean-check` exits 1 when it prints any error, 0 otherwise. This note lists the errors a plausible
 journal meets, apart from the ones in balancing.md, lots-and-booking.md and
 inferred-cost-and-price.md, pad.md and balance-directive.md. Each entry gives the message, the line it
@@ -12,8 +16,8 @@ need not copy their wording.
 Not errors (`check-accepted`): a `close` of an account that still holds money, a `note` after the
 close, a `price`, `event`, `query` or `custom` that names an unknown account or currency, a
 transaction with no posting, one posting with an elided amount. A repeated `option "title"` is not an
-error either (`probes/pending/option-title-twice.beancount`; ledgermill reports a parse error on the
-second one today, which is wrong, to fix).
+error either (`probes/option-title-twice.beancount`; the last one given counts, see
+options-and-directives.md).
 
 ## Rule
 

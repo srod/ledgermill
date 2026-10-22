@@ -2,6 +2,9 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-22.
 
+Status: **built**. `transactions()` and `postings()` carry the padding transactions as described here, and `check()` reports
+`unused-pad` and `pad-with-cost`. Probes: the `pad-*` journals, all run by the harness.
+
 `pad ACCOUNT SOURCE` writes nothing by itself. It waits for a `balance` assertion (balance-directive.md)
 and, if the account does not hold what the assertion says, the reference adds a transaction that
 makes up the difference. The entries are walked in the order of check-order.md: by date, a

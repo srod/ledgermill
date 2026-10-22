@@ -2,6 +2,10 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-22.
 
+Status: **built**. `check()` reports a failed assertion as `assertion-failed` (`details.account`, `currency`, `expected`,
+`accumulated`, `difference` = accumulated - expected) and a repeated one as `duplicate-assertion`. A `~` tolerance
+written with a minus sign is read (ledgermill rewrites it before the parser sees it).
+
 `DATE balance ACCOUNT NUMBER [~ TOLERANCE] CURRENCY` asserts what an account holds. It adds no
 transaction and no posting; a wrong assertion is an error, and a `pad` (pad.md) may add a transaction
 before the check. Only the plain form exists: a cost, a price or the tolerance in the wrong place is a

@@ -2,6 +2,9 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-22.
 
+Status: **built**. `check()` returns the Beancount findings in this order, not in line order. Each error that `bean-check` prints
+twice is one finding. The `Transaction does not balance` error is last, and a `document` warning comes before every error.
+
 `bean-check` prints its errors in the order they are found, not in line order, and the harness (and
 `check()`) is judged on the first one: its file and line, besides the verdict. The reference loads a
 file in steps, each step runs over everything before the next starts, and each step has its own order.

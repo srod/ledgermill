@@ -2,6 +2,8 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-22.
 
+Status: **built**. padding rows are in the list as described.
+
 ## Rule
 
 `postings()` is a flat list: one row per booked posting, in the order this query gives:

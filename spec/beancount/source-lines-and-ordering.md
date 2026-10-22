@@ -2,6 +2,8 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-21.
 
+Status: **built**. `check()` findings follow check-order.md; transactions and padding as described.
+
 ## Rule
 
 Lines. A transaction's line is the line of its header (the date line). A posting's line is its
@@ -12,8 +14,8 @@ of that posting (lots-and-booking.md, `booking-fifo`).
 
 Order. Transactions come out sorted by date, and by source line within a date; other directives
 (`open`, ...) do not take part, and a transaction written first with a later date comes last.
-ledgermill sorts by date, then by line. Findings are ordered by line (check-order.md proposes another
-order for `check()`, the one `bean-check` prints in). A padding transaction (pad.md) stands on the line of
+ledgermill sorts by date, then by line. Findings are not ordered by line: `check()` gives the Beancount ones in the order `bean-check` prints them
+(check-order.md). A padding transaction (pad.md) stands on the line of
 its `pad`, its two postings on the line of the `balance`.
 
 ## Probe

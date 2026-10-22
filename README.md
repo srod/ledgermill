@@ -12,11 +12,17 @@ journal.
 
 ```text
 load(files) → ledger
-ledger.transactions()   booked transactions with their file and line
+ledger.transactions()   booked transactions with their file and line (Beancount: padding included)
 ledger.postings()       one row per posting (Beancount for now; empty for hledger)
 ledger.check()          problems found, as structured findings
 ledger.free()
 ```
+
+For Beancount, `check()` gives the verdict `bean-check` gives, with the same first error (file and line):
+unknown or closed accounts, balance assertions and their tolerance, unused pads, currency
+constraints, duplicates, unbalanced transactions and more (`spec/README.md` lists the codes).
+Beancount `pad` is read and its padding transactions are built; `include`, `plugin`, unusual options
+and AVERAGE booking are refused with a finding.
 
 More questions follow: values at a date in a currency, holdings, prices, and a
 formatter that only realigns whitespace. See the issue tracker for the plan.
