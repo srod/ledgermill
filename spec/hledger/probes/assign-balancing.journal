@@ -35,7 +35,7 @@
   [o]
   m
 
-2026-01-08 a zero difference leaves no amount; the elided posting balances the others
+2026-01-08 a zero difference leaves no amount, and the elided posting balances the others
   p  = 0 EUR
   q  5 EUR
   r

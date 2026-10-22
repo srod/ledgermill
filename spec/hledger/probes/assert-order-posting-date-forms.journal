@@ -1,0 +1,19 @@
+2026-01-01 posting dates: a bracket, a bracket with a second date, a date with no year, a second date only
+  a  5 EUR  ; [2026-03-01]
+  b  4 EUR  ; [2026-03-01=2026-05-05]
+  c  3 EUR  ; date:03-01
+  d  2 EUR  ; [=2026-05-05]
+  z
+
+2026-02-01 only d is in
+  a  0 EUR = 0 EUR
+  b  0 EUR = 0 EUR
+  c  0 EUR = 0 EUR
+  d  0 EUR = 2 EUR
+  y
+
+2026-03-01 the others are in now, on the day itself
+  a  0 EUR = 5 EUR
+  b  0 EUR = 4 EUR
+  c  0 EUR = 3 EUR
+  y

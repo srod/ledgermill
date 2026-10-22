@@ -17,3 +17,8 @@
   [a]  1 EUR = 20 EUR
   [b]  -1 EUR
   b  -2 EUR = -19 EUR
+
+2026-01-03 an amount left out is known to the assertion below it
+  e  5 EUR
+  f
+  f  0 EUR = -5 EUR

@@ -13,6 +13,10 @@
   l9  2 X {10 EUR} @ 12 EUR
   l10  2 X {10 EUR}
   l10  3 EUR
+  l12  2 Y {10 EUR}
+  l12  1 EUR
+  l13  1 EUR
+  l13:s  2 Y {10 EUR}
   z
 
 2026-01-02 the same lot twice, or a lot and a plain amount: no lot
@@ -42,11 +46,23 @@
   l10  == 3 EUR
   z
 
-2026-01-08 two lots of different cost
+2026-01-08 two lots of different cost on one account
   l11  2 X {10 EUR}
   l11  3 X {11 EUR}
   z
 
-2026-01-09 two lots of different cost, over two days: no lot
+2026-01-09 zeroing them: no lot
   l11  == 0 EUR
+  z
+
+2026-01-10 after an assignment of the commodity itself, the balance has no lot
+  l12  = 3 Y
+  z
+
+2026-01-11 so zeroing it gives none either
+  l12  == 1 EUR
+  z
+
+2026-01-12 a lot from a sub-account counts, when one posting made it
+  l13  ==* 1 EUR
   z

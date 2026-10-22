@@ -1,0 +1,7 @@
+﻿; BOM and CRLF line ends, comments between the postings
+
+2026-01-01 t ; c
+    ; transaction comment
+    a  1 EUR
+    ; posting comment
+    b  -1 EUR = 5 EUR  ; trailing

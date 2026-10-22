@@ -12,7 +12,7 @@
   c  0 EUR = -5 EUR
   y
 
-2026-01-04 an assignment of m itself sees a balance without the elided amount; it is added after
+2026-01-04 an assignment of m itself sees a balance without the elided amount, which is added after
   m
   f  = 5 EUR
   m  = -7 EUR

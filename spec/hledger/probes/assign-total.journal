@@ -23,7 +23,7 @@
   a  == 7 EUR
   z
 
-2026-01-03 the zero USD sum is not listed; the posting has no amount at all
+2026-01-03 the zero USD sum is not listed, so the posting has no amount at all
   b  == 10 EUR
   z
 

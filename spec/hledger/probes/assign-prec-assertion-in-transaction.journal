@@ -1,0 +1,3 @@
+2026-01-01 the assertion fails before the transaction is checked for balance
+  a  = 5 EUR
+  b  -4 EUR = 9 EUR

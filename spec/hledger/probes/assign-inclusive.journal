@@ -34,7 +34,7 @@
   k  ==* 10 EUR
   z
 
-2026-01-07 the sub-accounts are not touched, so asserting again gives the rest
+2026-01-07 a sub-account changes, then ==* again: only the change is added
   k:b  = 0 EUR
   k  ==* 10 EUR
   z

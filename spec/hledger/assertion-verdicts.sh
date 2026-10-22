@@ -7,10 +7,11 @@
 #   Default: every journal under harness/journals/ and spec/hledger/probes/ with a `=` after a
 #   posting (a `{=` lot cost does not count), and the eight pairs below.
 # Output: `NAME | accepts |` or `NAME | rejects | FILE:LINE[:COLUMN] | KIND`, where KIND is
-# assertion-failed, unbalanced, parse, or the text of a one-line error that names no position.
+# assertion-failed, unbalanced, two-elided, parse, or the text of a one-line error that names no position.
 # For assertion-failed, `: SCOPE; asserted A; calculated B` follows (hledger's own words, with the
 # spaces squeezed): the commodity or commodities compared, and the two amounts.
 if [ $# -eq 0 ]; then
+  # shellcheck disable=SC2046 # the corpus has no file names with spaces
   set -- $(grep -lE '^[ 	]+[^ 	;][^;{]*=' harness/journals/prototype/*.journal \
       harness/journals/app/*.journal spec/hledger/probes/*.journal | sort)
   p=harness/journals/prototype
@@ -26,8 +27,7 @@ for spec in "$@"; do
     name="$name${name:++}$(basename "$f" .journal)"
   done
   # shellcheck disable=SC2086
-  err=$(hledger --no-conf $args print 2>&1 >/dev/null)
-  if [ $? -eq 0 ]; then
+  if err=$(hledger --no-conf $args print 2>&1 >/dev/null); then
     echo "$name | accepts |"
     continue
   fi
@@ -38,6 +38,7 @@ for spec in "$@"; do
     asserted=$(printf '%s\n' "$err" | sed -nE 's/^the asserted balance is: +//p')
     calculated=$(printf '%s\n' "$err" | sed -nE 's/^but the calculated balance is: +//p')
     kind="assertion-failed: $scope; asserted $asserted; calculated $calculated"
+  elif printf '%s\n' "$err" | grep -q "more than one real posting with no amount"; then kind=two-elided
   elif printf '%s\n' "$err" | grep -q 'unbalanced'; then kind=unbalanced
   elif [ -z "$where" ]; then kind=$(printf '%s\n' "$first" | sed 's/^hledger: Error: //')
   else kind=parse
