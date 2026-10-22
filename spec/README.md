@@ -80,7 +80,7 @@ Each note has:
 | [check-vs-print](hledger/check-vs-print.md) | `hledger check` gives print's verdict and first error; which checks it runs by default |
 | [value-prices](hledger/value-prices.md) | `--value=DATE,COMM`: which `P` lines exist on DATE, the path of prices, inverse rates |
 | [value-arithmetic](hledger/value-arithmetic.md) | `--value=DATE,COMM`: products, rounding, cost and lot of an amount, merged amounts of a posting |
-| [cost](hledger/cost.md) | `--cost`: unit and total costs, lots, inferred prices, which conversion postings are dropped |
+| [cost](hledger/cost.md) | `--cost`: unit and total costs, lots, inferred prices, a posting with several amounts, which conversion postings are dropped |
 
 ## Index (Beancount 3.2.3)
 

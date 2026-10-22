@@ -89,6 +89,37 @@ $ spec/hledger/show-amounts.sh --cost spec/hledger/probes/cost-inferred-price.jo
 2026-01-05  a: X 2 | c: Z -3.0 | d: X 1 | e: X -3.0 | e: Z 3.0
 ```
 
+## Rule: a posting with several amounts
+
+A posting holds several amounts when its amount is elided or assigned (`==`, `=`; see
+[assignments](assignments.md)). After the amounts are converted they are **merged per commodity** exactly as in
+[value-arithmetic](value-arithmetic.md): the amounts that end in the same commodity are added in the order the posting
+lists them (a zero gives the other amount back with its places), the sum is rounded to ten places when it has more,
+the list is ordered by commodity name (`""` first), and an amount that was not converted keeps its lot only when it
+is alone in its commodity. A posting with one amount is not touched by this.
+
+### Probe
+
+`probes/assign-cost.journal` (the assigned amounts keep the price written after the asserted amount).
+
+### Command and output
+
+On 01-03 `a` holds `X -3` and `X 3 @ 2 EUR` (the old balance and the assigned amount), which become `EUR 6` and `X -3`, in
+name order; on 01-12 `j` holds `X 1 @@ 9 EUR` with `X -1 @ 1 EUR`, which add up to `EUR 8`, and `X -1 @@ -9 EUR` with
+`X 1 @ 1 USD`, which stay apart as `EUR -9, USD 1`:
+
+```text
+$ spec/hledger/show-amounts.sh spec/hledger/probes/assign-cost.journal
+2026-01-03  a: X -3, X 3 @ EUR 2 | z: EUR -6, X 3
+2026-01-12  j: X 1 @ EUR 2 | j: X 1 @ EUR 1, X -1 @ EUR 2 | j: X 1 @@ EUR 9, X -1 @ EUR 1 | j: X -1 @@ EUR -9, X 1 @ USD 1 | j: X 1, X -1 @ USD 1 | j: X -1 | z: EUR 0, USD 0, X 0
+$ spec/hledger/show-amounts.sh --cost spec/hledger/probes/assign-cost.journal
+2026-01-03  a: EUR 6, X -3 | z: EUR -6, X 3
+2026-01-12  j: EUR 2 | j: EUR -1 | j: EUR 8 | j: EUR -9, USD 1 | j: USD -1, X 1 | j: X -1 | z: EUR 0, USD 0, X 0
+```
+
+(Only these two lines of the probe's output are shown; the whole file, and `assign-entry-prices.journal`, are compared by the
+harness.)
+
 ## Rule: the postings that are dropped
 
 A transaction is never dropped: one with every posting dropped stays, with no postings.
