@@ -7,7 +7,7 @@ Status: built.
 ## Rule
 
 Which of the harness journals that have a balance assertion or assignment (the ones
-`bun harness/compare.ts` skips with `unsupported: balance-assertion`) hledger accepts, and for the
+`bun harness/compare.ts` used to skip with `unsupported: balance-assertion`) hledger accepts, and for the
 rejected ones where its first error is, by file and line. ledgermill reads assertions: the
 accepted ones are compared transaction by transaction and, for the rejected ones, our first error finding
 must be on the same file and line as the first error of hledger (the harness does it). The rule for the line is in
