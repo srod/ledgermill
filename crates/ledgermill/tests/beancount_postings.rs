@@ -145,7 +145,7 @@ fn hledger_gives_no_postings_yet() {
 fn a_refused_journal_gives_no_postings() {
     let ledger = load(&[file(
         "b.beancount",
-        "2026-01-01 open Assets:A\n2026-01-02 pad Assets:A Equity:O\n",
+        "2026-01-01 open Assets:A\ninclude \"x.beancount\"\n",
     )]);
     assert!(!ledger.check().is_empty());
     assert!(ledger.postings().is_empty());

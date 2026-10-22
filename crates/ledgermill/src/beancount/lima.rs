@@ -224,9 +224,11 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
                 account: open.account().item().to_string(),
                 method: open.booking().map(|b| method(*b.item())),
             }),
-            parser::DirectiveVariant::Pad(_) => items.push(Item::Refused {
+            parser::DirectiveVariant::Pad(pad) => items.push(Item::Pad {
+                date: day!(directive.date()),
                 line,
-                construct: "pad",
+                account: pad.account().item().to_string(),
+                source: pad.source().item().to_string(),
             }),
             parser::DirectiveVariant::Balance(balance) => {
                 let atol = balance.atol().item();
@@ -403,17 +405,21 @@ impl booking::PriceSpec for PriceIn {
 /// The reference tool's default tolerance rule, as the booking crate reads it. `book.rs` makes
 /// its own balance check, so the multiplier only matters for lot matching.
 #[derive(Debug, Clone)]
-struct Tolerance(rust_decimal::Decimal);
+struct Tolerance {
+    multiplier: rust_decimal::Decimal,
+    /// What a currency with no decimal place written may be off by; `None` means exact.
+    default: Option<rust_decimal::Decimal>,
+}
 
 impl booking::Tolerance for Tolerance {
     type Types = Types;
 
     fn inferred_tolerance_default(&self, _currency: &Arc<str>) -> Option<rust_decimal::Decimal> {
-        None
+        self.default
     }
 
     fn inferred_tolerance_multiplier(&self) -> Option<rust_decimal::Decimal> {
-        Some(self.0)
+        Some(self.multiplier)
     }
 }
 
@@ -562,7 +568,11 @@ impl Books {
             booking_method(self.method_of(&account)).unwrap_or(booking::Booking::Strict)
         };
         let half = rust_decimal::Decimal::new(5, 1);
-        let mut result = booking::book(date, &refs, &Tolerance(half), lookup, method);
+        let strict = Tolerance {
+            multiplier: half,
+            default: None,
+        };
+        let mut result = booking::book(date, &refs, &strict, lookup, method);
         if let Err(booking::BookingError::Transaction(
             booking::TransactionBookingError::Unbalanced(_),
         )) = &result
@@ -570,7 +580,11 @@ impl Books {
             // The crate's balance check differs from ours at its edges; ours decides, so book
             // again with the check out of the way.
             let huge = rust_decimal::Decimal::from(10_000_000i64);
-            result = booking::book(date, &refs, &Tolerance(huge), lookup, method);
+            let loose = Tolerance {
+                multiplier: huge,
+                default: Some(huge),
+            };
+            result = booking::book(date, &refs, &loose, lookup, method);
         }
         let booked = result.map_err(|e| failure(&e))?;
         // Remember the written cost of every new lot before looking any up.

@@ -203,6 +203,27 @@ impl Num {
     }
 }
 
+impl Num {
+    /// The value in full, never with an exponent: `0.0000005`, not `5E-7`. Padding narrations
+    /// print numbers this way (spec/beancount/pad.md).
+    pub(super) fn plain(&self) -> String {
+        let sign = if self.is_negative() { "-" } else { "" };
+        let digits = self.coefficient.abs().to_string();
+        let body = match usize::try_from(-self.exponent) {
+            Ok(places) if places > 0 => {
+                let padded = format!("{digits:0>width$}", width = places + 1);
+                let (int, frac) = padded.split_at(padded.len() - places);
+                format!("{int}.{frac}")
+            }
+            _ => {
+                let zeros = usize::try_from(self.exponent).unwrap_or(0);
+                format!("{digits}{}", "0".repeat(zeros))
+            }
+        };
+        format!("{sign}{body}")
+    }
+}
+
 impl fmt::Display for Num {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sign = if self.is_negative() { "-" } else { "" };

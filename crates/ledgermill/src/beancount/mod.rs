@@ -69,7 +69,6 @@ fn refusal_message(construct: &str) -> &'static str {
         "include" => "Including other files is not supported.",
         "plugin" => "Plugins are not supported.",
         "option" => "This option is not supported yet.",
-        "pad" => "Pad directives are not supported yet.",
         "number-expression" => "Arithmetic in a number is not supported yet.",
         "number-too-large" => "This number is too large to handle.",
         "inferred-price" => "A price to work out next to a cost is not supported.",
@@ -116,6 +115,45 @@ fn posting(p: &book::BookedPosting) -> Posting {
         }],
         flag: p.flag.map(|c| c.to_string()),
         line: Some(p.line),
+    }
+}
+
+/// The transaction a `pad` adds: on the pad's line, with its postings on the balance's line
+/// (spec/beancount/pad.md).
+fn padding_transaction(file: &str, padding: &check::Padding) -> Transaction {
+    let currency = &padding.currency;
+    let posting = |account: &str, units: &pydec::Num| Posting {
+        account: account.to_string(),
+        kind: PostingKind::Regular,
+        comment: String::new(),
+        amounts: vec![Amount {
+            commodity: currency.clone(),
+            quantity: units.to_string(),
+            cost: None,
+            lot: None,
+        }],
+        flag: None,
+        line: Some(padding.balance_line),
+    };
+    Transaction {
+        date: padding.date.to_string(),
+        status: status_of('P'),
+        flag: Some("P".into()),
+        payee: None,
+        description: format!(
+            "(Padding inserted for Balance of {} {currency} for difference {} {currency})",
+            padding.expected.plain(),
+            padding.difference.plain()
+        ),
+        comment: String::new(),
+        source: Source {
+            file: file.to_string(),
+            line: padding.line,
+        },
+        postings: vec![
+            posting(&padding.account, &padding.difference),
+            posting(&padding.source, &padding.difference.negated()),
+        ],
     }
 }
 
@@ -216,7 +254,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
 
     for item in &read.items {
         match item {
-            Item::Open { .. } | Item::Balance { .. } => {}
+            Item::Open { .. } | Item::Pad { .. } | Item::Balance { .. } => {}
             Item::Refused { line, construct } => {
                 refused = true;
                 findings.push(unsupported(
@@ -314,6 +352,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                                     account: p.account.clone(),
                                     currency: p.currency.clone(),
                                     units: p.units.clone(),
+                                    lot: p.lot.clone(),
                                 })
                                 .collect(),
                         });
@@ -345,12 +384,20 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         };
     }
     // The checks come in the order the reference prints them, not in line order.
+    let checked = check::run(&read.items, &kept);
     findings.extend(
-        check::run(&read.items, &kept)
+        checked
+            .problems
             .into_iter()
             .map(|p| finding(&file.name, p.line, p.code, p.details, p.message)),
     );
     findings.extend(unbalanced);
+    transactions.extend(
+        checked
+            .paddings
+            .iter()
+            .map(|p| padding_transaction(&file.name, p)),
+    );
     // The items arrive in date order already; the sort pins the order the reference tool uses.
     transactions
         .sort_by(|a, b| (a.date.as_str(), a.source.line).cmp(&(b.date.as_str(), b.source.line)));

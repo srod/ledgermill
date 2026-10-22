@@ -80,6 +80,12 @@ pub(super) enum Item {
         account: String,
         method: Option<Method>,
     },
+    Pad {
+        date: Day,
+        line: u32,
+        account: String,
+        source: String,
+    },
     /// `balance`: the tolerance is the one written after `~`, if any.
     Balance {
         date: Day,
@@ -101,9 +107,9 @@ impl Item {
     /// The date and line of a directive that is not a transaction.
     pub(super) fn place(&self) -> Option<(Day, u32)> {
         match self {
-            Item::Open { date, line, .. } | Item::Balance { date, line, .. } => {
-                Some((*date, *line))
-            }
+            Item::Open { date, line, .. }
+            | Item::Pad { date, line, .. }
+            | Item::Balance { date, line, .. } => Some((*date, *line)),
             Item::Transaction(_) | Item::Refused { .. } => None,
         }
     }
