@@ -222,7 +222,28 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
                 date: day!(directive.date()),
                 line,
                 account: open.account().item().to_string(),
+                currencies: open.currencies().map(|c| c.item().to_string()).collect(),
                 method: open.booking().map(|b| method(*b.item())),
+            }),
+            parser::DirectiveVariant::Close(close) => items.push(Item::Close {
+                date: day!(directive.date()),
+                line,
+                account: close.account().item().to_string(),
+            }),
+            parser::DirectiveVariant::Commodity(commodity) => items.push(Item::Commodity {
+                date: day!(directive.date()),
+                line,
+                currency: commodity.currency().item().to_string(),
+            }),
+            parser::DirectiveVariant::Note(note) => items.push(Item::Note {
+                date: day!(directive.date()),
+                line,
+                account: note.account().item().to_string(),
+            }),
+            parser::DirectiveVariant::Document(document) => items.push(Item::Document {
+                date: day!(directive.date()),
+                line,
+                account: document.account().item().to_string(),
             }),
             parser::DirectiveVariant::Pad(pad) => items.push(Item::Pad {
                 date: day!(directive.date()),
@@ -425,28 +446,52 @@ impl booking::Tolerance for Tolerance {
 
 fn failure(error: &booking::BookingError) -> BookFailure {
     use booking::{BookingError as E, PostingBookingError as P, TransactionBookingError as T};
-    BookFailure::Booking(match error {
-        E::Transaction(T::UnsupportedBookingMethod(..)) => "unsupported-booking-method",
-        E::Transaction(T::TooManyMissingNumbers) => "too-many-missing-numbers",
-        E::Transaction(T::Unbalanced(_)) => "unbalanced",
-        E::Transaction(T::CannotDetermineCurrencyForBalancing) => "cannot-determine-currency",
-        E::Transaction(T::AutoPostMultipleBuckets(currencies)) => {
-            return BookFailure::SeveralCurrencies(currencies.clone());
+    match error {
+        E::Transaction(T::UnsupportedBookingMethod(..)) => {
+            BookFailure::Booking("unsupported-booking-method")
         }
-        E::Posting(_, P::AmbiguousAutoPost) => "ambiguous-auto-posting",
-        E::Posting(_, P::AmbiguousMatches) => "ambiguous-lot-match",
-        E::Posting(_, P::MultipleCostCurrenciesMatch) => "several-cost-currencies-match",
-        E::Posting(_, P::CannotInferUnits) => "cannot-infer-units",
-        E::Posting(_, P::CannotInferCurrency) => "cannot-infer-currency",
-        E::Posting(_, P::CannotInferAnything) => "cannot-infer-anything",
-        E::Posting(_, P::CannotInferPricePerUnit) => "cannot-infer-price",
-        E::Posting(_, P::CannotInferPriceCurrency) => "cannot-infer-price-currency",
-        E::Posting(_, P::CannotInferPrice) => "cannot-infer-price",
-        E::Posting(_, P::NotEnoughLotsToReduce) => "not-enough-lots",
-        E::Posting(_, P::NoPositionMatches) => "no-matching-lot",
-        E::Posting(_, P::InferredNegativeCostPerUnit) => "negative-cost",
-        E::Posting(_, P::InferredNegativePricePerUnit) => "negative-price",
-    })
+        E::Transaction(T::TooManyMissingNumbers) => {
+            BookFailure::Booking("too-many-missing-numbers")
+        }
+        E::Transaction(T::Unbalanced(_)) => BookFailure::Booking("unbalanced"),
+        E::Transaction(T::CannotDetermineCurrencyForBalancing) => {
+            BookFailure::Booking("cannot-determine-currency")
+        }
+        E::Transaction(T::AutoPostMultipleBuckets(currencies)) => {
+            BookFailure::SeveralCurrencies(currencies.clone())
+        }
+        // Matching a reduction against the lots is reported at the transaction.
+        E::Posting(_, P::AmbiguousMatches) => BookFailure::Booking("ambiguous-lot-match"),
+        E::Posting(_, P::MultipleCostCurrenciesMatch) => {
+            BookFailure::Booking("several-cost-currencies-match")
+        }
+        E::Posting(_, P::NotEnoughLotsToReduce) => BookFailure::Booking("not-enough-lots"),
+        E::Posting(_, P::NoPositionMatches) => BookFailure::Booking("no-matching-lot"),
+        // What cannot be categorized or worked out is reported at its posting.
+        E::Posting(at, P::AmbiguousAutoPost) => {
+            BookFailure::OnPosting("ambiguous-auto-posting", *at)
+        }
+        E::Posting(at, P::CannotInferUnits) => BookFailure::OnPosting("cannot-infer-units", *at),
+        E::Posting(at, P::CannotInferCurrency) => {
+            BookFailure::OnPosting("cannot-infer-currency", *at)
+        }
+        E::Posting(at, P::CannotInferAnything) => {
+            BookFailure::OnPosting("cannot-infer-anything", *at)
+        }
+        E::Posting(at, P::CannotInferPricePerUnit) => {
+            BookFailure::OnPosting("cannot-infer-price", *at)
+        }
+        E::Posting(at, P::CannotInferPriceCurrency) => {
+            BookFailure::OnPosting("cannot-infer-price-currency", *at)
+        }
+        E::Posting(at, P::CannotInferPrice) => BookFailure::OnPosting("cannot-infer-price", *at),
+        E::Posting(at, P::InferredNegativeCostPerUnit) => {
+            BookFailure::OnPosting("negative-cost", *at)
+        }
+        E::Posting(at, P::InferredNegativePricePerUnit) => {
+            BookFailure::OnPosting("negative-price", *at)
+        }
+    }
 }
 
 /// What each account holds, from the transactions booked so far.

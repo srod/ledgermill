@@ -105,7 +105,7 @@ fn a_failed_assertion_leaves_the_transactions_alone() {
 
 #[test]
 fn an_assertion_in_a_currency_never_held_sums_zero() {
-    let journal = "2026-01-01 open Assets:A\n2026-01-02 balance Assets:A  0 USD\n2026-01-02 balance Assets:A  1 USD\n";
+    let journal = "2026-01-01 open Assets:A\n2026-01-02 balance Assets:A  0 USD\n2026-01-03 balance Assets:A  1 USD\n";
     assert_eq!(
         short_findings("b.beancount", journal),
         json!([[3, "assertion-failed", null]])

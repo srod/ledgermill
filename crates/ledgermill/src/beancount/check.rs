@@ -8,7 +8,7 @@ use super::plain::{Day, Item, Lot};
 use super::pydec::Num;
 use serde_json::{Value, json};
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// One posting of a kept transaction: what an account gained, and the lot it went into.
 pub(super) struct Posted {
@@ -88,6 +88,7 @@ impl Entry<'_> {
                 let group = match item {
                     Item::Open { .. } => 0,
                     Item::Balance { .. } => 1,
+                    Item::Close { .. } | Item::Document { .. } => 3,
                     _ => 2,
                 };
                 (*date, group, *line, 0)
@@ -199,8 +200,105 @@ pub(super) fn run(items: &[Item], kept: &[Kept]) -> Checked {
             .map(|(rank, k)| Entry::Transaction(k, rank + 1)),
     );
     entries.sort_by_key(Entry::key);
-    balance_assertions(&entries, &mut problems);
+    let accounts = Accounts::of(&entries);
+    balance_assertions(&entries, &accounts, &mut problems);
+    open_and_close(&entries, &mut problems);
+    accounts_used(&entries, &accounts, &mut problems);
+    currencies_allowed(&entries, &accounts, &mut problems);
+    duplicate_assertions(&entries, &mut problems);
+    duplicate_commodities(&entries, &mut problems);
     Checked { paddings, problems }
+}
+
+/// What the first `open` and the first `close` of each account say about when it is active.
+struct Accounts<'a> {
+    opens: HashMap<&'a str, (Day, &'a [String])>,
+    closes: HashMap<&'a str, Day>,
+}
+
+/// Why an account cannot be used on a date.
+enum Inactive {
+    NeverOpened,
+    NotYetOpen,
+    Closed,
+}
+
+impl Inactive {
+    fn name(&self) -> &'static str {
+        match self {
+            Inactive::NeverOpened => "never-opened",
+            Inactive::NotYetOpen => "not-yet-open",
+            Inactive::Closed => "closed",
+        }
+    }
+}
+
+impl<'a> Accounts<'a> {
+    fn of(entries: &[Entry<'a>]) -> Accounts<'a> {
+        let mut accounts = Accounts {
+            opens: HashMap::new(),
+            closes: HashMap::new(),
+        };
+        for entry in entries {
+            match entry {
+                Entry::Directive(
+                    Item::Open {
+                        account,
+                        currencies,
+                        ..
+                    },
+                    date,
+                    _,
+                ) => {
+                    accounts.opens.entry(account).or_insert((*date, currencies));
+                }
+                Entry::Directive(Item::Close { account, .. }, date, _) => {
+                    accounts.closes.entry(account).or_insert(*date);
+                }
+                _ => {}
+            }
+        }
+        accounts
+    }
+
+    /// Whether `account` may be named on `date`; only a transaction or a pad also stops at the close.
+    fn inactive(&self, account: &str, date: Day, until_close: bool) -> Option<Inactive> {
+        let Some((opened, _)) = self.opens.get(account) else {
+            return Some(Inactive::NeverOpened);
+        };
+        if date < *opened {
+            return Some(Inactive::NotYetOpen);
+        }
+        (until_close
+            && self
+                .closes
+                .get(account)
+                .is_some_and(|closed| date > *closed))
+        .then_some(Inactive::Closed)
+    }
+
+    /// The currencies `account` allows; empty means any.
+    fn currencies(&self, account: &str) -> &'a [String] {
+        self.opens.get(account).map_or(&[], |(_, c)| c)
+    }
+}
+
+fn not_open(account: &str, why: &Inactive, line: u32) -> Problem {
+    Problem {
+        line,
+        code: "account-not-open",
+        details: json!({ "account": account, "reason": why.name() }),
+        message: "This account is not open on this date.",
+    }
+}
+
+fn currency_not_allowed(account: &str, currency: &str, directive: &str, line: u32) -> Problem {
+    Problem {
+        line,
+        code: "currency-not-allowed",
+        details: json!({ "account": account, "currency": currency, "directive": directive }),
+        message: "The account does not allow this currency.",
+    }
 }
 
 /// A `pad` waiting for assertions.
@@ -305,7 +403,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
 }
 
 /// Step 5: every `balance`, walking the entries so that it sees what came before its day.
-fn balance_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
+fn balance_assertions(entries: &[Entry], accounts: &Accounts, problems: &mut Vec<Problem>) {
     let mut sums = Sums::default();
     for entry in entries {
         match entry {
@@ -319,8 +417,18 @@ fn balance_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
                     currency,
                     ..
                 },
-                ..,
+                date,
+                _,
             ) => {
+                if let Some(why @ (Inactive::NeverOpened | Inactive::NotYetOpen)) =
+                    accounts.inactive(account, *date, false)
+                {
+                    problems.push(not_open(account, &why, *line));
+                }
+                let allowed = accounts.currencies(account);
+                if !allowed.is_empty() && !allowed.contains(currency) {
+                    problems.push(currency_not_allowed(account, currency, "balance", *line));
+                }
                 let accumulated = sums.total(account, currency);
                 let difference = accumulated.add(&expected.negated());
                 if !within_tolerance(&difference, &tolerance(expected, written.as_ref())) {
@@ -339,6 +447,156 @@ fn balance_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
                 }
             }
             Entry::Directive(..) => {}
+        }
+    }
+}
+
+/// Step 6.1: `open` and `close` directives, walking the entries.
+fn open_and_close(entries: &[Entry], problems: &mut Vec<Problem>) {
+    let mut opened: HashSet<&str> = HashSet::new();
+    let mut closed: HashSet<&str> = HashSet::new();
+    for entry in entries {
+        match entry {
+            Entry::Directive(Item::Open { account, line, .. }, ..) => {
+                if !opened.insert(account) {
+                    problems.push(Problem {
+                        line: *line,
+                        code: "duplicate-open",
+                        details: json!({ "account": account }),
+                        message: "This account was opened before.",
+                    });
+                }
+            }
+            Entry::Directive(Item::Close { account, line, .. }, ..) => {
+                if !opened.contains(account.as_str()) {
+                    problems.push(Problem {
+                        line: *line,
+                        code: "close-without-open",
+                        details: json!({ "account": account }),
+                        message: "This account is closed without having been opened.",
+                    });
+                } else if !closed.insert(account) {
+                    problems.push(Problem {
+                        line: *line,
+                        code: "duplicate-close",
+                        details: json!({ "account": account }),
+                        message: "This account was closed before.",
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Step 6.2: the accounts that transactions, pads, notes and documents name. A `balance` was
+/// looked at in step 5, and a padding transaction names what its pad names.
+fn accounts_used(entries: &[Entry], accounts: &Accounts, problems: &mut Vec<Problem>) {
+    let mut check = |names: &[&str], date: Day, line: u32, until_close: bool| {
+        let mut seen: Vec<&str> = Vec::new();
+        for name in names {
+            if seen.contains(name) {
+                continue;
+            }
+            seen.push(name);
+            if let Some(why) = accounts.inactive(name, date, until_close) {
+                problems.push(not_open(name, &why, line));
+            }
+        }
+    };
+    for entry in entries {
+        match entry {
+            Entry::Transaction(kept, 0) => {
+                let names: Vec<&str> = kept.postings.iter().map(|p| p.account.as_str()).collect();
+                check(&names, kept.date, kept.line, true);
+            }
+            Entry::Directive(
+                Item::Pad {
+                    account, source, ..
+                },
+                date,
+                line,
+            ) => check(&[account, source], *date, *line, true),
+            Entry::Directive(
+                Item::Note { account, .. } | Item::Document { account, .. },
+                date,
+                line,
+            ) => check(&[account], *date, *line, false),
+            _ => {}
+        }
+    }
+}
+
+/// Step 6.3: postings in a currency their account does not allow.
+fn currencies_allowed(entries: &[Entry], accounts: &Accounts, problems: &mut Vec<Problem>) {
+    for entry in entries {
+        let Entry::Transaction(kept, _) = entry else {
+            continue;
+        };
+        for p in &kept.postings {
+            let allowed = accounts.currencies(&p.account);
+            if !allowed.is_empty() && !allowed.contains(&p.currency) {
+                problems.push(currency_not_allowed(
+                    &p.account,
+                    &p.currency,
+                    "transaction",
+                    kept.line,
+                ));
+            }
+        }
+    }
+}
+
+/// Step 6.4: assertions on one account, currency and day that differ from the first of them.
+fn duplicate_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
+    let mut first: HashMap<(&str, &str, Day), &Num> = HashMap::new();
+    for entry in entries {
+        let Entry::Directive(
+            Item::Balance {
+                account,
+                currency,
+                expected,
+                line,
+                ..
+            },
+            date,
+            _,
+        ) = entry
+        else {
+            continue;
+        };
+        let earlier = *first
+            .entry((account.as_str(), currency.as_str(), *date))
+            .or_insert(expected);
+        if earlier.cmp_value(expected) != Ordering::Equal {
+            problems.push(Problem {
+                line: *line,
+                code: "duplicate-assertion",
+                details: json!({
+                    "account": account,
+                    "currency": currency,
+                    "expected": expected.to_string(),
+                    "first": earlier.to_string(),
+                }),
+                message: "Another assertion of the same day expects a different amount.",
+            });
+        }
+    }
+}
+
+/// Step 6.5: a `commodity` declared again.
+fn duplicate_commodities(entries: &[Entry], problems: &mut Vec<Problem>) {
+    let mut seen: HashSet<&str> = HashSet::new();
+    for entry in entries {
+        if let Entry::Directive(Item::Commodity { currency, line, .. }, ..) = entry
+            && !seen.insert(currency)
+        {
+            problems.push(Problem {
+                line: *line,
+                code: "duplicate-commodity",
+                details: json!({ "currency": currency }),
+                message: "This commodity was declared before.",
+            });
         }
     }
 }

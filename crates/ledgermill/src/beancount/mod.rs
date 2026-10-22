@@ -254,7 +254,13 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
 
     for item in &read.items {
         match item {
-            Item::Open { .. } | Item::Pad { .. } | Item::Balance { .. } => {}
+            Item::Open { .. }
+            | Item::Close { .. }
+            | Item::Commodity { .. }
+            | Item::Pad { .. }
+            | Item::Balance { .. }
+            | Item::Note { .. }
+            | Item::Document { .. } => {}
             Item::Refused { line, construct } => {
                 refused = true;
                 findings.push(unsupported(
@@ -315,13 +321,16 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                         ));
                     }
                     Err(failure) => {
-                        let reason = match failure {
-                            BookFailure::Booking(reason) => reason,
-                            _ => "auto-posting-with-several-currencies",
+                        let (reason, line) = match failure {
+                            BookFailure::Booking(reason) => (reason, tx.line),
+                            BookFailure::OnPosting(reason, at) => {
+                                (reason, tx.postings.get(at).map_or(tx.line, |p| p.line))
+                            }
+                            _ => ("auto-posting-with-several-currencies", tx.line),
                         };
                         findings.push(finding(
                             &file.name,
-                            tx.line,
+                            line,
                             "booking-error",
                             json!({ "reason": reason }),
                             "This transaction cannot be booked.",

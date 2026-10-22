@@ -170,7 +170,7 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
         return Ok(out);
     };
     if wanted.len() > 1 {
-        return Err(BookFailure::Booking("too-many-missing-numbers"));
+        return Err(BookFailure::OnPosting("too-many-missing-numbers", at));
     }
     let target = &tx.postings[at];
     let is_cost = open_cost(target);
@@ -180,7 +180,7 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
         "inferred-price"
     };
     let Some(units) = &target.units else {
-        return Err(BookFailure::Booking("too-many-missing-numbers"));
+        return Err(BookFailure::OnPosting("too-many-missing-numbers", at));
     };
     let others = || tx.postings.iter().enumerate().filter(|(i, _)| *i != at);
     // A reduction with an open cost weighs what its lots cost, known only after matching.
@@ -188,15 +188,18 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
         return Err(BookFailure::Unsupported(construct));
     }
     if others().any(|(_, p)| is_auto(p) || p.units.is_none()) {
-        return Err(BookFailure::Booking(if is_cost {
-            "cannot-infer-currency"
-        } else {
-            "too-many-missing-numbers"
-        }));
+        return Err(BookFailure::OnPosting(
+            if is_cost {
+                "cannot-infer-currency"
+            } else {
+                "too-many-missing-numbers"
+            },
+            at,
+        ));
     }
     let mut sums: Vec<(String, Decimal)> = Vec::new();
     for (_, p) in others() {
-        let (currency, weight) = weight_of(p)?;
+        let (currency, weight) = weight_of(p).map_err(|e| e.on(at))?;
         match sums.iter_mut().find(|(c, _)| *c == currency) {
             Some((_, sum)) => *sum = sum.add(&weight),
             None => sums.push((currency, weight)),
@@ -214,7 +217,7 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
     let group = match (written, sums.as_slice()) {
         (Some(currency), _) => currency,
         (None, [(currency, _)]) => currency.clone(),
-        _ => return Err(BookFailure::Booking("cannot-infer-currency")),
+        _ => return Err(BookFailure::OnPosting("cannot-infer-currency", at)),
     };
     let sum = sums
         .iter()
@@ -240,7 +243,7 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
     let slot = &mut out.postings[at];
     if is_cost {
         if value.is_negative() {
-            return Err(BookFailure::Booking("negative-cost"));
+            return Err(BookFailure::OnPosting("negative-cost", at));
         }
         if let Some(cost) = slot.cost.as_mut() {
             cost.per_unit = Some(value);
@@ -270,7 +273,8 @@ pub(super) fn book(
                 postings: Vec::new(),
                 residuals: Vec::new(),
             }),
-            _ => Err(BookFailure::Booking("ambiguous-auto-posting")),
+            // The reference blames the second posting without an amount.
+            _ => Err(BookFailure::OnPosting("ambiguous-auto-posting", 1)),
         };
     }
     let mut feeds: Vec<Feed> = tx.postings.iter().map(feed_of).collect::<Result<_, _>>()?;
@@ -304,7 +308,13 @@ pub(super) fn book(
             rows = books.book(date, &feeds);
         }
     }
-    let rows = rows?;
+    // The crate counts the postings it was fed; the reference blames them as written.
+    let rows = rows.map_err(|failure| match failure {
+        BookFailure::OnPosting(reason, fed) => {
+            BookFailure::OnPosting(reason, origins.get(fed).copied().unwrap_or(fed))
+        }
+        other => other,
+    })?;
 
     // Weights, by the currency they balance in.
     struct Slot {

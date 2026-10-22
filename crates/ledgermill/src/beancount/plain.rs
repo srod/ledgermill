@@ -78,7 +78,19 @@ pub(super) enum Item {
         date: Day,
         line: u32,
         account: String,
+        /// The currencies the account allows; empty means any.
+        currencies: Vec<String>,
         method: Option<Method>,
+    },
+    Close {
+        date: Day,
+        line: u32,
+        account: String,
+    },
+    Commodity {
+        date: Day,
+        line: u32,
+        currency: String,
     },
     Pad {
         date: Day,
@@ -95,6 +107,18 @@ pub(super) enum Item {
         tolerance: Option<Decimal>,
         currency: String,
     },
+    /// A `note`; only the account it names matters.
+    Note {
+        date: Day,
+        line: u32,
+        account: String,
+    },
+    /// A `document`; ledgermill cannot look at files, so only the account matters.
+    Document {
+        date: Day,
+        line: u32,
+        account: String,
+    },
     Transaction(RawTransaction),
     /// A directive that changes what transactions come out and is not built yet.
     Refused {
@@ -108,8 +132,12 @@ impl Item {
     pub(super) fn place(&self) -> Option<(Day, u32)> {
         match self {
             Item::Open { date, line, .. }
+            | Item::Close { date, line, .. }
+            | Item::Commodity { date, line, .. }
             | Item::Pad { date, line, .. }
-            | Item::Balance { date, line, .. } => Some((*date, *line)),
+            | Item::Balance { date, line, .. }
+            | Item::Note { date, line, .. }
+            | Item::Document { date, line, .. } => Some((*date, *line)),
             Item::Transaction(_) | Item::Refused { .. } => None,
         }
     }
@@ -152,8 +180,11 @@ pub(super) struct Lot {
 /// Why booking a transaction failed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum BookFailure {
-    /// The fork's own message, in kebab case.
+    /// The fork's own message, in kebab case, reported at the transaction's line.
     Booking(&'static str),
+    /// The same, reported at the line of the posting with this index (as written): the reference
+    /// blames the posting for what it cannot categorize or work out.
+    OnPosting(&'static str, usize),
     TooPrecise,
     /// An elided posting with several currencies to balance: it stands for one posting each.
     SeveralCurrencies(Vec<String>),
@@ -161,4 +192,14 @@ pub(super) enum BookFailure {
     Unsupported(&'static str),
     /// An account books by AVERAGE, which the booking code does not implement.
     Average(String),
+}
+
+impl BookFailure {
+    /// The same failure, blamed on the posting with this index when it is a plain one.
+    pub(super) fn on(self, posting: usize) -> BookFailure {
+        match self {
+            BookFailure::Booking(reason) => BookFailure::OnPosting(reason, posting),
+            other => other,
+        }
+    }
 }
