@@ -25,6 +25,8 @@ Rows.
   dearest first for HIFO. The sort keeps it (it is stable), so rows tied on date, file and line
   keep booking order, which is the order `transactions()` gives them.
 - A transaction that bean-check rejects gives no row (its errors are printed before the CSV).
+- A padding transaction (pad.md) gives two rows, the padded account then the source account, both on the
+  line of the `balance` that caused it, so they sort there and not at the `pad`.
 
 Order. By date, then file, then line. Transactions come out in source order within a date
 (source-lines-and-ordering.md) and a posting's line lies inside its transaction, so rows of

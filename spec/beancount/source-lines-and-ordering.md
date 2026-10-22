@@ -12,7 +12,9 @@ of that posting (lots-and-booking.md, `booking-fifo`).
 
 Order. Transactions come out sorted by date, and by source line within a date; other directives
 (`open`, ...) do not take part, and a transaction written first with a later date comes last.
-ledgermill sorts by date, then by line. Findings are ordered by line.
+ledgermill sorts by date, then by line. Findings are ordered by line (check-order.md proposes another
+order for `check()`, the one `bean-check` prints in). A padding transaction (pad.md) stands on the line of
+its `pad`, its two postings on the line of the `balance`.
 
 ## Probe
 
