@@ -1,0 +1,12 @@
+; --cost: zero results have no places, unless a non-zero cost rounds to zero; ten places, half to even
+2026-01-01 t
+    (a)  0.00 Y @ 5 EUR
+    (b)  1.5 Y @ 0 EUR
+    (c)  2 Y @@ 0 EUR
+    (d)  0.0000000001 Z @ 0.5 EUR
+    (e)  -0.0000000003 Z @ 0.5 EUR
+    (f)  0.00000000015 Z @ 1 EUR
+    (g)  0.00000000025 Z @ 1 EUR
+    (h)  1 Z @@ 0.00000000015 EUR
+    (i)  1 Z @@ 0.00000000025 EUR
+    (j)  100.0000 Z @ 0.5 EUR

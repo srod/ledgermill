@@ -1,0 +1,12 @@
+; --cost: an amount with a price is converted and loses its lot; a lot alone is not a cost
+2026-01-01 t
+    (a)  2 Y {4 EUR}
+    (b)  2 Y {4 EUR} @ 5 EUR
+    (c)  2 Y {{8 EUR}} @@ 20 EUR
+    (d)  2 Y {4 EUR} [2026-01-01] (lbl) @ 5 EUR
+    (e)  2 Y {4 EUR} [2026-01-01] (lbl)
+    (f)  2 Y {} @ 5 EUR
+    (g)  2 Y {{8 EUR}}
+    (h)  2 Y @@ 20 EUR
+    (i)  2 Y {4 EUR} @@ 20 EUR
+    (j)  3 Y

@@ -1,0 +1,196 @@
+; --cost: the pairs go only if the first posting that is not a conversion posting and has no price (the anchor)
+; has no equal among the other such postings. Equal: within half a unit at the anchor's places, any commodity.
+; Every transaction has the pair -1 EUR, 1 EUR on equity:conversion (see conversion.md).
+
+2026-02-01 unique anchor: the pair goes
+    a  3 EUR
+    b  -3 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-02 b repeats a: kept
+    a  3 EUR
+    b  3 EUR
+    c  -6 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-03 the commodity plays no part: 3 USD repeats 3 EUR
+    a  3 EUR
+    b  3 USD
+    c  -3 USD
+    d  -3 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-04 3.4 is within half a unit of 3 (anchor has no places): kept
+    a  3 EUR
+    b  3.4 EUR
+    c  -6.4 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-05 3.5: kept
+    a  3 EUR
+    b  3.5 EUR
+    c  -6.5 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-06 3.6 is not: the pair goes
+    a  3 EUR
+    b  3.6 EUR
+    c  -6.6 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-07 the anchor's places count: 3.0 and 3.4 differ, the pair goes
+    a  3.0 EUR
+    b  3.4 EUR
+    c  -6.4 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-08 3.0 and 3.05: kept (half a unit of 0.1 is included)
+    a  3.0 EUR
+    b  3.05 EUR
+    c  -6.05 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-09 3.0 and 3.06: the pair goes
+    a  3.0 EUR
+    b  3.06 EUR
+    c  -6.06 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-10 the other way: b is the anchor, 3.05 against 3.0 at two places: the pair goes
+    b  3.05 EUR
+    a  3.0 EUR
+    c  -6.05 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-11 only the first posting is the anchor: b repeats c, a is alone
+    a  3 EUR
+    b  4 EUR
+    c  4 EUR
+    d  -11 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-12 the first posting repeats a later one, though the others are alone: kept
+    a  3 EUR
+    b  5 EUR
+    c  3 EUR
+    d  -11 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-13 the first posting repeats the last one, whatever lies between
+    a  3 EUR
+    b  -3 EUR
+    c  -3 EUR
+    d  3 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-14 a virtual posting counts as one that repeats
+    a  3 EUR
+    (v)  3 EUR
+    b  -3 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-15 a virtual posting can be the anchor
+    (v)  3 EUR
+    a  4 EUR
+    b  -4 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-16 a balanced virtual posting too
+    [v]  3 EUR
+    [w]  -3 EUR
+    a  4 EUR
+    b  -4 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-17 a priced posting is not counted: 3 X @ 1 EUR does not repeat 3 EUR
+    a  3 EUR
+    b  3 X @ 1 EUR
+    c  -6 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-18 and is not the anchor: the pair goes with b
+    p  2 X @ 3 EUR
+    b  -6 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-19 a lot is not a price: 3 X repeats 3 X
+    a  3 X {2 EUR}
+    b  3 X {3 EUR}
+    c  -6 X
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-20 an elided posting is a zero with no places: z against 2, the pair goes
+    z
+    a  2 EUR
+    b  -4 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-21 z first, a within half a unit of zero: kept
+    z
+    a  0.4 EUR
+    b  -0.4 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-22 z first, a of 0.6: the pair goes
+    z
+    a  0.6 EUR
+    b  -0.6 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-23 a first with an elided z after: 0.4 against zero at one place, the pair goes
+    a  0.4 EUR
+    b  -0.4 EUR
+    z
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-24 a is a zero with no places, z is a zero: kept
+    a  0 EUR
+    b  5 EUR
+    c  -5 EUR
+    z
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-25 two zeros: kept
+    a  0 EUR
+    b  0 USD
+    c  1 EUR
+    d  -1 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-26 a zero anchor, nothing else near zero: the pair goes
+    a  0 EUR
+    c  1 EUR
+    d  -1 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+
+2026-02-27 the pair does not need to be next to the anchor
+    a  3 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  1 EUR
+       b  -3 EUR

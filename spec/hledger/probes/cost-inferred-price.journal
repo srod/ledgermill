@@ -1,0 +1,27 @@
+; --cost: an inferred unit price keeps 255 places, so 9 times a ninth is 1 and not 0.9999999999;
+; an inferred total price keeps its places
+2026-01-01 a ninth
+    a  9 X
+    b  0 X
+    c  -1 Y
+
+2026-01-02 a seventh: 3 and 4 sevenths
+    a  3 X
+    b  4 X
+    c  -1 Y
+
+2026-01-03 an inferred total price keeps its places
+    a  1 X
+    c  -2.0 Y
+
+2026-01-04 several amounts of the other commodity
+    a  1 X
+    c  -1.5 Y
+    d  0.5 Y
+
+2026-01-05 the elided posting is worked out from the inferred price and then converted
+    a  2 X
+    c  -1 Y
+    d  1 X
+    e  -3.0 X
+    e  3.0 Z

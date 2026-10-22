@@ -1,0 +1,50 @@
+; --cost drops a posting whose comment holds the tag _conversion-posting: (any value), unless it has a cost
+2026-01-01 on the posting line
+    a  1 X @ 3 EUR
+    b  -3 EUR  ; _conversion-posting:
+
+2026-01-02 a value, and other tags around it
+    a  1 X @ 3 EUR
+    b  -3 EUR  ; foo, _conversion-posting:yes, bar:1
+
+2026-01-03 on a comment line after the posting
+    a  1 X @ 3 EUR
+    b  -3 EUR
+    ; _conversion-posting:
+
+2026-01-04 on the header or on a comment before the first posting: nothing
+  ; _conversion-posting:
+    a  1 X @ 3 EUR
+    b  -3 EUR
+
+2026-01-05 header comment  ; _conversion-posting:
+    a  1 X @ 3 EUR
+    b  -3 EUR
+
+2026-01-06 the name is case sensitive and needs a word boundary: kept
+    a  1 X @ 3 EUR
+    b  -2 EUR  ; _Conversion-Posting:
+    c  -1 EUR  ; x_conversion-posting:
+
+2026-01-07 a posting with a cost is kept, and converted
+    a  1 X @ 3 EUR  ; _conversion-posting:
+    b  -3 EUR
+
+2026-01-08 an elided posting with the tag goes
+    a  3 EUR
+    b  ; _conversion-posting:
+
+2026-01-09 every posting tagged: the transaction stays, with no posting
+    a  3 EUR  ; _conversion-posting:
+    b  -3 EUR  ; _conversion-posting:
+
+2026-01-10 a virtual posting, and a tag on a conversion account
+    a  1 X @ 3 EUR
+    (v)  -3 EUR  ; _conversion-posting:
+    b  -3 EUR
+    equity:conversion  5 EUR  ; _conversion-posting:
+    c  -5 EUR
+
+2026-01-11 an empty tag value, no space before the semicolon
+    a  3 EUR
+    b  -3 EUR;_conversion-posting:

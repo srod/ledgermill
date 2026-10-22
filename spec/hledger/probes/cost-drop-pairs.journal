@@ -1,0 +1,80 @@
+; --cost drops adjacent conversion-account postings, taken in pairs from the left
+; (conversion accounts: see conversion.md)
+2026-01-01 one conversion posting: kept
+    a  3 EUR
+    equity:conversion  -3 EUR
+
+2026-01-02 two: dropped
+    a  3 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  -2 EUR
+
+2026-01-03 three: the first two go, the third stays
+    a  6 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  -2 EUR
+    equity:conversion  -3 EUR
+
+2026-01-04 four: all go
+    a  10 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  -2 EUR
+    equity:conversion  -3 EUR
+    equity:conversion  -4 EUR
+
+2026-01-05 five: the last stays
+    a  15 EUR
+    equity:conversion  -1 EUR
+    equity:conversion  -2 EUR
+    equity:conversion  -3 EUR
+    equity:conversion  -4 EUR
+    equity:conversion  -5 EUR
+
+2026-01-06 the first one is alone, the last two are a pair
+    equity:conversion  -1 EUR
+    a  10 EUR
+    equity:conversion  -2 EUR
+    equity:conversion  -7 EUR
+
+2026-01-07 nothing adjacent: kept
+    equity:conversion  3 EUR
+    a  -6 EUR
+    equity:conversion  3 EUR
+
+2026-01-08 the names of the conversion accounts differ
+    equity:conversion  -1 EUR
+    Equity:Trading:x  -2 EUR
+    equity:trade  -3 EUR
+    a  6 EUR
+
+2026-01-09 virtual pair
+    a  3 EUR
+    (equity:conversion)  -1 EUR
+    (equity:conversion)  -2 EUR
+    b  -3 EUR
+
+2026-01-10 balanced virtual pair
+    a  1 EUR
+    [equity:conversion]  -1 EUR
+    [equity:conversion]  1 EUR
+    b  -1 EUR
+
+2026-01-11 a virtual and a regular conversion posting are adjacent too
+    a  3 EUR
+    (equity:conversion)  -1 EUR
+    equity:conversion  -2 EUR
+    b  -1 EUR
+
+2026-01-12 only conversion postings: kept
+    equity:conversion  2 X
+    equity:conversion  -2 X
+
+2026-01-13 only conversion postings, three: kept
+    equity:conversion  1 EUR
+    equity:conversion  2 EUR
+    equity:conversion  -3 EUR
+
+2026-01-14 only a virtual non-conversion posting besides the pair: the pair goes
+    equity:conversion  1 EUR
+    equity:conversion  -1 EUR
+    (v)  5 EUR

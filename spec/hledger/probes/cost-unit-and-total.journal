@@ -1,0 +1,15 @@
+; --cost: a unit price multiplies, a total price is the cost; virtual postings need no balance
+2026-01-01 t
+    (a)  3 X @ 2.50 EUR
+    (b)  -3 X @ 2.50 EUR
+    (c)  2 Y @@ 7.50 EUR
+    (d)  -2 Y @@ 7.50 EUR
+    (e)  0 Y @@ 5 EUR
+    (f)  -0 Y @@ 5 EUR
+    (g)  2 Y @@ -4 EUR
+    (h)  -2 Y @@ -4 EUR
+    (i)  2 Y @ -4 EUR
+    (j)  1.50 Z @@ 3.000 EUR
+    (k)  1.5 Z @ 2.0 EUR
+    (l)  2 X @ 3 X
+    (m)  1 X @ 0.123456789012345 EUR
