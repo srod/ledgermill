@@ -1,0 +1,7 @@
+2026-01-01 t
+  a  3 EUR
+  z
+
+2026-01-02 == also assigns -3 EUR to a, and b cannot balance both
+  a  == 5 USD
+  b  -5 USD

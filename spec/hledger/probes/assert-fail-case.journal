@@ -1,0 +1,7 @@
+2026-01-01 open
+  a  1 EUR
+  b  -1 EUR
+
+2026-01-02 commodity names are case sensitive
+  a  0 EUR = 1 eur
+  b  0 EUR

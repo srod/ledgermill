@@ -1,0 +1,19 @@
+2026-01-02 written first, dated second
+  a  5 EUR = 15 EUR
+  b  -5 EUR
+
+2026-01-01 written second, dated first
+  a  10 EUR = 10 EUR
+  b  -10 EUR
+
+2026-01-02 same date, written later: sees both
+  a  1 EUR = 16 EUR
+  b  -1 EUR
+
+2026-01-02 the postings of one transaction
+  a  1 EUR = 17 EUR
+  a  1 EUR = 18 EUR
+  (a)  1 EUR = 19 EUR
+  [a]  1 EUR = 20 EUR
+  [b]  -1 EUR
+  b  -2 EUR = -19 EUR

@@ -1,0 +1,127 @@
+2026-02-01 balance 3
+  p1  3 EUR
+  z
+
+2026-03-01 assert 0.00
+  p1  = 0.00 EUR
+  z
+
+2026-02-02 balance 3.00
+  p2  3.00 EUR
+  z
+
+2026-03-02 assert 0
+  p2  = 0 EUR
+  z
+
+2026-02-03 balance 3.00
+  p3  3.00 EUR
+  z
+
+2026-03-03 assert 1.5
+  p3  = 1.5 EUR
+  z
+
+2026-02-04 balance 3
+  p4  3 EUR
+  z
+
+2026-03-04 assert 1.50
+  p4  = 1.50 EUR
+  z
+
+2026-02-05 balance 1.5
+  p5  1.5 EUR
+  z
+
+2026-03-05 assert 3
+  p5  = 3 EUR
+  z
+
+2026-02-06 balance 1.250
+  p6  1.250 EUR
+  z
+
+2026-03-06 assert 3.5
+  p6  = 3.5 EUR
+  z
+
+2026-02-07 balance 0.00
+  p7  0.00 EUR
+  z
+
+2026-03-07 assert 3
+  p7  = 3 EUR
+  z
+
+2026-02-08 balance 0.00
+  p8  0.00 EUR
+  z
+
+2026-03-08 assert 3.00
+  p8  = 3.00 EUR
+  z
+
+2026-02-09 balance 3
+  p9  3 EUR
+  z
+
+2026-03-09 assert 3.00
+  p9  = 3.00 EUR
+  z
+
+2026-02-10 balance 3.00
+  p10  3.00 EUR
+  z
+
+2026-03-10 assert 3
+  p10  = 3 EUR
+  z
+
+2026-02-11 balance -3.00
+  p11  -3.00 EUR
+  z
+
+2026-03-11 assert -3
+  p11  = -3 EUR
+  z
+
+2026-02-12 balance -3.00
+  p12  -3.00 EUR
+  z
+
+2026-03-12 assert 3
+  p12  = 3 EUR
+  z
+
+2026-02-13 balance 2.5
+  p13  2.5 EUR
+  z
+
+2026-03-13 assert -2.5
+  p13  = -2.5 EUR
+  z
+
+2026-02-14 balance 0.5
+  p14  0.5 EUR
+  z
+
+2026-03-14 assert 0.51
+  p14  = 0.51 EUR
+  z
+
+2026-02-15 balance 1
+  p15  1 EUR
+  z
+
+2026-03-15 assert 1.001
+  p15  = 1.001 EUR
+  z
+
+2026-02-16 balance 0.00
+  p16  0.00 EUR
+  z
+
+2026-03-16 assert 0
+  p16  = 0 EUR
+  z

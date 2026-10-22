@@ -1,0 +1,9 @@
+2026-01-01 fails unless -I is given
+  a  1 EUR = 9 EUR
+  b  -1 EUR == 5 EUR
+  c  0 EUR =* 3 EUR
+  d  = 0
+
+2026-01-02 an assignment still works under -I
+  a  = 5 EUR
+  b

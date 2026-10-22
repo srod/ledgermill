@@ -1,0 +1,36 @@
+2026-03-01 assignment, later date, written first
+  a  = 5 EUR
+  z
+
+2026-01-01 earlier, written second
+  a  3 EUR
+  z
+
+2026-01-01 same date as the next one, written first
+  b  = 5 EUR
+  z
+
+2026-01-01 same date, written second
+  b  = 8 EUR
+  z
+
+2026-01-01 a plain posting dated the 5th, written before the assignment of the 5th
+  c  1 EUR  ; date:2026-01-05
+  z
+
+2026-01-05 assignment the same day: 3 - 1
+  c  = 3 EUR
+  z
+
+2026-01-05 assignment of the 5th, written before the plain posting dated the 5th
+  e  = 3 EUR
+  z
+
+2026-01-02 posting dated the 5th, written after
+  e  1 EUR  ; date:2026-01-05
+  z
+
+2026-01-06 check
+  c  0 EUR = 3 EUR
+  e  0 EUR = 4 EUR
+  y

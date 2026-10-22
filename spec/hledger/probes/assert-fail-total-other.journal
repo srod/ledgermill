@@ -1,0 +1,9 @@
+2026-01-01 open
+  a  10 EUR
+  a  5 USD
+  b  -10 EUR
+  b  -5 USD
+
+2026-01-02 == also wants every other commodity to be zero
+  a  0 EUR == 10 EUR
+  b  0 EUR

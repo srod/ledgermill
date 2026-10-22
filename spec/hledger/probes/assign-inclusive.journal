@@ -1,0 +1,44 @@
+2026-01-01 setup
+  a  1 EUR
+  a:b  2 EUR
+  a:c:d  3 EUR
+  ab  100 EUR
+  h:b  2 EUR
+  i  1 EUR
+  i:b  2.5 EUR
+  j:b  2 EUR
+  k:b  2 EUR
+  k:c  3 USD
+  k  4 GBP
+  m  2 EUR
+  z
+
+2026-01-02 =* counts a and everything under a:, not ab
+  a  =* 10 EUR
+  z
+
+2026-01-03 then = sees only a itself: asserted minus the sub-accounts
+  a  = 5 EUR
+  z
+
+2026-01-04 an account with no postings of its own
+  h  =* 5 EUR
+  z
+
+2026-01-05 zero difference, but the account's own balance becomes 3.5 - 2.5 = 1.0
+  i  =* 3.5 EUR
+  i  = 2 EUR
+  z
+
+2026-01-06 ==* zeroes every other commodity, in the account itself
+  k  ==* 10 EUR
+  z
+
+2026-01-07 the sub-accounts are not touched, so asserting again gives the rest
+  k:b  = 0 EUR
+  k  ==* 10 EUR
+  z
+
+2026-01-08 on an account without sub-accounts =* is the same as =
+  m  =* 5 EUR
+  z

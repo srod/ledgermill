@@ -1,0 +1,29 @@
+2026-01-01 the second posting counts from February
+  a  5 EUR
+  a  2 EUR  ; date:2026-02-01
+  z
+
+2026-01-15 only the first posting so far
+  a  0 EUR = 5 EUR
+  y
+
+2026-03-01 a posting dated in January is already in on the 20th
+  b  3 EUR  ; date:2026-01-10
+  y
+
+2026-01-20 so it is here
+  b  0 EUR = 3 EUR
+  y
+
+2026-02-02=2026-06-01 the second date of a transaction does not count
+  a  1 EUR
+  y
+
+2026-02-03 nor does the tag date2
+  c  2 EUR  ; date2:2026-09-09
+  y
+
+2026-02-10 everything of February is in
+  a  0 EUR = 8 EUR
+  c  0 EUR = 2 EUR
+  y

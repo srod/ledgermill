@@ -1,0 +1,55 @@
+2026-01-01 an assignment is not an elided amount: one more posting may leave its amount out
+  a  = 5 EUR
+  b  = -4 EUR
+  c
+
+2026-01-02 two assignments that balance
+  d  = 5 EUR
+  e  = -5 EUR
+
+2026-01-03 the same account twice
+  f  = 5 EUR
+  f  = 7 EUR
+  g
+
+2026-01-04 postings and assignments of one account, in order
+  h  1 EUR
+  h  = 7 EUR
+  h  = 9 EUR
+  h  2 EUR = 11 EUR
+  g
+
+2026-01-05 a virtual assignment is not balanced
+  (i)  = 5 EUR
+  j  1 EUR
+  k
+
+2026-01-06 an elided virtual posting gets a zero with no commodity
+  l  = 5 EUR
+  (v)
+  m
+
+2026-01-07 balanced virtual postings, a group of their own
+  l  = 5 EUR
+  [n]  = 3 EUR
+  [o]
+  m
+
+2026-01-08 a zero difference leaves no amount; the elided posting balances the others
+  p  = 0 EUR
+  q  5 EUR
+  r
+
+2026-01-09 the assigned amount can be given an inferred price
+  s  = 5 USD
+  t  -3 EUR
+
+2026-01-10 the first posting of the two commodities gets the price, assigned or not
+  u  -3 EUR
+  v  = 5 USD
+
+2026-01-11 several postings
+  w  1 USD
+  w  = 5 USD
+  t  -3 EUR
+  t  -1 EUR

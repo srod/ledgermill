@@ -1,0 +1,54 @@
+2026-01-01 1.25, 3, -1.25: the sum is 3.00
+  x1  1.25 EUR
+  x1  3 EUR
+  x1  -1.25 EUR
+  z
+
+2026-01-01 1.25, -1.25, 3: the sum went through zero, so it is 3
+  x2  1.25 EUR
+  x2  -1.25 EUR
+  x2  3 EUR
+  z
+
+2026-01-01 1.5 and 0.50 in two transactions: 2.00
+  x3  1.5 EUR
+  z
+
+2026-01-02 second
+  x3  0.50 EUR
+  z
+
+2026-01-01 a zero first: 0.00 and 3 make 3
+  x4  0.00 EUR
+  x4  3 EUR
+  z
+
+2026-01-01 a zero last: 3 and 0.00 make 3
+  x5  3 EUR
+  x5  0.00 EUR
+  z
+
+2026-01-01 cancelling to 0.00: asserting 4 gives 4
+  x6  1.25 EUR
+  x6  -1.25 EUR
+  z
+
+2026-01-01 a plain assertion does not change the balance
+  x7  1 EUR = 1.00 EUR
+  z
+
+2026-01-01 a plain assertion does not change the balance, second
+  x8  1 EUR
+  x8  0 EUR = 1.00 EUR
+  z
+
+2026-01-05 now the assignments, all asserting 4
+  x1  = 4 EUR
+  x2  = 4 EUR
+  x3  = 4 EUR
+  x4  = 4 EUR
+  x5  = 4 EUR
+  x6  = 4 EUR
+  x7  = 4 EUR
+  x8  = 4 EUR
+  z

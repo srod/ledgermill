@@ -1,0 +1,8 @@
+2026-01-01 open
+  a  10 EUR
+  a  5 USD
+  z
+
+2026-01-02 the asserted commodity is looked at before the others
+  a  0 EUR == 10 USD
+  z  0 EUR

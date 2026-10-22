@@ -1,0 +1,63 @@
+2026-01-01 setup
+  a  3 X
+  b  3 X
+  c  1 X
+  c  -1 X
+  d  3 X @ 2 EUR
+  d  2 X @ 3 EUR
+  d  4 X
+  e  3 X
+  f  2 Y
+  z
+
+2026-01-02 costs of earlier postings are dropped from the balance
+  d  = 10 X
+  z
+
+2026-01-03 an asserted amount with a price: the price comes with it, beside the old balance
+  a  = 3 X @ 2 EUR
+  z
+
+2026-01-04 and the next assignment starts from what that left
+  a  = 5 X
+  z
+
+2026-01-05 @@ is a total price
+  b  = 3 X @@ 6 EUR
+  z
+
+2026-01-06 balance of zero in the same commodity, a price
+  c  = 3 X @ 2 EUR
+  z
+
+2026-01-07 nothing to the old balance
+  g  = 3 X @ 2 EUR
+  z
+
+2026-01-08 after a priced assertion, a plain posting is a separate entry
+  g  1 X
+  g  = 4 X
+  z
+
+2026-01-09 a price on == also comes with the asserted amount
+  f  == 3 X @ 2 EUR
+  z
+
+2026-01-10 same price twice: one entry, so nothing to add up but the units
+  h  = 1 X @ 1 EUR
+  h  = 2 X @ 1 EUR
+  z
+
+2026-01-11 total prices of the same commodity add up
+  i  = 1 X @@ 3 EUR
+  i  = 2 X @@ 1 EUR
+  z
+
+2026-01-12 the entries are listed by price commodity, total before unit, then price
+  j  = 1 X @ 2 EUR
+  j  = 1 X @ 1 EUR
+  j  = 1 X @@ 9 EUR
+  j  = 1 X @ 1 USD
+  j  = 1 X
+  j  = 0 X
+  z

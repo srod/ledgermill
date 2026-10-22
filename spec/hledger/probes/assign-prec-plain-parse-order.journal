@@ -1,0 +1,7 @@
+2026-01-02 unbalanced, later date, written first
+  c  1 EUR
+  d  -4 EUR
+
+2026-01-01 unbalanced, earlier date, written second
+  c  1 EUR
+  d  -5 EUR

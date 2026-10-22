@@ -1,0 +1,42 @@
+2026-01-01 setup
+  p  1 EUR
+  p:s  2 EUR
+  q  -3 EUR
+
+2026-01-02 spaces around the equals signs are free
+  p  0 EUR=1 EUR
+  p  0 EUR =1 EUR
+  p  0 EUR= 1 EUR
+  p  0 EUR   =   1 EUR
+  p		0 EUR	= 1 EUR
+  p  0 EUR = 1 EUR  ; comment after the assertion
+  p  0 EUR = 1 EUR; comment with no space
+  q  0 EUR
+
+2026-01-03 the four kinds
+  p  0 EUR = 1 EUR
+  p  0 EUR == 1 EUR
+  p  0 EUR =* 3 EUR
+  p  0 EUR ==* 3 EUR
+  p  0 EUR =*3 EUR
+  p  0 EUR ==*3 EUR
+  p  0 EUR ==1 EUR
+  q  0 EUR
+
+2026-01-04 the asserted amount is a normal amount
+  p  0 EUR = 1.00 EUR
+  p  0 EUR = EUR 1
+  p  0 EUR = +1 EUR
+  p  0 EUR = "EUR" 1
+  p  0 EUR = 100e-2 EUR
+  p  0 EUR = 0.01e2 EUR
+  p  0 EUR = 1,0 EUR
+  p  0 EUR = 1 EUR @ 0.5 USD
+  p  0 EUR = 1 EUR @@ 7 USD
+  q  0 EUR
+
+2026-01-05 a status mark and a virtual posting
+  * p  0 EUR = 1 EUR
+  ! p  0 EUR == 1 EUR
+  (p)  0 EUR = 1 EUR
+  [p]  0 EUR = 1 EUR

@@ -1,0 +1,7 @@
+2026-01-01 open
+  a  1 EUR
+  b  -1 EUR
+
+2026-01-02 an account never used holds nothing
+  c  0 EUR = 3 EUR
+  b  0 EUR

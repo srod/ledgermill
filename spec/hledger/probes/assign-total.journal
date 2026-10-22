@@ -1,0 +1,64 @@
+2026-01-01 setup: several commodities in one account
+  a  5 EUR
+  a  2 ZZ
+  a  3 AA
+  a  4 mm
+  b  10 EUR
+  b  3 USD
+  b  -3 USD
+  c  10 EUR
+  d  3 USD
+  d  4 EUR
+  e  3 USD
+  e  4
+  f  4 EUR
+  f  3 USD
+  g  3 USD
+  g  4 EUR
+  h  4 EUR
+  h  3 USD
+  z
+
+2026-01-02 == makes the account hold the asserted amount and nothing else
+  a  == 7 EUR
+  z
+
+2026-01-03 the zero USD sum is not listed; the posting has no amount at all
+  b  == 10 EUR
+  z
+
+2026-01-04 zero USD sum is not listed, but EUR differs
+  b  == 12 EUR
+  z
+
+2026-01-05 nothing to change
+  c  == 10 EUR
+  z
+
+2026-01-06 asserted commodity not in the account
+  g  == 10 JPY
+  z
+
+2026-01-07 == 0 EUR: every commodity is zeroed
+  d  == 0 EUR
+  z
+
+2026-01-08 == 0: the commodity-less zero, same
+  f  == 0
+  z
+
+2026-01-09 a commodity-less balance is a commodity of its own
+  e  == 0 USD
+  z
+
+2026-01-10 after ==, the balance is exactly the asserted amount
+  a  == 11 EUR
+  a  = 0 ZZ
+  a  = 0 mm
+  a  == 11.0 EUR
+  z
+
+2026-01-11 a single-commodity assignment leaves other commodities alone: the USD is still there
+  h  = 9 EUR
+  h  == 9 EUR
+  z

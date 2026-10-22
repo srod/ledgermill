@@ -1,0 +1,8 @@
+2026-01-01 failing assertion, first in the file
+  a  1 EUR = 9 EUR
+  b  -1 EUR
+
+2026-01-02 two amounts left out
+  a  1 EUR
+  b
+  c

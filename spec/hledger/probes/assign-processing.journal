@@ -1,0 +1,46 @@
+2026-01-01 no assignment: the elided amount is known for the assertion below it
+  a  5 EUR
+  b
+  b  0 EUR = -5 EUR
+
+2026-01-02 an assignment in the transaction: c's amount is added at the end of it
+  c
+  d  = 5 EUR
+  c  0 EUR = 0 EUR
+
+2026-01-03 so the next day it is there
+  c  0 EUR = -5 EUR
+  y
+
+2026-01-04 an assignment of m itself sees a balance without the elided amount; it is added after
+  m
+  f  = 5 EUR
+  m  = -7 EUR
+
+2026-01-05 -7 plus the elided 2
+  m  0 EUR = -5 EUR
+  y
+
+2026-01-06 a virtual assignment counts as an assignment, and so does a zero difference
+  g  5 EUR
+  h
+  (v)  = 0 EUR
+  h  0 EUR = 0 EUR
+
+2026-01-07 plain transactions: posting dates split the transaction
+  k  5 EUR
+  k  1 EUR  ; date:2026-03-01
+  z
+
+2026-01-08 asserting before the 1st of March
+  k  0 EUR = 5 EUR
+  y
+
+2026-01-09 an assignment in the transaction: it is processed as a whole, at its date
+  l  = 5 EUR
+  l  1 EUR  ; date:2026-03-01
+  z
+
+2026-01-10 so the dated posting is already there
+  l  0 EUR = 6 EUR
+  y

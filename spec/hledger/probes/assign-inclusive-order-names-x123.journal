@@ -1,0 +1,9 @@
+2026-01-01 1.25, 3, -1.25 over three sub-accounts, named x1, x2, x3
+  a:x1  1.25 EUR
+  a:x2  3 EUR
+  a:x3  -1.25 EUR
+  z
+
+2026-01-02 asserting 4 for a and all below
+  a  =* 4 EUR
+  z

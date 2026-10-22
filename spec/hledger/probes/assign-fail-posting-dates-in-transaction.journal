@@ -1,0 +1,8 @@
+2026-01-01 an assignment in the transaction: the posting dated March is in on the 1st of February
+  a  = 5 EUR
+  a  1 EUR  ; date:2026-03-01
+  z
+
+2026-02-01 the postings are processed as a block
+  a  0 EUR = 5 EUR
+  y

@@ -1,0 +1,7 @@
+2026-01-01 open
+  a  10 EUR
+  b  -10 EUR
+
+2026-01-02 a number with no commodity is a commodity of its own
+  a  0 EUR = 10
+  b  0 EUR

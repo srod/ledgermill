@@ -1,0 +1,8 @@
+2026-01-01 failing assertion, first in the file
+  a  1 EUR = 9 EUR
+  b  -1 EUR
+
+2026-01-02 a posting that does not parse
+  a  1 EUR
+  b  -2 EUR
+  c  1 ++

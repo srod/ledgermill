@@ -1,0 +1,52 @@
+2026-01-01 setup: one account per case
+  l1  1 X {10 EUR}
+  l1  1 X {10 EUR}
+  l2  1 X {10 EUR}
+  l2  1 X
+  l4  1 X {10 EUR}
+  l4  0 X
+  l5  0 X
+  l5  1 X {10 EUR}
+  l6  2 X [2026-01-01] (lbl) {10 EUR}
+  l7  2 X {{30 EUR}}
+  l8  2 X {10 EUR}
+  l9  2 X {10 EUR} @ 12 EUR
+  l10  2 X {10 EUR}
+  l10  3 EUR
+  z
+
+2026-01-02 the same lot twice, or a lot and a plain amount: no lot
+  l1  == 0 EUR
+  l2  == 0 EUR
+  z
+
+2026-01-03 a zero amount counts as an amount
+  l4  == 0 EUR
+  l5  == 0 EUR
+  z
+
+2026-01-04 one posting: its lot, with date and label
+  l6  == 0 EUR
+  l7  == 0 EUR
+  z
+
+2026-01-05 the asserted commodity itself never gets a lot
+  l8  = 1 X
+  z
+
+2026-01-06 a lot and a price on one posting: the price is dropped, the lot stays
+  l9  == 0 EUR
+  z
+
+2026-01-07 other commodities of the account keep theirs
+  l10  == 3 EUR
+  z
+
+2026-01-08 two lots of different cost
+  l11  2 X {10 EUR}
+  l11  3 X {11 EUR}
+  z
+
+2026-01-09 two lots of different cost, over two days: no lot
+  l11  == 0 EUR
+  z

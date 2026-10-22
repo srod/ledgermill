@@ -1,0 +1,7 @@
+2026-01-01 assignment makes it unbalanced
+  c  = 5 EUR
+  d  = -4 EUR
+
+2026-01-02 failing assertion, later date
+  a  1 EUR = 9 EUR
+  b  -1 EUR

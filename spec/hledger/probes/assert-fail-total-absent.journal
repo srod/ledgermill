@@ -1,0 +1,7 @@
+2026-01-01 open
+  a  10 EUR
+  b  -10 EUR
+
+2026-01-02 == 10 USD: no USD, and EUR is not zero
+  a  0 EUR == 10 USD
+  b  0 EUR

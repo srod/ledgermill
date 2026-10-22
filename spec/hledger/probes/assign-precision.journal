@@ -1,0 +1,15 @@
+2026-01-01 setup
+  a  1.234 EUR
+  z
+
+2026-01-02 the assigned 0.766 has three places: -0.766 balances it
+  a  = 2 EUR
+  b  -0.766 EUR
+
+2026-01-03 the places of an assertion alone do not count: 0.44 rounds to 0.4
+  c  1 X @ 0.44 EUR
+  d  -0.4 EUR = -0.4000 EUR
+
+2026-01-04 and an assignment of 0.4 has one place
+  e  1 X @ 0.44 EUR
+  f  = -0.4 EUR

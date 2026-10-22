@@ -1,0 +1,7 @@
+2026-01-01 open
+  a  10 EUR
+  b  -10 EUR
+
+2026-01-02 the second posting fails: 10 + 5 is not 99
+  a  5 EUR = 99 EUR
+  b  -5 EUR

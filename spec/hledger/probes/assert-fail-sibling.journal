@@ -1,0 +1,8 @@
+2026-01-01 open
+  a  7 EUR
+  ab  2 EUR
+  b
+
+2026-01-02 ab is not a sub-account of a
+  a  0 EUR =* 9 EUR
+  b  0 EUR

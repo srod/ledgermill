@@ -1,0 +1,8 @@
+2026-01-01 open
+  a  7 EUR
+  a:s  2 EUR
+  b
+
+2026-01-02 =* counts the sub-account
+  a  0 EUR =* 7 EUR
+  b  0 EUR

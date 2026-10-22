@@ -1,0 +1,48 @@
+2026-01-01 setup: commodities, costs, lots, a sub-account, a sibling
+  a  10 EUR
+  a  5 USD
+  a  3 X @ 2 EUR
+  a  2 X @ 3 EUR
+  a  4 Y {10 EUR}
+  a  5 Y {12 EUR}
+  a  1.50 GBP
+  a  0.50 GBP
+  a:s  7 EUR
+  ab  100 EUR
+  w  10 EUR
+  w  3 USD
+  w  -3 USD
+  n  -5 EUR
+  z
+
+2026-01-02 each assertion looks at one commodity of one account
+  a  0 EUR = 10 EUR
+  a  0 USD = 5 USD
+  a  0 X = 5 X
+  a  0 Y = 9 Y
+  a  0 GBP = 2 GBP
+  a  0 GBP = 2.000 GBP
+  a  0 EUR = 0.1e2 EUR
+  a  0 EUR = 10 EUR @ 99 USD
+  a  0 EUR = 10 EUR @@ 99 USD
+  a  0 GBP = 0 JPY
+  a  0 GBP = 0
+  ab  0 EUR = 100 EUR
+  n  0 EUR = -5 EUR
+  n  0 EUR = EUR -5
+  c  0 EUR = 0 EUR
+  c  0 EUR = 0
+  c  0 EUR == 0 EUR
+  c  0 EUR == 0
+  w  0 EUR == 10 EUR
+  w  0 EUR = 10 EUR
+  w  0 USD = 0 USD
+  y
+
+2026-01-03 with sub-accounts
+  a  0 EUR =* 17 EUR
+  a  0 EUR = 10 EUR
+  a:s  0 EUR =* 7 EUR
+  ab  0 EUR =* 100 EUR
+  c  0 EUR =* 0 EUR
+  y

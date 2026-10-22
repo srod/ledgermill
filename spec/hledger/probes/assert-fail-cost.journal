@@ -1,0 +1,7 @@
+2026-01-01 open
+  a  3 X @ 2 EUR
+  b  -6 EUR
+
+2026-01-02 a at-price posting adds X, not EUR
+  a  0 X = 6 EUR
+  b  0 X
