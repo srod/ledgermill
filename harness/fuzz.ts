@@ -1,7 +1,8 @@
 // bun harness/fuzz.ts [COUNT] [SEED] [--keep]
 // Random journals, mostly valid, compared like the corpus: hledger against our wasm. Covers
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
-// inferred prices, conversion postings, virtual postings and big numbers. Every case must
+// inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
+// numbers, so that assertions often hold) and big numbers. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -257,7 +258,80 @@ function transaction(style: Style): string {
   return t;
 }
 
+// ───────────── balance assertions and assignments ─────────────
+const BALANCE_ACCOUNTS = ["a", "a:b", "a:b:c", "a:d", "ab", "c"] as const;
+const BALANCE_COMMODITIES = ["EUR", "USD", "X", ""] as const;
+const PLAIN: Style = { mark: ".", group: "" };
+/** A small number, now and then with places, so that sums and assertions meet. */
+function small(): N {
+  const dp = pick([0, 0, 0, 1, 2]);
+  return { v: BigInt(int(9) - 4) * 10n ** BigInt(dp), dp };
+}
+const withCommodity = (c: string, x: N) => (c === "" ? digits(x, PLAIN) : `${digits(x, PLAIN)} ${c}`);
+const assertion = () => `${pick(["=", "==", "=*", "==*"])}${chance(0.5) ? " " : ""}${withCommodity(pick(BALANCE_COMMODITIES), small())}`;
+
+function balanceTransaction(): string {
+  let t = `2026-01-0${1 + int(5)} t${int(9)}\n`;
+  const dated = () => (chance(0.1) ? `  ; date:2026-01-0${1 + int(5)}` : "");
+  const name = (account: string) => (chance(0.1) ? `(${account})` : account);
+  const plain = (account: string, body: string) => `    ${name(account)}  ${body}${dated()}\n`;
+  const account = () => pick(BALANCE_ACCOUNTS);
+  const c = pick(BALANCE_COMMODITIES);
+  switch (int(5)) {
+    case 0: {
+      // plain postings, some with an assertion; the last one balances (or is elided)
+      let sum = 0n;
+      const dp = pick([0, 0, 1, 2]);
+      for (let k = 0, n = 1 + int(3); k < n; k++) {
+        const x = { v: BigInt(int(9) - 4) * 10n ** BigInt(dp), dp };
+        sum += x.v;
+        t += plain(account(), `${withCommodity(c, x)}${chance(0.4) ? ` ${assertion()}` : ""}`);
+      }
+      t += plain(account(), chance(0.5) ? "" : `${withCommodity(c, { v: -sum, dp })}${chance(0.3) ? ` ${assertion()}` : ""}`);
+      break;
+    }
+    case 1: {
+      // assignments, the partner takes what is left
+      for (let k = 0, n = 1 + int(2); k < n; k++) t += plain(account(), assertion());
+      t += plain("z", "");
+      break;
+    }
+    case 2: {
+      // a plain posting, an assignment of the same or another account, an elided partner
+      t += plain(account(), `${withCommodity(c, small())}${chance(0.4) ? ` ${assertion()}` : ""}`);
+      t += plain(account(), assertion());
+      t += plain("z", "");
+      break;
+    }
+    case 3: {
+      // lots and prices on the postings, then an assignment that zeroes them
+      const lot = pick(["{10 EUR}", "{{30 EUR}}", "[2026-01-01] (l) {10 EUR}", "@ 3 EUR", "@@ 9 USD"]);
+      t += plain(account(), `${withCommodity("X", small())} ${lot}`);
+      if (chance(0.5)) t += plain(account(), withCommodity("X", small()));
+      t += plain(account(), assertion());
+      t += plain("z", "");
+      break;
+    }
+    default: {
+      // an assertion on the elided posting's account, before or after it, with an assignment
+      t += plain("e", "");
+      t += plain(account(), assertion());
+      t += plain("e", `${withCommodity(c, { v: 0n, dp: 0 })} ${assertion()}`);
+      break;
+    }
+  }
+  return t;
+}
+
+function balanceJournal(): { text: string; second?: string } {
+  let text = "";
+  for (let k = 0, n = 1 + int(5); k < n; k++) text += `${balanceTransaction()}\n`;
+  const second = chance(0.2) ? `${balanceTransaction()}\n` : undefined;
+  return second === undefined ? { text } : { text, second };
+}
+
 function journal(): { text: string; second?: string } {
+  if (chance(0.3)) return balanceJournal();
   const { style, header } = fileStyle();
   let text = header;
   if (chance(0.2)) text += "D 1.00 EUR\n";
