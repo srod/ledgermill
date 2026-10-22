@@ -464,3 +464,11 @@ err:3	year 12
 err:3	year months
 err:3	years q3 days 2026
 err:3	years5th 3rd last 1999
+ok	123456789
+ok	2026-01-01 to 2026-02-01
+err:13	2026-02-30 to 2027
+err:11	202601151
+ok	202602301
+err:11	202612311
+ok	every 5th day of week
+ok	monthly 2026-02-30

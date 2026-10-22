@@ -21,6 +21,9 @@ Each note has:
 - `hledger/show-assertions.sh` prints the assertions hledger reads (position, asserted amount, flags, the
   amounts an assignment got). `hledger/assertion-verdicts.sh` prints hledger's verdict on every journal with an
   assertion or assignment, and for a rejected one the file, line and kind of its first error.
+- `hledger/probe-verdicts.sh` prints hledger's verdict and first error (file, line, column) on probe journals
+  (by default the `rule-*` ones); `hledger/period-verdicts.sh` does the same for period expressions, and
+  `hledger/period-forms.txt` is its output on a corpus of 474 of them.
 - `hledger/prototype-observations.md` – the notes of our earlier TypeScript prototype, kept as a
   starting point. They are our own text, written from running hledger.
 
@@ -64,6 +67,7 @@ Each note has:
 | [assignment-processing](hledger/assignment-processing.md) | balancing, elided amounts, plain vs assignment transactions, what is refused |
 | [assertion-failures](hledger/assertion-failures.md) | the line blamed, which failure and which error comes first, `-I` |
 | [assertion-verdicts](hledger/assertion-verdicts.md) | hledger's verdict and first error on every corpus journal with an assertion |
+| [rules-ignored](hledger/rules-ignored.md) | `=` and `~` rules: what is read, what is an error, period expressions, no effect on the rest |
 
 ## Index (Beancount 3.2.3)
 
