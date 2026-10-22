@@ -186,6 +186,28 @@ fn an_odd_leading_run_of_conversion_postings_before_a_priced_posting() {
     );
 }
 
+#[test]
+fn the_amounts_of_a_posting_are_merged_per_commodity_after_conversion() {
+    assert_eq!(
+        at_cost(&[probe!("assign-cost")]),
+        [
+            "2026-01-01  a: X 3 | b: X 3 | c: X 1 | c: X -1 | d: EUR 6 | d: EUR 6 | d: X 4 | e: X 3 | f: Y 2 | z: EUR -12, X -13, Y -2",
+            "2026-01-02  d: X 1 | z: X -1",
+            "2026-01-03  a: EUR 6, X -3 | z: EUR -6, X 3",
+            "2026-01-04  a: EUR -6, X 5 | z: EUR 6, X -5",
+            "2026-01-05  b: EUR 6, X -3 | z: EUR -6, X 3",
+            "2026-01-06  c: EUR 6 | z: EUR -6",
+            "2026-01-07  g: EUR 6 | z: EUR -6",
+            "2026-01-08  g: X 1 | g: EUR -6, X 3 | z: EUR 6, X -4",
+            "2026-01-09  f: EUR 6, Y -2 | z: EUR -6, Y 2",
+            "2026-01-10  h: EUR 1 | h: EUR 1 | z: EUR -2",
+            "2026-01-11  i: EUR 3 | i: EUR -2 | z: EUR -1",
+            "2026-01-12  j: EUR 2 | j: EUR -1 | j: EUR 8 | j: EUR -9, USD 1 | j: USD -1, X 1 | j: X -1 | z: EUR 0, USD 0, X 0",
+            "2026-01-13  k: EUR 6 | k: X 1 | k: X 0 | z: EUR -6, X -1",
+        ]
+    );
+}
+
 // ───────────── what is refused ─────────────
 
 fn refusal(files: &[(&str, &str)]) -> ledgermill::Finding {
