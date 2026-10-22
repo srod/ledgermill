@@ -1,0 +1,17 @@
+2026-01-01 open Assets:Stock BTC "HIFO"
+2026-01-01 open Assets:Short BTC "NONE"
+2026-01-01 open Assets:Bank EUR
+
+2026-01-02 * "tie"
+  Assets:Stock  1 BTC {10 EUR, "a"}
+  Assets:Stock  1 BTC {10 EUR, "b"}
+  Assets:Bank  -20 EUR
+
+2026-01-03 * "hifo tie reduce"
+  Assets:Stock  -1 BTC {}
+  Assets:Bank  10 EUR
+
+2026-01-04 * "none mixed signs"
+  Assets:Short  -1 BTC {10 EUR}
+  Assets:Short   2 BTC {12 EUR}
+  Assets:Bank  -14 EUR

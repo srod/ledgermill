@@ -1,0 +1,24 @@
+2026-01-01 open Assets:Stock BTC "FIFO"
+2026-01-01 open Assets:Bank EUR
+2026-01-01 open Income:Gain EUR
+
+2026-01-03 * "total cost"
+  Assets:Stock  3 BTC {{30 EUR}}
+  Assets:Bank  -30 EUR
+
+2026-01-04 * "per-unit and total"
+  Assets:Stock  2 BTC {10 # 1.50 EUR}
+  Assets:Bank  -21.50 EUR
+
+2026-01-05 * "cost with date and label"
+  Assets:Stock  1 BTC {7 EUR, 2025-12-01, "old"}
+  Assets:Bank  -7 EUR
+
+2026-02-01 * "sell across four lots"
+  Assets:Stock  -6 BTC {}
+  Assets:Bank  120 EUR
+  Income:Gain
+
+2026-02-02 * "elided units from cost"
+  Assets:Stock  1 BTC {7 EUR, "old"}
+  Assets:Bank

@@ -27,7 +27,8 @@ Each note has:
   cost_number,cost_currency,cost_date,cost_label,price_number,price_currency,filename,lineno`;
   `id` is shortened to 6 characters and shared by the postings of a transaction. A price is the
   per-unit price, a cost the lot's cost per unit.
-- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses.
+- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses, and `beancount/probes/pending/` those it
+  gets wrong today and is to be fixed (neither is run by the harness).
 
 ## Index (hledger 1.52.4)
 
@@ -63,6 +64,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [numbers-and-interpolation](beancount/numbers-and-interpolation.md) | number forms, exponents, elided amounts, places, currency groups |
 | [prices](beancount/prices.md) | `@`, `@@`, per-unit prices, the weight of a total price |
 | [lots-and-booking](beancount/lots-and-booking.md) | `{}` costs, reductions, negative lots, booking methods |
+| [inferred-cost-and-price](beancount/inferred-cost-and-price.md) | `{}` and `@ EUR`: the cost or price left to balancing (not built yet) |
 | [balancing](beancount/balancing.md) | tolerance, unbalanced transactions, two elided postings |
 | [source-lines-and-ordering](beancount/source-lines-and-ordering.md) | reported lines, output order |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |

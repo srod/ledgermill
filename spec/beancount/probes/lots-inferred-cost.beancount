@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Stock BTC "FIFO"
+2026-01-01 open Assets:Bank EUR
+
+2026-01-02 * "inferred cost"
+  Assets:Stock  4 BTC {}
+  Assets:Bank  -50.00 EUR

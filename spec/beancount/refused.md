@@ -33,7 +33,8 @@ Also refused, without a probe because nothing needs a reference to confirm it:
 - `number-too-large`: more than 22 characters in a number. `number-too-precise`: a figure that
   needs more digits than ledgermill handles.
 - `inferred-price`: a price with its number or currency left out. `inferred-cost`: a new lot
-  whose cost is left to be worked out.
+  whose cost is left to be worked out. What the reference does with both is in
+  inferred-cost-and-price.md; they stay refused until that is built.
 - `several-beancount-files` and `mixed-formats`: more than one Beancount file in one `load`, or
   Beancount and hledger files together (reported at line 1: of the first Beancount file for a mix,
   of the second one for several). Only a single root file is read, so an `include` cannot be followed either.

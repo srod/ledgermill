@@ -1,0 +1,9 @@
+2026-01-01 open Assets:Stock BTC,EUR,USD
+2026-01-01 open Assets:Fifo BTC,EUR,USD "FIFO"
+2026-01-01 open Assets:Bank EUR,USD
+2026-01-01 open Assets:Other EUR,USD
+2026-01-01 open Income:Gain EUR,USD
+
+2026-01-02 * "cost date and label"
+  Assets:Stock  4 BTC {2025-12-30, "x"}
+  Assets:Bank  -50.00 EUR

@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Stock BTC,EUR
+2026-01-01 open Assets:Bank EUR
+
+2026-01-02 * "zero units open"
+  Assets:Stock  0 BTC {}
+  Assets:Bank  -5.00 EUR
