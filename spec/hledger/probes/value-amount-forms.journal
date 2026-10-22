@@ -1,0 +1,14 @@
+; what happens to an amount with a price (cost) or a lot, and to a commodity-less one
+P 2026-01-01 X 2 EUR
+P 2026-01-01 EUR 1.1 USD
+
+2026-01-02 t
+    (a)  3 X @ 4 EUR
+    (b)  3 X @@ 12 EUR
+    (c)  3 X {4 EUR}
+    (d)  3 X {4 EUR} @ 5 EUR
+    (e)  3 X {4 EUR} [2026-01-01] (lbl)
+    (f)  3 EUR @ 4 USD
+    (g)  3 Y @ 4 EUR
+    (h)  3
+    (i)  3 EUR {4 USD}

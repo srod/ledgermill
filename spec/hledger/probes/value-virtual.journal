@@ -1,0 +1,9 @@
+; virtual and balanced virtual postings are valued like the others
+P 2026-01-01 X 2 EUR
+
+2026-01-02 t
+    a  1 X
+    (v)  2 X
+    [bv]  3 X
+    [bw]  -3 X
+    b

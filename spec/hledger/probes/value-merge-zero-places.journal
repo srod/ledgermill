@@ -1,0 +1,29 @@
+; a sum starts from its first amount; adding a zero gives the other amount back with its places.
+; The elided posting y holds one amount per commodity in name order; valued in M, the amounts of A, B, N, O
+; are worth 1.25 M each.
+P 2026-01-01 A 1.25 M
+P 2026-01-01 B 1.25 M
+P 2026-01-01 N 1.25 M
+P 2026-01-01 O 1.25 M
+
+2026-01-02 y is 1.25 M, -1.25 M, 3 M: the zero comes first
+    x  -1 A
+    x  1 B
+    x  -3 M
+    y
+
+2026-01-02 y is 3 M, 1.25 M, -1.25 M: no zero until the end
+    x  -3 M
+    x  -1 N
+    x  1 O
+    y
+
+2026-01-02 y is 0 (from A), then M 0.00: the first zero is kept
+    x  0 A
+    x  0.00 M
+    y
+
+2026-01-02 y is M 0.00, then 0 (from N): the first zero is kept
+    x  0.00 M
+    x  0 N
+    y

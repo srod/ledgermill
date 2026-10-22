@@ -1,0 +1,20 @@
+; the elided posting b holds one amount per commodity, in name order; valued in EUR, those that
+; convert join the EUR amount in that order, and the others stay, all sorted by name
+P 2026-01-01 B 2 EUR
+P 2026-01-01 b 3 EUR
+P 2026-01-01 A 1 EUR
+
+2026-01-02 many
+    x  1 A
+    x  1 B
+    x  1 C
+    x  1 EUR
+    x  1 b
+    x  1 Z
+    x  1 a
+    y
+
+2026-01-02 empty commodity sorts first
+    x  1 B
+    x  4
+    y

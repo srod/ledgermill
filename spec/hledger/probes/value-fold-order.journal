@@ -1,0 +1,7 @@
+; a path of three edges, two of them inverse; a big amount shows the 255th place
+P 2026-01-01 A 0.3 B
+P 2026-01-01 C 0.3 B
+P 2026-01-01 D 0.07 C
+
+2026-01-02 t
+    (x)  1e245 A

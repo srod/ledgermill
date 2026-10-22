@@ -1,0 +1,11 @@
+; an elided posting has one amount per commodity; after valuation they are summed per commodity
+; at full precision and rounded once: three thirds make 1, not 0.9999999999
+P 2026-01-01 X 3 T
+P 2026-01-01 X 3 U
+P 2026-01-01 X 3 V
+
+2026-01-02 t
+    a  1 T
+    a  1 U
+    a  1 V
+    b

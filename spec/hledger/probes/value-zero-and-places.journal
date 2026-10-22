@@ -1,0 +1,16 @@
+; a converted amount loses its trailing zeros; an exact zero has no places, a rounded one has ten;
+; an amount already in the target keeps what it was written with
+P 2026-01-01 X 2 EUR
+P 2026-01-01 Y 0.5 EUR
+P 2026-01-01 Z 0 EUR
+
+2026-01-02 t
+    (a)  1.50 X
+    (b)  1.25 Y
+    (c)  0.00 X
+    (d)  7 Z
+    (e)  0.0000000001 Y
+    (f)  2.500 EUR
+    (g)  0.00 EUR
+    (h)  100.0000 Y
+    (i)  -0.0000000001 Y

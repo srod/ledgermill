@@ -1,0 +1,13 @@
+; the result is rounded to ten places, half to even, only at the end; X is worth 1 EUR
+P 2026-01-01 X 1 EUR
+
+2026-01-02 t
+    (a)  0.00000000005 X
+    (b)  0.00000000015 X
+    (c)  0.00000000025 X
+    (d)  0.00000000035 X
+    (e)  -0.00000000015 X
+    (f)  -0.00000000025 X
+    (g)  0.000000000250001 X
+    (h)  0.12345678905 X
+    (i)  0.12345678915 X

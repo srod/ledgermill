@@ -1,0 +1,31 @@
+; elided amounts, assertions and assignments are worked out on the amounts as written; only then
+; are the amounts valued. The result need not balance: the transactions are not checked again.
+P 2026-01-01 X 2 EUR
+P 2026-01-01 Y 3 X
+P 2026-01-01 EUR 1.1 USD
+
+2026-01-02 an elided amount takes the cost of a priced posting, then is valued
+    a  3 X @ 4 EUR
+    b
+
+2026-01-02 an assertion compares 5 X, not their value
+    c  5 X = 5 X
+    d
+
+2026-01-03 an assignment fills in 3 X (8 minus 5)
+    c  = 8 X
+    d
+
+2026-01-04 the amount left out is the sum of two commodities, valued apart
+    c  1 X = 9 X
+    e  3 Y
+    d
+
+2026-01-05 a total assignment zeroes X and Y: the amounts add up to zero in EUR
+    c  == 3 Y
+    d
+
+2026-01-06 an inclusive assignment
+    c:s  4 X
+    c  =* 12 X
+    d
