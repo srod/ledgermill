@@ -10,8 +10,8 @@
 //! arithmetic differs from the reference tool's (spec/beancount/numbers-and-interpolation.md).
 
 use super::plain::{
-    BookFailure, Day, Item, Lot, Method, ParseIssue, RawCost, RawPosting, RawPrice, RawTransaction,
-    Read, Row,
+    BookFailure, Day, IssueKind, Item, Lot, Method, ParseIssue, RawCost, RawPosting, RawPrice,
+    RawTransaction, Read, Row,
 };
 use super::pydec::Num as Number;
 use super::text::{line_of, line_starts};
@@ -164,25 +164,115 @@ fn posting(
     })
 }
 
+/// The name of a tag or metadata key as the reference prints it. The parser's span may cover the
+/// whole pragma (`poptag #name`) or only the name.
+fn bare(written: &str) -> String {
+    let mut words = written.split_whitespace().peekable();
+    if words
+        .peek()
+        .is_some_and(|w| w.starts_with("push") || w.starts_with("pop"))
+    {
+        words.next();
+    }
+    words
+        .next()
+        .unwrap_or("")
+        .trim_start_matches('#')
+        .trim_end_matches(':')
+        .to_string()
+}
+
+/// Whether an indented line of an entry is a posting (and not metadata, a tag line or a comment).
+fn is_posting_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    line.starts_with([' ', '\t'])
+        && !trimmed.starts_with([';', '#', '^'])
+        && trimmed
+            .split_whitespace()
+            .next()
+            .is_some_and(|first| !first.ends_with(':'))
+}
+
+/// The header line of the entry a metadata line belongs to, and whether a posting stands between
+/// the two (so the key is a posting's).
+fn entry_of(text: &str, line: u32) -> (u32, bool) {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let at = usize::try_from(line).unwrap_or(1).saturating_sub(1);
+    let mut posting = false;
+    let mut index = at;
+    while index > 0 {
+        index -= 1;
+        let Some(&above) = lines.get(index) else {
+            break;
+        };
+        if above.starts_with([' ', '\t']) || above.trim().is_empty() {
+            posting |= is_posting_line(above);
+        } else {
+            return (u32::try_from(index + 1).unwrap_or(line), posting);
+        }
+    }
+    (line, posting)
+}
+
+/// One parser error as the plain issue the rest of the code reports.
+fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> ParseIssue {
+    let line = line_of(starts, span.start);
+    let written = text.get(span.start..span.end).unwrap_or("");
+    let (kind, line) = if reason.starts_with("unknown account type") {
+        (IssueKind::InvalidAccount(written.to_string()), line)
+    } else if reason == "missing corresponding pushtag"
+        || reason == "missing corresponding pushmeta"
+    {
+        let metadata = reason.ends_with("pushmeta");
+        let name = bare(written);
+        (IssueKind::PopWithoutPush { metadata, name }, line)
+    } else if reason == "missing corresponding poptag" || reason == "missing corresponding popmeta"
+    {
+        let metadata = reason.ends_with("popmeta");
+        let name = bare(written);
+        (IssueKind::PushNotPopped { metadata, name }, 0)
+    } else if let Some(key) = reason.strip_prefix("duplicate key ") {
+        let (header, posting) = entry_of(text, line);
+        (
+            IssueKind::DuplicateMetadata {
+                key: key.to_string(),
+                posting,
+            },
+            header,
+        )
+    } else {
+        (IssueKind::Syntax, line)
+    };
+    ParseIssue {
+        line,
+        reason: reason.to_string(),
+        kind,
+    }
+}
+
 /// Read one file's text. `text` has no `include` line (the caller refuses those first).
 pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     // Offsets from the parser refer to the rewritten text, so lines are counted in it too.
     let negative_tolerance = super::text::negative_tolerance_lines(text);
     let normalized = super::text::normalize(text);
     let starts = line_starts(&normalized);
-    let sources = parser::BeancountSources::from(normalized);
+    let sources = parser::BeancountSources::from(normalized.as_str());
     let reader = parser::BeancountParser::new(&sources);
     let success = match reader.parse() {
         Ok(success) => success,
         Err(failure) => {
-            return Err(failure
+            let mut issues: Vec<ParseIssue> = failure
                 .errors
                 .iter()
-                .map(|e| ParseIssue {
-                    line: line_of(&starts, e.span().start),
-                    reason: e.reason().to_string(),
-                })
-                .collect());
+                .map(|e| issue(e.reason(), e.span(), &normalized, &starts))
+                .collect();
+            // The reference reports in file order, and the pushes left open last, after the file:
+            // tags before metadata.
+            issues.sort_by_key(|i| match i.kind {
+                IssueKind::PushNotPopped { metadata, .. } => (true, 0, metadata),
+                _ => (false, i.line, false),
+            });
+            return Err(issues);
         }
     };
     let default_method = success

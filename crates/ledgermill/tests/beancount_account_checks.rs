@@ -243,12 +243,12 @@ fn checks_run_after_booking_and_the_does_not_balance_error_is_last() {
         .take(38)
         .collect::<Vec<_>>()
         .join("\n");
-    let found = short_findings("c.beancount", &journal);
-    let lines: Vec<Value> = found
+    let lines: Vec<Value> = findings("c.beancount", &journal)
         .as_array()
         .unwrap()
         .iter()
-        .map(|f| f[0].clone())
+        .filter(|f| f["severity"] == json!("error"))
+        .map(|f| f["line"].clone())
         .collect();
     assert_eq!(
         lines,

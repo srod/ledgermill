@@ -1,0 +1,135 @@
+//! What `check()` says about the file itself: names, tags, metadata, syntax, and the `document`
+//! directive that ledgermill reads and skips (spec/beancount/check-errors.md, check-order.md).
+// Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+mod support;
+
+use ledgermill::load;
+use serde_json::{Value, json};
+use support::*;
+
+fn probe(name: &str) -> String {
+    std::fs::read_to_string(format!(
+        "{}/../../spec/beancount/probes/{name}.beancount",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+}
+
+/// `[line, code]` of each finding, in order.
+fn lines_and_codes(name: &str) -> Value {
+    Value::Array(
+        findings("f.beancount", &probe(name))
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| json!([f["line"], f["code"]]))
+            .collect(),
+    )
+}
+
+#[test]
+fn tags_and_metadata_errors_come_in_file_order_and_the_pushes_left_open_last_on_line_0() {
+    let found = findings("f.beancount", &probe("check-tags-and-meta"));
+    let summary: Vec<Value> = found
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| json!([f["line"], f["code"]]))
+        .collect();
+    assert_eq!(
+        summary,
+        vec![
+            json!([1, "unbalanced-push"]),
+            json!([4, "unbalanced-push"]),
+            json!([8, "duplicate-metadata"]),
+            json!([8, "duplicate-metadata"]),
+            json!([0, "unbalanced-push"]),
+            json!([0, "unbalanced-push"]),
+        ]
+    );
+    assert_eq!(
+        found[0]["details"],
+        json!({ "kind": "tag", "name": "never-pushed", "reason": "pop-without-push" })
+    );
+    assert_eq!(
+        found[1]["details"],
+        json!({ "kind": "metadata", "name": "other", "reason": "pop-without-push" })
+    );
+    assert_eq!(
+        found[2]["details"],
+        json!({ "key": "note", "scope": "entry" })
+    );
+    assert_eq!(
+        found[3]["details"],
+        json!({ "key": "memo", "scope": "posting" })
+    );
+    assert_eq!(
+        found[4]["details"],
+        json!({ "kind": "tag", "name": "left-open", "reason": "push-not-popped" })
+    );
+    assert_eq!(
+        found[5]["details"],
+        json!({ "kind": "metadata", "name": "trip", "reason": "push-not-popped" })
+    );
+}
+
+#[test]
+fn a_bad_account_root_is_an_invalid_name_on_the_line_of_the_name() {
+    let found = findings("f.beancount", &probe("check-account-names"));
+    assert_eq!(found[0]["line"], json!(5));
+    assert_eq!(found[0]["code"], json!("invalid-account-name"));
+    assert_eq!(found[0]["details"], json!({ "account": "Asset:Typo" }));
+}
+
+#[test]
+fn a_syntax_error_is_a_parse_error_and_the_first_one_is_in_file_order() {
+    let found = lines_and_codes("check-parse-errors");
+    assert_eq!(found[0], json!([7, "parse-error"]));
+}
+
+#[test]
+fn a_document_is_read_and_skipped_with_a_warning() {
+    let journal = probe("check-document-existing");
+    let found = findings("f.beancount", &journal);
+    assert_eq!(
+        found,
+        json!([
+            {
+                "code": "ignored-syntax", "severity": "warning", "file": "f.beancount",
+                "line": 3, "details": { "construct": "document" },
+                "message": found[0]["message"]
+            },
+            {
+                "code": "ignored-syntax", "severity": "warning", "file": "f.beancount",
+                "line": 4, "details": { "construct": "document" },
+                "message": found[1]["message"]
+            }
+        ])
+    );
+    // The transaction after them is read as usual.
+    assert_eq!(
+        load(&[file("f.beancount", &journal)]).transactions().len(),
+        1
+    );
+}
+
+#[test]
+fn a_document_on_an_unknown_account_is_an_error_besides_the_warning() {
+    let journal = "2026-01-01 open Assets:A\n2026-01-02 document Assets:Never \"x.pdf\"\n";
+    let found = findings("f.beancount", journal);
+    let codes: Vec<(Value, Value)> = found
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| (f["code"].clone(), f["severity"].clone()))
+        .collect();
+    assert_eq!(
+        codes,
+        vec![
+            (json!("ignored-syntax"), json!("warning")),
+            (json!("account-not-open"), json!("error"))
+        ]
+    );
+}

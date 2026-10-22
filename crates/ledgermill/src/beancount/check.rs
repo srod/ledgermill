@@ -69,6 +69,8 @@ impl Padding {
 
 pub(super) struct Checked {
     pub paddings: Vec<Padding>,
+    /// The lines of the `document` directives: the reference looks for their files, we do not.
+    pub documents: Vec<u32>,
     pub problems: Vec<Problem>,
 }
 
@@ -207,7 +209,18 @@ pub(super) fn run(items: &[Item], kept: &[Kept]) -> Checked {
     currencies_allowed(&entries, &accounts, &mut problems);
     duplicate_assertions(&entries, &mut problems);
     duplicate_commodities(&entries, &mut problems);
-    Checked { paddings, problems }
+    let documents = entries
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Directive(Item::Document { line, .. }, ..) => Some(*line),
+            _ => None,
+        })
+        .collect();
+    Checked {
+        paddings,
+        documents,
+        problems,
+    }
 }
 
 /// What the first `open` and the first `close` of each account say about when it is active.

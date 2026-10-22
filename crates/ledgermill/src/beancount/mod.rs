@@ -19,7 +19,7 @@ use crate::model::{
     Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, Quantity, Severity, Source,
     SourceFile, Status, Transaction,
 };
-use plain::{BookFailure, Item, Method};
+use plain::{BookFailure, IssueKind, Item, Method, ParseIssue};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
@@ -79,6 +79,43 @@ fn refusal_message(construct: &str) -> &'static str {
         "number-too-precise" => "This number needs more digits than are handled.",
         _ => "This is not supported yet.",
     }
+}
+
+/// A parser error as a finding: syntax errors stay `parse-error`, the others have a code of
+/// their own (spec/README.md).
+fn parse_finding(file: &str, issue: ParseIssue) -> Finding {
+    let (code, details, message) = match issue.kind {
+        IssueKind::Syntax => (
+            "parse-error",
+            json!({ "reason": issue.reason }),
+            "Beancount does not accept this.",
+        ),
+        IssueKind::InvalidAccount(account) => (
+            "invalid-account-name",
+            json!({ "account": account }),
+            "The first part of an account name must be Assets, Liabilities, Equity, Income or Expenses.",
+        ),
+        IssueKind::PopWithoutPush { metadata, name } => (
+            "unbalanced-push",
+            json!({ "kind": push_kind(metadata), "name": name, "reason": "pop-without-push" }),
+            "This pops a tag or metadata key that was not pushed.",
+        ),
+        IssueKind::PushNotPopped { metadata, name } => (
+            "unbalanced-push",
+            json!({ "kind": push_kind(metadata), "name": name, "reason": "push-not-popped" }),
+            "This tag or metadata key is pushed and never popped.",
+        ),
+        IssueKind::DuplicateMetadata { key, posting } => (
+            "duplicate-metadata",
+            json!({ "key": key, "scope": if posting { "posting" } else { "entry" } }),
+            "The same metadata key is given twice.",
+        ),
+    };
+    finding(file, issue.line, code, details, message)
+}
+
+fn push_kind(metadata: bool) -> &'static str {
+    if metadata { "metadata" } else { "tag" }
 }
 
 fn status_of(flag: char) -> Status {
@@ -215,15 +252,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         Err(issues) => {
             let findings = issues
                 .into_iter()
-                .map(|i| {
-                    finding(
-                        &file.name,
-                        i.line,
-                        "parse-error",
-                        json!({ "reason": i.reason }),
-                        "Beancount does not accept this.",
-                    )
-                })
+                .map(|i| parse_finding(&file.name, i))
                 .collect();
             return Loaded {
                 transactions: Vec::new(),
@@ -394,6 +423,15 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     }
     // The checks come in the order the reference prints them, not in line order.
     let checked = check::run(&read.items, &kept);
+    findings.extend(checked.documents.iter().map(|&line| Finding {
+        code: "ignored-syntax".into(),
+        severity: Severity::Warning,
+        file: file.name.clone(),
+        line,
+        column: None,
+        details: json!({ "construct": "document" }),
+        message: "The file of a document is not looked for; a missing one is not reported.".into(),
+    }));
     findings.extend(
         checked
             .problems

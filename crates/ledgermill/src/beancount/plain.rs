@@ -151,11 +151,29 @@ pub(super) struct Read {
     pub default_method: Method,
 }
 
+/// What the parser objected to.
+#[derive(Debug, Clone)]
+pub(super) enum IssueKind {
+    /// A token or syntax error; `reason` is the parser's message.
+    Syntax,
+    /// An account whose first component is not one of the five roots.
+    InvalidAccount(String),
+    /// A `poptag` or `popmeta` of something not pushed.
+    PopWithoutPush { metadata: bool, name: String },
+    /// A `pushtag` or `pushmeta` still open at the end of the file.
+    PushNotPopped { metadata: bool, name: String },
+    /// A key given twice under one entry or one posting.
+    DuplicateMetadata { key: String, posting: bool },
+}
+
 /// A line the parser rejects.
 #[derive(Debug, Clone)]
 pub(super) struct ParseIssue {
+    /// The line the reference reports it on: line 0 for a push left open, the entry's header for
+    /// a duplicate key.
     pub line: u32,
     pub reason: String,
+    pub kind: IssueKind,
 }
 
 /// A booked posting: one row of the postings table. A posting reduced across several lots gives
