@@ -1,0 +1,18 @@
+; --value: an amount left as it is keeps its cost and is not added to a converted amount of the same
+; commodity. The assignment on a gives it the amounts that make it 3 EUR in all (a total, ==*).
+P 2026-01-01 EUR 2 X
+
+2026-01-02 total cost
+    (a:d)  4 X @@ 9 USD
+    a  ==* 3 EUR
+    z
+
+2026-01-03 unit cost
+    (a:d)  4 X @ 2 USD
+    a  ==* 3 EUR
+    z
+
+2026-01-04 no cost: the amounts do merge
+    (a:d)  4 X
+    a  ==* 3 EUR
+    z

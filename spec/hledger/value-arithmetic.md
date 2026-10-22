@@ -100,7 +100,7 @@ a `==` assignment ([assignments](assignments.md)). Each amount is valued by the 
 are then **merged per commodity**:
 
 1. every amount is converted at full precision: the stripped `V` of step 3, **not** yet rounded to ten places;
-2. the amounts that end in the same commodity (converted ones, and the ones already in `COMM`) are summed, in the order
+2. the amounts that end in the same commodity (converted ones, and the ones already in `COMM`; for a cost, see below) are summed, in the order
    the posting lists them. The sum starts from the first. Adding a zero leaves the other amount as it is, with its
    places (the first zero kept when both are zero): a zero `b` added to `a` gives `a`; a zero `a` added to
    `b` gives `b`. Otherwise the sum has the places of the one with more places (`1.25 + 0.75` is `2.00`);
@@ -115,6 +115,35 @@ the amounts this merge rule predicts; none had a lot.
 A **lot** is kept on a merged amount only when the amount is alone in its commodity and was not converted.
 The amount of a converted commodity never has a lot; two amounts that merge never do (a converted zero
 counts as an amount).
+
+An amount that is left as it is keeps its **cost** and is not added to an amount of the same commodity that has a
+different cost, or none: a converted amount has none, so it stands apart from a left-over `X -4 @@ USD -9` even when it
+ends in `X` too. Amounts merge when the commodity and the cost agree (same kind of cost in the same commodity and, for a
+unit cost, the same price). The list is ordered by commodity, then no cost first, then by the cost's commodity, a total
+before a unit cost, then by price (as the amounts of an assignment are listed, [assignments](assignments.md)). The same
+holds for `--cost`, [cost](cost.md), where every costed amount is converted and the ones left have no cost.
+
+Probe: `probes/value-merge-costs.journal`. The assignment on `a` gives it `EUR 3` and `X -4 @@ USD -9` (01-02, a total
+cost; `EUR` is worth 2 `X`). Valued in X, the converted `EUR 3` becomes `X 6` and stays beside the `X` amount that kept
+its cost; in EUR the `X -4 @@ USD -9` converts too and merges (3 - 2 = 1). With no cost (01-04) everything merges:
+
+```text
+$ spec/hledger/show-amounts.sh spec/hledger/probes/value-merge-costs.journal
+2026-01-02  a:d: X 4 @@ USD 9 | a: EUR 3, X -4 @@ USD -9 | z: EUR -3, USD 9
+2026-01-03  a:d: X 4 @ USD 2 | a: X -4 @ USD 2 | z: USD 8
+2026-01-04  a:d: X 4 | a: X -4 | z: X 4
+$ spec/hledger/show-amounts.sh --value=2026-01-05,X spec/hledger/probes/value-merge-costs.journal
+2026-01-02  a:d: X 4 @@ USD 9 | a: X 6, X -4 @@ USD -9 | z: USD 9, X -6
+2026-01-03  a:d: X 4 @ USD 2 | a: X -4 @ USD 2 | z: USD 8
+2026-01-04  a:d: X 4 | a: X -4 | z: X 4
+$ spec/hledger/show-amounts.sh --value=2026-01-05,EUR spec/hledger/probes/value-merge-costs.journal
+2026-01-02  a:d: EUR 2 | a: EUR 1 | z: EUR -3, USD 9
+2026-01-03  a:d: EUR 2 | a: EUR -2 | z: USD 8
+2026-01-04  a:d: EUR 2 | a: EUR -2 | z: EUR 2
+```
+
+Two unconverted amounts with the same cost in one posting cannot be built (an assignment adds the entries of a price
+group itself), so whether they are added was not probed; the engine adds them.
 
 ### Probe
 
