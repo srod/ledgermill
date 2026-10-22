@@ -85,7 +85,7 @@ and `app/NAME` is in `../../harness/journals/app/`.
 | periodic rule `~` with its postings | ignored (warning) | `rule-periodic-basic`, `rule-periodic-headers`, `rule-periodic-description`, `rule-periodic-postings` |
 | `include` (a file that exists; a missing one is an error) | unsupported | `refused/include` |
 | a timeclock, timedot or CSV file (read by hledger by its extension) | unsupported | `refused/timeclock.timeclock`, `refused/timedot.timedot`, `refused/csv.csv` |
-| a timeclock line (`i`, `o`) in a journal, `!include`, an unknown word at the margin | supported (hledger rejects them) | `directive-forms.txt` (lines `i ...`, `o ...`, `!include`, `x`) |
+| a timeclock line (`i`, `o`) in a journal, `!include`, an unknown word at the margin (hledger rejects them) | supported | `directive-forms.txt` (lines `i ...`, `o ...`, `!include`, `x`) |
 
 "supported" for a line that hledger rejects means that ledgermill rejects it too, with a `parse-error` on
 the line hledger names (the whole file, for a rejected file, gives no transaction).

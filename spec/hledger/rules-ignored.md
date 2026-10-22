@@ -152,9 +152,9 @@ grammar above; none of them is a plausible rule): a `-` or `..` glued after a da
 The probes are under `probes/`, `rule-*.journal`. Rules that are read:
 
 - `rule-auto-basic`, `rule-periodic-basic`: a rule between two transactions;
-- `rule-auto-headers`: sixteen `=` headers (empty, glued, with a comment, an invalid regex, date, amount and
+- `rule-auto-headers`: seventeen `=` headers (empty, glued, with a comment, an invalid regex, date, amount and
   quote, a tab after the sign), none rejected;
-- `rule-periodic-headers`: about thirty period expressions; `rule-periodic-description`: what may follow
+- `rule-periodic-headers`: twenty-four period expressions; `rule-periodic-description`: what may follow
   one (two blanks and a description, a comment with one blank, with none, with two; a tab or a tab
   and a space);
 - `rule-auto-postings`, `rule-periodic-postings`, `rule-auto-multiplier`: what a rule's postings may
@@ -166,7 +166,8 @@ The probes are under `probes/`, `rule-*.journal`. Rules that are read:
 - `rule-file-c`: a rule alone in a file.
 
 Rules that are rejected: the table below, and the pairs `rule-file-a` + `rule-file-b`,
-`rule-file-b` + `rule-file-a`, `rule-file-c` + `rule-file-a`.
+`rule-file-b` + `rule-file-a`, `rule-file-c` + `rule-file-a` (`specPairs` of `harness/compare.ts` does not list
+them yet: add them with the engine, so the harness compares the first error across files).
 
 Command, from the repository root:
 
