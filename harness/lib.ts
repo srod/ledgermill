@@ -141,8 +141,9 @@ export function firstHledgerError(stderr: string): Position | null {
 
 type Reference = { ok: true; transactions: Transaction[] } | { ok: false; message: string; first: Position | null };
 
-async function runHledger(paths: string[]): Promise<Reference> {
-  const proc = Bun.spawn(["hledger", "--no-conf", ...paths.flatMap((p) => ["-f", p]), "print", "-O", "json"], {
+/** `extra` options go after `print`, e.g. `--cost` or `--value=2026-01-01,EUR`. */
+async function runHledger(paths: string[], extra: string[] = []): Promise<Reference> {
+  const proc = Bun.spawn(["hledger", "--no-conf", ...paths.flatMap((p) => ["-f", p]), "print", "-O", "json", ...extra], {
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -169,6 +170,33 @@ function runOurs(paths: string[]): Ours {
       findings: JSON.parse(ledger.check()),
     };
   } catch (error) {
+    return { thrown: String(error) };
+  } finally {
+    ledger?.free();
+  }
+}
+
+/** What `atCost()` or `value()` of our wasm gave: transactions, a refusal (the finding the core returned) or a crash. */
+type Answer = { transactions: Transaction[] } | { refused: Finding } | { thrown: string };
+
+/**
+ * Load `paths` and call one of the ledger's methods that returns transactions as JSON. The wasm throws an
+ * `Error` whose message is the finding as JSON when the core refuses (see crates/ledgermill-wasm/src/lib.rs).
+ */
+function runOursQuery(paths: string[], call: (ledger: ReturnType<typeof wasm.load>) => string): Answer {
+  const files = paths.map((name) => ({ name, content: readFileSync(name, "utf8") }));
+  let ledger: ReturnType<typeof wasm.load> | undefined;
+  try {
+    ledger = wasm.load(JSON.stringify(files));
+    return { transactions: JSON.parse(call(ledger)) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      const finding = JSON.parse(message) as Finding;
+      if (typeof finding?.code === "string") return { refused: finding };
+    } catch {
+      // not a finding: a real crash
+    }
     return { thrown: String(error) };
   } finally {
     ledger?.free();
@@ -511,54 +539,197 @@ export const isBeancountPath = (path: string): boolean => /\.(beancount|bean)$/i
  * spec/hledger/assignments.md).
  */
 export async function compareCase(paths: string[], ignorePlaces = false): Promise<Verdict> {
+  return (await compareRaw(paths, ignorePlaces)).verdict;
+}
+
+/** The verdict of a hledger case, and whether hledger accepts the journal and we agree with it (the other comparisons start from there). */
+async function compareRaw(paths: string[], ignorePlaces: boolean): Promise<{ verdict: Verdict; agreed: boolean }> {
   const [first] = paths;
-  if (first !== undefined && paths.length === 1 && isBeancountPath(first)) return compareBeancountCase(first);
+  if (first !== undefined && paths.length === 1 && isBeancountPath(first)) {
+    return { verdict: await compareBeancountCase(first), agreed: false };
+  }
   const ref = await runHledger(paths);
   const ours = runOurs(paths);
-  if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
+  const no = (verdict: Verdict) => ({ verdict, agreed: false });
+  if ("thrown" in ours) return no({ status: "FAIL", note: `wasm threw: ${ours.thrown}` });
   const errors = ours.findings.filter((f) => f.severity === "error");
 
   const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
-  if (!ref.ok) return compareRejection(ref, errors);
-  if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
-  if (errors[0]) return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, hledger accepts` };
+  if (!ref.ok) return no(compareRejection(ref, errors));
+  if (unsupported) return no({ status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` });
+  if (errors[0]) return no({ status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, hledger accepts` });
   const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.transactions)];
   const diff = ignorePlaces ? firstDiff(valuesOnly(theirs), valuesOnly(mine)) : firstDiff(theirs, mine);
-  if (diff) return { status: "FAIL", note: diff };
-  return { status: "PASS", note: ignorePlaces ? "same values (places may differ)" : "" };
+  if (diff) return no({ status: "FAIL", note: diff });
+  return { verdict: { status: "PASS", note: ignorePlaces ? "same values (places may differ)" : "" }, agreed: true };
+}
+
+// ───────────── --cost and --value ─────────────
+/** A `--value=DATE,COMMODITY` question. */
+export type Query = { date: string; commodity: string };
+
+/**
+ * Compare `hledger print -O json ...extra` with what our wasm answers through `call`, for a journal hledger
+ * accepts. An error of ours that says "not supported yet" is a SKIP (a refusal; see the Gaps of spec/hledger/cost.md and
+ * value-arithmetic.md); any other error, or a hledger failure, is a FAIL.
+ */
+async function compareDerived(
+  paths: string[],
+  extra: string[],
+  call: (ledger: ReturnType<typeof wasm.load>) => string,
+  ignorePlaces: boolean,
+): Promise<Verdict> {
+  const ref = await runHledger(paths, extra);
+  if (!ref.ok) return { status: "FAIL", note: `hledger fails (${ref.message}) where plain print passes` };
+  const ours = runOursQuery(paths, call);
+  if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
+  if ("refused" in ours) {
+    const { code, details, message } = ours.refused;
+    if (code === "unsupported-syntax") return { status: "SKIP", note: `unsupported: ${details.construct ?? "?"}` };
+    return { status: "FAIL", note: `ours returns ${code} (${message}), hledger accepts` };
+  }
+  const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.transactions)];
+  const diff = ignorePlaces ? firstDiff(valuesOnly(theirs), valuesOnly(mine)) : firstDiff(theirs, mine);
+  return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
+}
+
+/** `--cost`: `Ledger::at_cost()` against `hledger print --cost`. Only for a journal hledger accepts. */
+export const compareCost = (paths: string[], ignorePlaces = false): Promise<Verdict> =>
+  compareDerived(paths, ["--cost"], (ledger) => ledger.atCost(), ignorePlaces);
+
+/** `--value=DATE,COMMODITY`: `Ledger::value(date, commodity)` against `hledger print --value=DATE,COMMODITY`. */
+export const compareValue = (paths: string[], { date, commodity }: Query, ignorePlaces = false): Promise<Verdict> =>
+  compareDerived(paths, [`--value=${date},${commodity}`], (ledger) => ledger.value(date, commodity), ignorePlaces);
+
+const isoDate = (t: number): string => new Date(t).toISOString().slice(0, 10);
+const DAY = 86_400_000;
+
+/** The `P` lines of some journal texts: date (`YYYY-MM-DD`), the commodity priced and the commodity of the price. */
+export function priceLines(texts: string[]): { date: string; from: string; to: string }[] {
+  const found: { date: string; from: string; to: string }[] = [];
+  const line = /^P\s*(\d{4})([-/.])(\d{1,2})\2(\d{1,2})\s+(?:\d{1,2}:\d{2}(?::\d{2})?\s+)?("[^"]*"|[^\s\d"-]\S*)\s+(.*)$/;
+  for (const text of texts)
+    for (const l of text.split("\n")) {
+      const m = line.exec(l);
+      if (!m) continue;
+      const [, y, , mo, d, from, rest] = m as unknown as string[];
+      const date = `${y}-${(mo as string).padStart(2, "0")}-${(d as string).padStart(2, "0")}`;
+      // A real date only: `new Date` would roll 02-30 over to March.
+      if (isoDate(Date.parse(`${date}T00:00:00Z`)) !== date) continue;
+      const to = /"([^"]+)"/.exec(rest as string)?.[1] ?? /[^\d\s.,;+\-"@=]+/.exec(rest as string)?.[0] ?? "";
+      found.push({ date, from: (from as string).replace(/^"|"$/g, ""), to });
+    }
+  return found;
+}
+
+/**
+ * `--value` questions for journals with `P` lines: one day before the first price date, each distinct price date
+ * (at most 6, spread evenly when there are more) and 30 days after the last; in EUR, USD, the commodity of
+ * the first price and the first commodity priced. No `P` line, no question.
+ */
+export function valueQueries(texts: string[]): Query[] {
+  const prices = priceLines(texts).filter((p) => p.date >= "1000-01-01" && p.date <= "9998-12-31");
+  const dates = [...new Set(prices.map((p) => p.date))].sort();
+  const [first, last] = [dates[0], dates[dates.length - 1]];
+  if (first === undefined || last === undefined) return [];
+  const spread = dates.length <= 6 ? dates : Array.from({ length: 6 }, (_, i) => dates[Math.floor((i * (dates.length - 1)) / 5)] as string);
+  const at = (date: string, days: number) => isoDate(Date.parse(`${date}T00:00:00Z`) + days * DAY);
+  const when = [...new Set([at(first, -1), ...spread, at(last, 30)])];
+  const [firstPrice] = prices;
+  const targets = [...new Set(["EUR", "USD", firstPrice?.to ?? "", firstPrice?.from ?? ""])].filter((c) => c !== "");
+  return when.flatMap((date) => targets.map((commodity) => ({ date, commodity })));
+}
+
+/** Every comparison of one hledger case: the raw one, `--cost`, and `--value` for each query. The last two only when the first passes. */
+export type Comparison = {
+  raw: Verdict;
+  cost: Verdict | null;
+  values: { query: Query; verdict: Verdict }[];
+};
+
+/**
+ * Compare a case raw, then under `--cost`, then under `--value=DATE,COMM` for `queries` (by default the ones
+ * `valueQueries` makes from the journals' `P` lines). The second and third are not run for a Beancount file, for a journal
+ * hledger rejects, or when the raw comparison does not pass.
+ */
+export async function compareAll(paths: string[], ignorePlaces = false, queries?: Query[]): Promise<Comparison> {
+  const { verdict: raw, agreed } = await compareRaw(paths, ignorePlaces);
+  if (!agreed) return { raw, cost: null, values: [] };
+  const cost = await compareCost(paths, ignorePlaces);
+  const questions = queries ?? valueQueries(paths.map((p) => readFileSync(p, "utf8")));
+  const values: Comparison["values"] = [];
+  for (const query of questions) values.push({ query, verdict: await compareValue(paths, query, ignorePlaces) });
+  return { raw, cost, values };
+}
+
+/** The worst verdict, with its note told apart by what was compared. */
+export function summarize(c: Comparison): Verdict {
+  const parts: { status: Verdict["status"]; note: string }[] = [
+    c.raw,
+    ...(c.cost ? [{ ...c.cost, note: c.cost.note && `cost: ${c.cost.note}` }] : []),
+    ...c.values.map(({ query, verdict }) => ({
+      ...verdict,
+      note: verdict.note && `value=${query.date},${query.commodity}: ${verdict.note}`,
+    })),
+  ];
+  for (const status of ["FAIL", "SKIP"] as const) {
+    const hit = parts.find((p) => p.status === status);
+    if (hit) return { status, note: hit.note };
+  }
+  return { status: "PASS", note: c.raw.note };
 }
 
 const JOBS = 8;
 
-/** Run `cases` (hledger in parallel), print one line each in order (only non-PASS with `quiet`) and the totals; exit code 1 on any FAIL. */
+type Counts = { PASS: number; FAIL: number; SKIP: number };
+const counts = (): Counts => ({ PASS: 0, FAIL: 0, SKIP: 0 });
+const countsLine = (t: Counts) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
+const total = (...ts: Counts[]): Counts => ({
+  PASS: ts.reduce((n, t) => n + t.PASS, 0),
+  FAIL: ts.reduce((n, t) => n + t.FAIL, 0),
+  SKIP: ts.reduce((n, t) => n + t.SKIP, 0),
+});
+
+/** Add what a hledger case compared under `--cost` and `--value` to the tallies. */
+export function tally(c: Comparison, cost: Counts, value: Counts): void {
+  if (c.cost) cost[c.cost.status]++;
+  for (const { verdict } of c.values) value[verdict.status]++;
+}
+
+/**
+ * Run `cases` (hledger in parallel) and print one line each in order (only non-PASS with `quiet`), then the totals;
+ * exit code 1 on any FAIL. A hledger case is compared raw, under `--cost`, and under `--value` at several
+ * dates and commodities when it has `P` lines (see `compareAll`); its line shows the worst of them.
+ */
 export async function runCases(
   cases: { name: string; paths: string[]; ignorePlaces?: boolean }[],
   quiet: boolean,
 ): Promise<void> {
-  const verdicts: Verdict[] = [];
+  const comparisons: Comparison[] = [];
   let next = 0;
   const worker = async () => {
     while (next < cases.length) {
       const i = next++;
       const c = cases[i] as { paths: string[]; ignorePlaces?: boolean };
-      verdicts[i] = await compareCase(c.paths, c.ignorePlaces);
+      comparisons[i] = await compareAll(c.paths, c.ignorePlaces);
     }
   };
   await Promise.all(Array.from({ length: JOBS }, worker));
 
-  const totals = {
-    hledger: { PASS: 0, FAIL: 0, SKIP: 0 },
-    beancount: { PASS: 0, FAIL: 0, SKIP: 0 },
-  };
-  for (const [i, v] of verdicts.entries()) {
+  const totals = { hledger: counts(), beancount: counts() };
+  const cost = counts();
+  const value = counts();
+  for (const [i, comparison] of comparisons.entries()) {
     const c = cases[i] as { name: string; paths: string[] };
-    const t = totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"];
-    t[v.status]++;
+    totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"][comparison.raw.status]++;
+    tally(comparison, cost, value);
+    const v = summarize(comparison);
     if (!quiet || v.status !== "PASS") console.log(`${v.status} ${c.name}${v.note ? `  ${v.note}` : ""}`);
   }
-  const line = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
   const { hledger: h, beancount: b } = totals;
-  if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${line(h)}\nbeancount: ${line(b)}`);
-  console.log(`\n${h.PASS + b.PASS} pass, ${h.FAIL + b.FAIL} fail, ${h.SKIP + b.SKIP} skip`);
-  if (h.FAIL + b.FAIL > 0) process.exitCode = 1;
+  if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${countsLine(h)}\nbeancount: ${countsLine(b)}`);
+  console.log(`\nhledger --cost:  ${countsLine(cost)}\nhledger --value: ${countsLine(value)} (one per date and commodity asked)`);
+  const all = total(h, b, cost, value);
+  console.log(`\n${all.PASS} pass, ${all.FAIL} fail, ${all.SKIP} skip`);
+  if (all.FAIL > 0) process.exitCode = 1;
 }
