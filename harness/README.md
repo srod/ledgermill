@@ -95,7 +95,15 @@ Verdicts are as above, with these Beancount cases:
   compares them with our **first error-severity finding** (`check()` for Beancount is in
   `bean-check`'s order, so this is the reference's first). Same file (by basename) and same line:
   PASS, `both fail, same first error`. Another line or file: FAIL, with both. No error finding of
-  ours: FAIL. Warnings do not count. The exception is a missing `document` file (see SKIP);
+  ours: FAIL. Warnings do not count. The exception is a missing `document` file (see SKIP).
+  When the first error matches and the file was booked, the harness also runs the three
+  `bean-query` queries (which still list the entries of a rejected journal, after its errors) and
+  diffs transactions and flat postings as for an accepted journal, padding included; a
+  difference is a FAIL (`both fail, same first error, same lists` is the PASS). Not diffed, because
+  the lists cannot match by design: a file with a parse-level error (`parse-error`,
+  `invalid-account-name`, `unbalanced-push`, `duplicate-metadata`: the parser gives up on the whole file,
+  bean-query lists part of it) and a file with a `booking-error` other than two elided postings
+  (bean-query keeps such a transaction, often without its postings, and ledgermill leaves it out);
 - `bean-check` accepts the journal and we report a warning (`ignored-syntax`): fine, the
   transactions and postings are compared as usual;
 - we report `unsupported-syntax`: SKIP, whether or not the reference accepts.

@@ -114,8 +114,11 @@ Any of them leaves the file with no transaction at all.
 `parse-error` (error): the parser rejects a line (`details.reason` is its message); the
 transactions are not returned.
 
-`booking-error` (error): bean-check rejects the transaction while booking it, and bean-query
-leaves it out; ledgermill does the same. `details.reason` is one of `ambiguous-lot-match`,
+`booking-error` (error): bean-check rejects the transaction while booking it. For two elided
+postings bean-query leaves it out and ledgermill does the same; for the other reasons bean-query
+keeps it (often with no posting rows, or with an inferred cost that is negative), and ledgermill
+leaves it out: the transactions of such a journal are for diagnostics only (the harness does not diff
+them). `details.reason` is one of `ambiguous-lot-match`,
 `ambiguous-auto-posting`, `not-enough-lots`, `no-matching-lot`, `too-many-missing-numbers`,
 `cannot-determine-currency`, `cannot-infer-units`, `cannot-infer-currency`,
 `cannot-infer-anything`, `cannot-infer-price`, `cannot-infer-price-currency`,

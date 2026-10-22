@@ -265,6 +265,15 @@ pub(super) fn book(
     tx: &RawTransaction,
 ) -> Result<Booked, BookFailure> {
     let filled = infer(books, tx)?;
+    // The reference does not list a posting of zero units whose cost was left to work out (such a
+    // transaction is always rejected, as nothing balances the payment: inferred-cost-and-price.md).
+    let empty_lots: Vec<usize> = tx
+        .postings
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| open_cost(p) && p.units.as_ref().is_some_and(Decimal::is_zero))
+        .map(|(i, _)| i)
+        .collect();
     let tx = &filled;
     if tx.postings.iter().all(is_auto) {
         // Nothing to balance: a lone elided posting vanishes, two cannot be told apart.
@@ -382,7 +391,7 @@ pub(super) fn book(
         *entry = entry.add(&s.units);
     }
     // An elided posting that comes out zero is not kept.
-    slots.retain(|s| !(s.elided && s.units.is_zero()));
+    slots.retain(|s| !(s.elided && s.units.is_zero()) && !empty_lots.contains(&s.origin));
 
     // Balance: every currency within half of its last written place; none written means exact.
     let mut residuals: Vec<(String, Decimal)> = Vec::new();

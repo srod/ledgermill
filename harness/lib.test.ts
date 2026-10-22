@@ -5,6 +5,7 @@ import {
   decimalString,
   decodeCsv,
   firstBeancountError,
+  listsComparable,
   firstDiff,
   projectBeancount,
   projectFlatPostings,
@@ -168,4 +169,13 @@ test("compareFirstError skips only a missing document that we read and warned ab
   const missing = { message: 'a.beancount:2: File does not exist: "/x.pdf"', first: { file: "a.beancount", line: 2 } };
   expect(compareFirstError(missing, [], [warning]).status).toBe("SKIP");
   expect(compareFirstError(ref("a.beancount", 2), [], [warning]).status).toBe("FAIL");
+});
+
+test("listsComparable diffs bean-query's lists only for booked files whose rejected transactions it leaves out too", () => {
+  const f = (code: string, reason?: string) => ({ ...finding("a.beancount", 3, "error", code), details: { reason } });
+  expect(listsComparable([f("unused-pad"), f("assertion-failed"), f("unbalanced-transaction")])).toBe(true);
+  expect(listsComparable([f("booking-error", "ambiguous-auto-posting")])).toBe(true);
+  expect(listsComparable([f("booking-error", "ambiguous-lot-match")])).toBe(false);
+  expect(listsComparable([f("account-not-open"), f("parse-error")])).toBe(false);
+  for (const code of ["invalid-account-name", "unbalanced-push", "duplicate-metadata"]) expect(listsComparable([f(code)])).toBe(false);
 });

@@ -47,7 +47,7 @@ export type FlatPosting = {
   file: string;
   line: number;
 };
-type Finding = { code: string; severity: "error" | "warning"; file: string; line: number; details: { construct?: string } };
+type Finding = { code: string; severity: "error" | "warning"; file: string; line: number; details: { construct?: string; reason?: string } };
 
 export type Verdict = { status: "PASS" | "FAIL" | "SKIP"; note: string };
 
@@ -347,11 +347,10 @@ export function firstBeancountError(output: string): { file: string; line: numbe
   return null;
 }
 
-type BeancountReference =
-  | { ok: true; transactions: Transaction[]; postings: FlatPosting[] }
-  | { ok: false; message: string; first: { file: string; line: number } | null };
+type Rejection = { message: string; first: { file: string; line: number } | null };
 
-async function runBeancount(path: string): Promise<BeancountReference> {
+/** What bean-check says: `null` when it accepts the journal, else its first line and its first error. */
+async function runBeanCheck(path: string): Promise<Rejection | null> {
   // bean-query exits 0 even for an invalid journal, so bean-check decides.
   const check = await Bun.spawn(["bean-check", path], { stdout: "pipe", stderr: "pipe" });
   const [out, err, code] = await Promise.all([
@@ -359,20 +358,41 @@ async function runBeancount(path: string): Promise<BeancountReference> {
     new Response(check.stderr).text(),
     check.exited,
   ]);
-  if (code !== 0) {
-    const printed = out + err;
-    return { ok: false, message: printed.split("\n").find((l) => l.trim()) ?? "", first: firstBeancountError(printed) };
-  }
+  if (code === 0) return null;
+  const printed = out + err;
+  return { message: printed.split("\n").find((l) => l.trim()) ?? "", first: firstBeancountError(printed) };
+}
+
+/** What bean-query lists for a journal (bean-query prints errors in front of the CSV, and still lists the rest). */
+async function queryBeancount(path: string): Promise<{ transactions: Transaction[]; postings: FlatPosting[] }> {
   const [entries, postings, flat] = await Promise.all([
     run(["bean-query", "-f", "csv", path, ENTRIES_QUERY]),
     run(["bean-query", "-f", "csv", path, POSTINGS_QUERY]),
     run(["bean-query", "-f", "csv", path, FLAT_POSTINGS_QUERY]),
   ]);
   return {
-    ok: true,
     transactions: projectBeancount(entries.stdout, postings.stdout),
     postings: projectFlatPostings(flat.stdout),
   };
+}
+
+/** The findings of a file the parser gave up on: ledgermill returns no transaction for it, though bean-query lists some. */
+const PARSE_LEVEL = new Set(["parse-error", "invalid-account-name", "unbalanced-push", "duplicate-metadata"]);
+
+/**
+ * Whether to diff what bean-query lists for a journal bean-check rejects. Only when the file was booked
+ * and bean-query's list is the one we build:
+ * - no parse-level error (the parser gives up on the whole file, bean-query lists part of it);
+ * - no booking error but two elided postings (that transaction is left out of bean-query's list; for the
+ *   other booking errors bean-query keeps the transaction, often with its postings unbooked or missing,
+ *   and we leave it out).
+ * The errors of the checks (accounts, currencies, assertions, unused pads, unbalanced transactions) leave
+ * the list as it is for an accepted journal, padding included.
+ */
+export function listsComparable(errors: Finding[]): boolean {
+  return !errors.some(
+    (f) => PARSE_LEVEL.has(f.code) || (f.code === "booking-error" && f.details.reason !== "ambiguous-auto-posting"),
+  );
 }
 
 /** What our side reports for a Beancount journal, in the shape the reference gives. */
@@ -408,19 +428,24 @@ export function compareFirstError(
 }
 
 async function compareBeancountCase(path: string): Promise<Verdict> {
-  const ref = await runBeancount(path);
+  const rejection = await runBeanCheck(path);
   const ours = runOurs([path]);
   if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
   const errors = ours.findings.filter((f) => f.severity === "error");
   const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
   if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
-  if (!ref.ok) return compareFirstError(ref, errors, ours.findings);
-  if (errors[0]) return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, bean-check accepts` };
+  if (rejection) {
+    const verdict = compareFirstError(rejection, errors, ours.findings);
+    if (verdict.status !== "PASS" || !listsComparable(errors)) return verdict;
+  } else if (errors[0]) {
+    return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, bean-check accepts` };
+  }
+  const ref = await queryBeancount(path);
   const diff = firstDiff(withBasenames(ref.transactions), withBasenames(normalizeOurs(ours.transactions)));
   if (diff) return { status: "FAIL", note: diff };
   const postingsDiff = firstDiff(postingBasenames(ref.postings), postingBasenames(ours.postings));
   if (postingsDiff) return { status: "FAIL", note: `postings: ${postingsDiff}` };
-  return { status: "PASS", note: "" };
+  return { status: "PASS", note: rejection ? "both fail, same first error, same lists" : "" };
 }
 
 // ───────────── the verdict ─────────────
