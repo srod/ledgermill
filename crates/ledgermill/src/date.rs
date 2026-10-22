@@ -15,6 +15,19 @@ impl Date {
     pub(crate) fn year(self) -> u32 {
         self.year
     }
+
+    /// `YYYY-MM-DD` and nothing else: four digits, two, two, a real day.
+    pub(crate) fn from_iso(text: &str) -> Option<Date> {
+        let mut parts = text.split('-');
+        let (year, month, day) = (parts.next()?, parts.next()?, parts.next()?);
+        let digits = |part: &str, len: usize| {
+            (part.len() == len && part.bytes().all(|b| b.is_ascii_digit()))
+                .then(|| part.parse::<u32>().ok())
+                .flatten()
+        };
+        let (year, month, day) = (digits(year, 4)?, digits(month, 2)?, digits(day, 2)?);
+        (parts.next().is_none() && valid(year, month, day)).then_some(Date { year, month, day })
+    }
 }
 
 impl std::fmt::Display for Date {

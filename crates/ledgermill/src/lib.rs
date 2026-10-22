@@ -8,18 +8,23 @@ mod balance;
 mod balances;
 mod beancount;
 mod chars;
+mod cost;
 mod cursor;
 mod date;
 mod decimal;
+mod exact;
 mod model;
 mod number;
 mod parse;
 mod period;
 mod posting;
+mod prices;
 mod problem;
 mod tags;
+mod valuation;
 mod walk;
 
+use exact::Exact;
 pub use model::*;
 
 /// A loaded ledger. Freed by drop.
@@ -28,6 +33,12 @@ pub struct Ledger {
     transactions: Vec<Transaction>,
     postings: Vec<FlatPosting>,
     findings: Vec<Finding>,
+    /// Parallel to `transactions` (hledger): the exact amounts and cost tags, for `at_cost` and
+    /// `value`.
+    exact: Vec<Exact>,
+    /// Every `P` line, in parse order (hledger).
+    prices: Vec<prices::Price>,
+    beancount: bool,
 }
 
 impl Ledger {
@@ -70,8 +81,6 @@ impl Ledger {
 /// A set of files ledgermill cannot read together yet: no transaction, one finding.
 fn refuse_set(construct: &str, at: &SourceFile) -> Ledger {
     Ledger {
-        transactions: Vec::new(),
-        postings: Vec::new(),
         findings: vec![Finding {
             code: "unsupported-syntax".into(),
             severity: Severity::Error,
@@ -85,6 +94,7 @@ fn refuse_set(construct: &str, at: &SourceFile) -> Ledger {
                 "Several Beancount files cannot be loaded together yet.".into()
             },
         }],
+        ..Ledger::default()
     }
 }
 
@@ -109,10 +119,13 @@ pub fn load(files: &[SourceFile]) -> Ledger {
             postings: beancount::flatten(&loaded.transactions),
             transactions: loaded.transactions,
             findings: loaded.findings,
+            beancount: true,
+            ..Ledger::default()
         };
     }
     let mut out = parse::Output {
         transactions: Vec::new(),
+        prices: Vec::new(),
         findings: Vec::new(),
     };
     for (index, file) in files.iter().enumerate() {
@@ -121,10 +134,13 @@ pub fn load(files: &[SourceFile]) -> Ledger {
     // The sort is stable: same date keeps file order, then line order. Findings stay in the order
     // they were made in, which is hledger's: file by file; in each file what the lines gave, the
     // problems of plain transactions, then the walk's.
-    out.transactions.sort_by_key(|(_, date)| *date);
+    out.transactions.sort_by_key(|(_, _, date)| *date);
+    let (transactions, exact) = out.transactions.into_iter().map(|(t, e, _)| (t, e)).unzip();
     Ledger {
-        transactions: out.transactions.into_iter().map(|(t, _)| t).collect(),
-        postings: Vec::new(),
+        transactions,
+        exact,
+        prices: out.prices,
         findings: out.findings.into_iter().map(|(_, f)| f).collect(),
+        ..Ledger::default()
     }
 }

@@ -70,3 +70,22 @@ pub(crate) type Parsed<T> = Result<T, Problem>;
 pub(crate) fn invalid<T>(reason: &'static str) -> Parsed<T> {
     Err(Problem::Invalid(reason))
 }
+
+/// The finding `Ledger::at_cost` and `Ledger::value` return for a question they cannot answer
+/// as the reference tool does.
+pub(crate) fn unsupported_finding(
+    construct: &str,
+    message: &str,
+    file: &str,
+    line: u32,
+) -> crate::model::Finding {
+    crate::model::Finding {
+        code: "unsupported-syntax".into(),
+        severity: crate::model::Severity::Error,
+        file: file.into(),
+        line,
+        column: None,
+        details: serde_json::json!({ "construct": construct }),
+        message: message.into(),
+    }
+}

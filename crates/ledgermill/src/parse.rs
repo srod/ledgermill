@@ -8,8 +8,10 @@ use crate::alias::{Alias, parse_alias};
 use crate::amount::{Default, Styles, read_amount, read_symbol};
 use crate::balance::{Draft, Unbalanced};
 use crate::chars::{is_blank, trim_blank};
+use crate::cost;
 use crate::cursor::Cursor;
 use crate::date::{Date, YearSource, parse_date};
+use crate::exact::{Exact, ExactPosting};
 use crate::model::{
     Amount, Cost, Finding, Lot, Posting, PostingKind, Quantity, Severity, Source, SourceFile,
     Status, Transaction,
@@ -17,6 +19,7 @@ use crate::model::{
 use crate::number::Mark;
 use crate::period::{self, Verdict};
 use crate::posting::{CostKind, Mode, WrittenAmount, parse_posting};
+use crate::prices::Price;
 use crate::problem::{Parsed, Problem, Unsupported, invalid};
 use crate::tags::{check_posting_comment, posting_date, tags};
 use crate::walk::{self, Assertion, Issue, PostingInfo, Tx};
@@ -25,8 +28,10 @@ use serde_json::json;
 use std::sync::OnceLock;
 
 pub(crate) struct Output {
-    /// `(transaction, file index, date)`; sorted by the caller.
-    pub transactions: Vec<(Transaction, Date)>,
+    /// `(transaction, what `at_cost` and `value` need of it, date)`; sorted by the caller.
+    pub transactions: Vec<(Transaction, Exact, Date)>,
+    /// Every `P` line, in parse order: the files as given, each from top to bottom.
+    pub prices: Vec<Price>,
     /// `(index of the file in load order, finding)`; sorted by the caller.
     pub findings: Vec<(usize, Finding)>,
 }
@@ -474,12 +479,10 @@ impl FileParser<'_> {
             "comment" if arg.is_empty() => Ok(None),
             "include" => Err(Problem::Unsupported(Unsupported::Include)),
             "!include" => invalid("!include is not a directive; the reference tool rejects it."),
-            "P" => self
-                .price_directive(rest)
-                .map(|()| Some(DirectiveBody::Plain)),
-            w if w.starts_with('P') && w[1..].starts_with(|c: char| c.is_ascii_digit()) => self
-                .price_directive(&line[1..])
-                .map(|()| Some(DirectiveBody::Plain)),
+            "P" => self.price_line(rest),
+            w if w.starts_with('P') && w[1..].starts_with(|c: char| c.is_ascii_digit()) => {
+                self.price_line(&line[1..])
+            }
             "D" => self
                 .default_commodity(rest)
                 .map(|()| Some(DirectiveBody::Plain)),
@@ -686,11 +689,18 @@ impl FileParser<'_> {
         }
     }
 
-    /// `P DATE [TIME] COMMODITY AMOUNT`: checked only; prices change nothing raw output shows.
-    fn price_directive(&self, rest: &str) -> Parsed<()> {
+    /// A `P` line: kept for `value`; raw output does not show prices.
+    fn price_line(&mut self, rest: &str) -> Parsed<Option<DirectiveBody>> {
+        let price = self.price_directive(rest)?;
+        self.out.prices.push(price);
+        Ok(Some(DirectiveBody::Plain))
+    }
+
+    /// `P DATE [TIME] COMMODITY AMOUNT`. The time of day is read and ignored.
+    fn price_directive(&self, rest: &str) -> Parsed<Price> {
         let mut cur = Cursor::new(rest);
         cur.take_while(is_blank);
-        parse_date(&mut cur, self.st.year)?;
+        let date = parse_date(&mut cur, self.st.year)?;
         if cur.take_while(is_blank).is_empty() {
             return invalid("A space was expected after the date.");
         }
@@ -703,13 +713,17 @@ impl FileParser<'_> {
         let Some(symbol) = read_symbol(&mut cur).transpose()? else {
             return invalid("A commodity symbol was expected.");
         };
-        let _ = symbol;
         if !cur.peek().is_some_and(is_blank) {
             return invalid("A space was expected after the commodity.");
         }
         cur.take_while(is_blank);
-        read_amount(&mut cur, &self.st.styles, Default::Apply)?;
-        Ok(())
+        let price = read_amount(&mut cur, &self.st.styles, Default::Apply)?;
+        Ok(Price {
+            date,
+            from: symbol,
+            to: price.commodity,
+            rate: price.quantity,
+        })
     }
 
     /// The sample amount of a `commodity` or `D` directive. It is read like any amount, so the
@@ -1023,6 +1037,18 @@ impl FileParser<'_> {
     fn conclude(&mut self) {
         let mut done = std::mem::take(&mut self.done);
         let conversion = std::mem::take(&mut self.conversion);
+        // Which postings `--cost` drops is decided on the transaction as written.
+        let plans: Vec<cost::Plan> = done
+            .iter()
+            .zip(&conversion)
+            .map(|(tx, flags)| {
+                let assignment = tx
+                    .postings
+                    .iter()
+                    .any(|p| p.assertion.is_some() && p.amount.is_none());
+                cost::plan(&drafts_of(tx, flags), assignment)
+            })
+            .collect();
         let mut txs: Vec<Tx> = done
             .iter_mut()
             .zip(&conversion)
@@ -1040,16 +1066,7 @@ impl FileParser<'_> {
                         assertion: p.assertion.take(),
                     })
                     .collect(),
-                drafts: tx
-                    .postings
-                    .iter()
-                    .zip(flags)
-                    .map(|(p, &conversion_account)| Draft {
-                        kind: p.kind,
-                        conversion_account,
-                        amounts: p.amount.clone().map(|a| vec![a]),
-                    })
-                    .collect(),
+                drafts: drafts_of(tx, flags),
             })
             .collect();
         let issues = walk::process(&mut txs, self.reported == 0);
@@ -1057,10 +1074,26 @@ impl FileParser<'_> {
             let finding = self.issue_finding(issue);
             self.out.findings.push((self.file_index, finding));
         }
-        for (tx, walked) in done.into_iter().zip(txs) {
+        for ((tx, walked), plan) in done.into_iter().zip(txs).zip(plans) {
             if walked.dropped {
                 continue;
             }
+            let exact = Exact {
+                postings: tx
+                    .postings
+                    .iter()
+                    .zip(&walked.drafts)
+                    .zip(&plan.tagged)
+                    .map(|((p, d), &tagged)| ExactPosting {
+                        amounts: d.amounts.clone().unwrap_or_default(),
+                        conversion_tagged: tagged
+                            || p.comment_lines
+                                .iter()
+                                .any(|c| tags(c).iter().any(|(n, _)| *n == "_conversion-posting")),
+                    })
+                    .collect(),
+                cost_refused: plan.refused,
+            };
             let postings = tx
                 .postings
                 .into_iter()
@@ -1093,6 +1126,7 @@ impl FileParser<'_> {
                     },
                     postings,
                 },
+                exact,
                 tx.date,
             ));
         }
@@ -1185,7 +1219,21 @@ fn unbalanced_finding(file: &str, line: u32, u: &Unbalanced) -> Finding {
     }
 }
 
-fn report_amount(a: &WrittenAmount) -> Amount {
+/// The drafts balancing starts from: the postings as written.
+fn drafts_of(tx: &TxDraft, conversion_flags: &[bool]) -> Vec<Draft> {
+    tx.postings
+        .iter()
+        .zip(conversion_flags)
+        .map(|(p, &conversion_account)| Draft {
+            kind: p.kind,
+            conversion_account,
+            amounts: p.amount.clone().map(|a| vec![a]),
+        })
+        .collect()
+}
+
+/// An amount as the public model reports it: quantities rounded to ten places.
+pub(crate) fn report_amount(a: &WrittenAmount) -> Amount {
     Amount {
         commodity: a.commodity.clone(),
         quantity: a.quantity.output(),

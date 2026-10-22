@@ -69,14 +69,14 @@ fn cost_value(a: &WrittenAmount, c: &WrittenCost) -> Decimal {
     }
 }
 
-fn priced(p: &Draft) -> bool {
+pub(crate) fn priced(p: &Draft) -> bool {
     p.amounts
         .as_deref()
         .is_some_and(|a| a.iter().any(|x| x.cost.is_some()))
 }
 
 /// `value` is within half a unit of `target` at `places` decimal places.
-fn within_half_unit(value: &Decimal, target: &Decimal, places: u32) -> bool {
+pub(crate) fn within_half_unit(value: &Decimal, target: &Decimal, places: u32) -> bool {
     let gap = value.add(&target.negated());
     let gap = if gap.is_negative() {
         gap.negated()
@@ -110,16 +110,13 @@ fn cancels_leading_run(a: &WrittenAmount, p: &Draft) -> bool {
         })
 }
 
-/// Postings balanced by their quantity rather than their cost because of the conversion
-/// postings around them; see `conversion.md`. Transactions with several priced postings whose
-/// rule is not pinned down are `UnsupportedConversion`.
-fn conversion_exempt(postings: &[Draft]) -> Result<Vec<bool>, Unbalanced> {
-    let n = postings.len();
+/// Where each pair of conversion postings starts: two adjacent ones form a pair, the next pair
+/// starts after them (virtual postings count).
+pub(crate) fn conversion_pairs(postings: &[Draft]) -> Vec<usize> {
     let is_conv = |i: usize| postings.get(i).is_some_and(|p| p.conversion_account);
-    // Adjacent pairs, found greedily left to right.
     let mut pairs = Vec::new();
     let mut i = 0;
-    while i + 1 < n {
+    while i + 1 < postings.len() {
         if is_conv(i) && is_conv(i + 1) {
             pairs.push(i);
             i += 2;
@@ -127,6 +124,16 @@ fn conversion_exempt(postings: &[Draft]) -> Result<Vec<bool>, Unbalanced> {
             i += 1;
         }
     }
+    pairs
+}
+
+/// Postings balanced by their quantity rather than their cost because of the conversion
+/// postings around them; see `conversion.md`. Transactions with several priced postings whose
+/// rule is not pinned down are `UnsupportedConversion`.
+pub(crate) fn conversion_exempt(postings: &[Draft]) -> Result<Vec<bool>, Unbalanced> {
+    let n = postings.len();
+    let is_conv = |i: usize| postings.get(i).is_some_and(|p| p.conversion_account);
+    let pairs = conversion_pairs(postings);
     if pairs
         .iter()
         .any(|&p| priced(&postings[p]) || priced(&postings[p + 1]))
