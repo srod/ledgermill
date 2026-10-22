@@ -8,10 +8,11 @@ import { runCases } from "./lib.ts";
 const ROOT = join(import.meta.dir, "..");
 const PROTOTYPE = join(import.meta.dir, "journals/prototype");
 const APP = join(import.meta.dir, "journals/app");
+const SPEC = join(ROOT, "spec/hledger/probes");
 const DIRS = [
   ["prototype", PROTOTYPE, ".journal"],
   ["app", APP, ".journal"],
-  ["spec", join(ROOT, "spec/hledger/probes"), ".journal"],
+  ["spec", SPEC, ".journal"],
   ["app", APP, ".beancount"],
   ["spec-beancount", join(ROOT, "spec/beancount/probes"), ".beancount"],
 ] as const;
@@ -50,11 +51,32 @@ const fixturePairs: [string, string][] = [
   ["sibling-d-presentation", "sibling-d-no-directive"],
 ];
 
-const cases: { name: string; paths: string[] }[] = [];
+// Journals where hledger adds the sub-accounts of an account in an order that follows no rule we
+// know (spec/hledger/assignments.md): the values agree, the places of a sum can differ.
+const placesMayDiffer = new Set(["assign-inclusive-order-names-x123.journal"]);
+
+// Pairs of spec probes (spec/hledger/assertion-order.md, assertion-failures.md,
+// assignment-processing.md): each file has its own running balances, and the first file with an
+// error has the first error.
+const specPairs: [string, string][] = [
+  ["assert-file-a", "assert-file-b"],
+  ["assert-file-b", "assert-file-a"],
+  ["assert-file-a", "assert-file-c"],
+  ["assert-file-c", "assert-file-c"],
+  ["assert-file-late-fail", "assert-file-early-fail"],
+  ["assert-file-early-fail", "assert-file-late-fail"],
+  ["assert-file-late-fail", "assert-file-parse-error"],
+  ["assert-file-parse-error", "assert-file-late-fail"],
+  ["assert-file-late-fail", "assert-file-unbalanced"],
+  ["assert-file-unbalanced", "assert-file-late-fail"],
+  ["assert-file-a", "assign-file-b"],
+];
+
+const cases: { name: string; paths: string[]; ignorePlaces?: boolean }[] = [];
 for (const [label, dir, extension] of DIRS)
   for (const f of readdirSync(dir).filter((f) => f.endsWith(extension)).sort())
-    cases.push({ name: `${label}/${f}`, paths: [join(dir, f)] });
-for (const [dir, list] of [[PROTOTYPE, pairs], [APP, fixturePairs]] as const)
+    cases.push({ name: `${label}/${f}`, paths: [join(dir, f)], ...(placesMayDiffer.has(f) ? { ignorePlaces: true } : {}) });
+for (const [dir, list] of [[PROTOTYPE, pairs], [APP, fixturePairs], [SPEC, specPairs]] as const)
   for (const [a, b] of list)
     cases.push({ name: `pair ${a}+${b}`, paths: [join(dir, `${a}.journal`), join(dir, `${b}.journal`)] });
 

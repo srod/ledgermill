@@ -125,7 +125,21 @@ export function projectHledger(text: string): Transaction[] {
   }));
 }
 
-type Reference = { ok: true; transactions: Transaction[] } | { ok: false; message: string };
+/** Where an error is: the file (basename) and the line it starts on. */
+export type Position = { file: string; line: number };
+
+/**
+ * Where hledger's first error is, from the first line of its stderr: `hledger: Error: FILE:LINE:COL:`
+ * for a parse error or a failed assertion, `FILE:FIRST-LAST:` for a transaction that does not balance
+ * (then the line is the first one); a conversion posting with a cost has no last colon. Errors that
+ * name no position (a posting date on an assignment, for one) give `null`.
+ */
+export function firstHledgerError(stderr: string): Position | null {
+  const m = /^hledger: Error: (.+?):(\d+)(?:-\d+)?(?::\d+)?:?$/.exec(stderr.split("\n")[0] ?? "");
+  return m ? { file: basename(m[1] as string), line: Number(m[2]) } : null;
+}
+
+type Reference = { ok: true; transactions: Transaction[] } | { ok: false; message: string; first: Position | null };
 
 async function runHledger(paths: string[]): Promise<Reference> {
   const proc = Bun.spawn(["hledger", "--no-conf", ...paths.flatMap((p) => ["-f", p]), "print", "-O", "json"], {
@@ -137,7 +151,7 @@ async function runHledger(paths: string[]): Promise<Reference> {
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
-  if (exitCode !== 0) return { ok: false, message: stderr.split("\n")[0] ?? "" };
+  if (exitCode !== 0) return { ok: false, message: stderr.split("\n")[0] ?? "", first: firstHledgerError(stderr) };
   return { ok: true, transactions: projectHledger(stdout) };
 }
 
@@ -183,6 +197,28 @@ export function firstDiff(a: unknown, b: unknown, path = ""): string | null {
   }
   // Our JSON leaves out an absent cost or lot; hledger's projection sets neither then.
   return Object.is(a, b) ? null : `${path}: hledger=${JSON.stringify(a)} ours=${JSON.stringify(b)}`;
+}
+
+/** `1.00` is `1` and `-0.50` is `-0.5`: the value without its trailing zeros. */
+export function withoutTrailingZeros(quantity: string): string {
+  return quantity.includes(".") ? quantity.replace(/\.?0+$/, "") : quantity;
+}
+
+/** The transactions with every quantity (amounts, prices, lot costs) reduced to its value. */
+function valuesOnly(txs: Transaction[]): Transaction[] {
+  const value = (q: Quantity): Quantity => ({ ...q, quantity: withoutTrailingZeros(q.quantity) });
+  return txs.map((t) => ({
+    ...t,
+    postings: t.postings.map((p) => ({
+      ...p,
+      amounts: p.amounts.map((a) => ({
+        ...a,
+        quantity: withoutTrailingZeros(a.quantity),
+        ...(a.cost ? { cost: { ...a.cost, amount: value(a.cost.amount) } } : {}),
+        ...(a.lot ? { lot: { ...a.lot, cost: a.lot.cost ? value(a.lot.cost) : null } } : {}),
+      })),
+    })),
+  }));
 }
 
 const withBasenames = (txs: Transaction[]): Transaction[] =>
@@ -427,6 +463,24 @@ export function compareFirstError(
   return { status: "FAIL", note: `first error: bean-check ${theirs} (${ref.message}), ours ${ours.code} at ${mine}` };
 }
 
+/**
+ * hledger rejects the journal: our first error-severity finding (`check()` for hledger is in hledger's
+ * own order) must be on the same file and line as its first error, when it names one. Errors of
+ * ours that say "not supported yet" agree with nothing (SKIP); no error at all is a FAIL; a reference
+ * error with no position (a posting date on an assignment) is matched by "both fail" only.
+ */
+export function compareRejection(ref: { message: string; first: Position | null }, errors: Finding[]): Verdict {
+  const ours = errors[0];
+  if (!ours) return { status: "FAIL", note: `hledger fails (${ref.message}), ours reports no error` };
+  if (ours.code === "unsupported-syntax")
+    return { status: "SKIP", note: `unsupported: ${ours.details.construct ?? "?"} (hledger fails)` };
+  if (!ref.first) return { status: "PASS", note: "both fail" };
+  const mine = `${basename(ours.file)}:${ours.line}`;
+  const theirs = `${ref.first.file}:${ref.first.line}`;
+  if (mine === theirs) return { status: "PASS", note: "both fail, same first error" };
+  return { status: "FAIL", note: `first error: hledger ${theirs} (${ref.message}), ours ${ours.code} at ${mine}` };
+}
+
 async function compareBeancountCase(path: string): Promise<Verdict> {
   const rejection = await runBeanCheck(path);
   const ours = runOurs([path]);
@@ -451,7 +505,12 @@ async function compareBeancountCase(path: string): Promise<Verdict> {
 // ───────────── the verdict ─────────────
 export const isBeancountPath = (path: string): boolean => /\.(beancount|bean)$/i.test(path);
 
-export async function compareCase(paths: string[]): Promise<Verdict> {
+/**
+ * Compare one case. `ignorePlaces` compares quantities by value only: for the journals where hledger
+ * adds sub-accounts in an order we do not know, so that a sum can differ in its places (see
+ * spec/hledger/assignments.md).
+ */
+export async function compareCase(paths: string[], ignorePlaces = false): Promise<Verdict> {
   const [first] = paths;
   if (first !== undefined && paths.length === 1 && isBeancountPath(first)) return compareBeancountCase(first);
   const ref = await runHledger(paths);
@@ -460,29 +519,29 @@ export async function compareCase(paths: string[]): Promise<Verdict> {
   const errors = ours.findings.filter((f) => f.severity === "error");
 
   const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
-  if (!ref.ok) {
-    // Only an error of our own counts as agreeing; "not supported yet" agrees with nothing.
-    if (errors.some((f) => f.code !== "unsupported-syntax")) return { status: "PASS", note: "both fail" };
-    if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"} (hledger fails)` };
-    return { status: "FAIL", note: `hledger fails (${ref.message}), ours reports no error` };
-  }
+  if (!ref.ok) return compareRejection(ref, errors);
   if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
   if (errors[0]) return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, hledger accepts` };
-  const diff = firstDiff(withBasenames(ref.transactions), withBasenames(ours.transactions));
+  const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.transactions)];
+  const diff = ignorePlaces ? firstDiff(valuesOnly(theirs), valuesOnly(mine)) : firstDiff(theirs, mine);
   if (diff) return { status: "FAIL", note: diff };
-  return { status: "PASS", note: "" };
+  return { status: "PASS", note: ignorePlaces ? "same values (places may differ)" : "" };
 }
 
 const JOBS = 8;
 
 /** Run `cases` (hledger in parallel), print one line each in order (only non-PASS with `quiet`) and the totals; exit code 1 on any FAIL. */
-export async function runCases(cases: { name: string; paths: string[] }[], quiet: boolean): Promise<void> {
+export async function runCases(
+  cases: { name: string; paths: string[]; ignorePlaces?: boolean }[],
+  quiet: boolean,
+): Promise<void> {
   const verdicts: Verdict[] = [];
   let next = 0;
   const worker = async () => {
     while (next < cases.length) {
       const i = next++;
-      verdicts[i] = await compareCase((cases[i] as { paths: string[] }).paths);
+      const c = cases[i] as { paths: string[]; ignorePlaces?: boolean };
+      verdicts[i] = await compareCase(c.paths, c.ignorePlaces);
     }
   };
   await Promise.all(Array.from({ length: JOBS }, worker));

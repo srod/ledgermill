@@ -41,8 +41,7 @@ bun test harness/lib.test.ts      # the harness's own checks
 
 Each case ends in one verdict:
 
-- **PASS**: both give the same transactions, or both fail (hledger exits non-zero and we report an
-  error finding).
+- **PASS**: both give the same transactions, or both fail with the same first error (see below).
 - **SKIP**: we report an `unsupported-syntax` finding (the line after `SKIP` says which construct):
   not built yet. For Beancount, also the one journal whose only error is a `document` file that does
   not exist: ledgermill does not look at files and warns instead.
@@ -52,6 +51,28 @@ Each case ends in one verdict:
   bug in the engine or in the harness; the exit code is 1.
 
 The last line is `N pass, N fail, N skip`.
+
+When hledger rejects a journal (exits non-zero), the harness takes the file and line of the **first error**
+from the first line of its stderr and compares them with our **first error-severity finding**
+(`check()` for hledger is in hledger's own order, so this is its first error):
+
+- `hledger: Error: FILE:LINE:COL:` (a parse error, a failed assertion) and `FILE:FIRST-LAST:` (a
+  transaction that does not balance; the line is the first one, the transaction's header). Same file
+  (by basename) and same line: PASS, `both fail, same first error`. Another line or file: FAIL, with
+  both. No error finding of ours: FAIL.
+- Our first error is `unsupported-syntax`: SKIP (hledger fails, but we cannot say where).
+- hledger names no position (the only one in the corpus is a posting date on an assignment, `Balance
+  assignments and custom posting dates may not be combined.`, which shows the transaction and no file or
+  line): `both fail`, the old rule, with no line compared.
+
+Every rejected journal of the corpus is compared by line today, except those three. The errors of hledger's
+`check` command (undeclared accounts and the like) are not reported by `check()` yet and no journal of the
+corpus depends on them; when they are built, their journals are compared by line too.
+
+Two corpus journals are compared by value only, with the places of the quantities ignored
+(`placesMayDiffer` in `compare.ts`; the PASS note says so): `assign-inclusive-order-names-x123` is one of a
+pair where hledger adds the sub-accounts of `a =* 4` in an order that follows no rule we know, which changes
+the places of a sum that passes through zero (`spec/hledger/assignments.md`). We add them in name order.
 
 How a case is compared: hledger's `print -O json` is projected onto our `Transaction` shape (date,
 status, description, comment trimmed, source file and line, postings with account, kind, comment
@@ -127,7 +148,7 @@ All journals are written by us and safe to publish.
 - `journals/app/*.beancount`: the Beancount test journals of our first user (12).
 - `../spec/beancount/probes/`: the Beancount probe journals behind each spec note
   (`probes/refused/` holds those ledgermill refuses; they are not run by `compare.ts`).
-- Multi-file cases: the `pairs` and `fixturePairs` lists in `compare.ts` (files are loaded in the
-  order listed).
+- Multi-file cases: the `pairs`, `fixturePairs` and `specPairs` lists in `compare.ts` (files are loaded
+  in the order listed; `specPairs` are probes of `../spec/hledger/probes/`, for assertions and assignments).
 
 Never commit private journals: `real.ts` exists so you can check them locally.

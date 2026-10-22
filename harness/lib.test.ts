@@ -2,6 +2,8 @@
 import { expect, test } from "bun:test";
 import {
   compareFirstError,
+  compareRejection,
+  firstHledgerError,
   decimalString,
   decodeCsv,
   firstBeancountError,
@@ -10,6 +12,7 @@ import {
   projectBeancount,
   projectFlatPostings,
   projectHledger,
+  withoutTrailingZeros,
 } from "./lib.ts";
 
 test("decimalString keeps places and sign exactly", () => {
@@ -178,4 +181,49 @@ test("listsComparable diffs bean-query's lists only for booked files whose rejec
   expect(listsComparable([f("booking-error", "ambiguous-lot-match")])).toBe(false);
   expect(listsComparable([f("account-not-open"), f("parse-error")])).toBe(false);
   for (const code of ["invalid-account-name", "unbalanced-push", "duplicate-metadata"]) expect(listsComparable([f(code)])).toBe(false);
+});
+
+test("firstHledgerError reads the file and line of a parse error or a failed assertion", () => {
+  const stderr = "hledger: Error: /tmp/x/a b.journal:6:12:\n  | 2026-01-02 t\n6 |     a  5 EUR = 99 EUR\n";
+  expect(firstHledgerError(stderr)).toEqual({ file: "a b.journal", line: 6 });
+});
+
+test("firstHledgerError takes the first line of a range for a transaction that does not balance", () => {
+  expect(firstHledgerError("hledger: Error: /tmp/x/b.journal:5-7:\n5 | 2026-01-02 t\n")).toEqual({ file: "b.journal", line: 5 });
+  // A conversion posting with a cost: the range has no last colon.
+  expect(firstHledgerError("hledger: Error: /tmp/x/c.journal:2-4\nConversion postings must not have a cost:\n")).toEqual({
+    file: "c.journal",
+    line: 2,
+  });
+});
+
+test("firstHledgerError gives null for an error that names no position", () => {
+  expect(firstHledgerError("hledger: Error: Balance assignments and custom posting dates may not be combined.\n\n2026-01-01 t\n")).toBeNull();
+  expect(firstHledgerError("")).toBeNull();
+});
+
+const failure = (file: string, line: number, code = "assertion-failed") =>
+  ({ code, severity: "error", file, line, details: {} }) as Parameters<typeof compareRejection>[1][number];
+
+test("compareRejection passes on the same basename and line, and fails on another line or file", () => {
+  const ref = { message: "hledger: Error: /a/x.journal:6:12:", first: { file: "x.journal", line: 6 } };
+  expect(compareRejection(ref, [failure("/other/dir/x.journal", 6)]).status).toBe("PASS");
+  expect(compareRejection(ref, [failure("x.journal", 2)]).status).toBe("FAIL");
+  expect(compareRejection(ref, [failure("y.journal", 6)]).status).toBe("FAIL");
+  // Only the first error counts: hledger stops there.
+  expect(compareRejection(ref, [failure("x.journal", 2), failure("x.journal", 6)]).status).toBe("FAIL");
+});
+
+test("compareRejection fails when we report no error, skips an error we cannot read yet, and matches 'both fail' without a position", () => {
+  const ref = { message: "boom", first: { file: "x.journal", line: 1 } };
+  expect(compareRejection(ref, []).status).toBe("FAIL");
+  expect(compareRejection(ref, [failure("x.journal", 1, "unsupported-syntax")]).status).toBe("SKIP");
+  expect(compareRejection({ message: "boom", first: null }, [failure("x.journal", 3)]).status).toBe("PASS");
+});
+
+test("withoutTrailingZeros keeps the value and drops only decimal zeros", () => {
+  expect(withoutTrailingZeros("1.00")).toBe("1");
+  expect(withoutTrailingZeros("-0.50")).toBe("-0.5");
+  expect(withoutTrailingZeros("100")).toBe("100");
+  expect(withoutTrailingZeros("0.00")).toBe("0");
 });
