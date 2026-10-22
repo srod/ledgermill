@@ -28,6 +28,9 @@ use exact::Exact;
 pub use model::*;
 
 /// A loaded ledger. Freed by drop.
+///
+/// Besides the public lists it keeps what `at_cost` and `value` need (hledger only): every `P` line
+/// and the exact amounts of each transaction, so that those two questions read nothing again.
 #[derive(Debug, Default)]
 pub struct Ledger {
     transactions: Vec<Transaction>,

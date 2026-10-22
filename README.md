@@ -15,8 +15,19 @@ load(files) → ledger
 ledger.transactions()   booked transactions with their file and line (Beancount: padding included)
 ledger.postings()       one row per posting (Beancount for now; empty for hledger)
 ledger.check()          problems found, as structured findings
+ledger.atCost()         hledger: the transactions as `print --cost` gives them
+ledger.value(date, commodity)   hledger: the transactions as `print --value=DATE,COMMODITY` gives them
 ledger.free()
 ```
+
+In Rust these are `Ledger::at_cost()` and `Ledger::value(date, commodity)`; both return `Result<Vec<Transaction>, Finding>`.
+`at_cost` replaces every cost by an amount in the cost's commodity and drops the conversion postings; `value` converts
+every amount at the prices (`P` lines) known on `date` (`YYYY-MM-DD`), by the shortest path of prices, with the
+arithmetic hledger uses. A question ledgermill cannot answer as hledger does is an `Err` with an `unsupported-syntax`
+finding, not a guess: an `at_cost` on a transaction that has pairs of conversion postings together with several priced
+postings or a balance assignment, a `value` in no commodity, and both on a Beancount ledger (its valuation is not built). A date
+that is not `YYYY-MM-DD` is an `invalid-argument` finding. In the wasm binding the `Err` is thrown as an `Error` whose message is
+the finding as JSON.
 
 For hledger, balance assertions (`=`, `==`, `=*`, `==*`) and assignments are read: `check()` reports a failed
 assertion (`assertion-failed`, with the account, commodity and the exact expected and actual amounts) and the
@@ -34,7 +45,7 @@ constraints, duplicates, unbalanced transactions and more (`spec/README.md` list
 Beancount `pad` is read and its padding transactions are built; `include`, `plugin`, unusual options
 and AVERAGE booking are refused with a finding.
 
-More questions follow: values at a date in a currency, holdings, prices, and a
+More questions follow: holdings, prices, Beancount valuation, and a
 formatter that only realigns whitespace. See the issue tracker for the plan.
 
 ledgermill is not a command-line clone of hledger or Beancount. It does not print their

@@ -169,8 +169,11 @@ impl Ledger {
     /// cost and lot kept. Any other becomes an amount in `commodity` with neither: the product
     /// of its quantity and the rates along the path, at full precision, rounded half to even to
     /// ten places only when it has more (the ten places are kept). The amounts of a posting that
-    /// end in the same commodity are added first, then rounded. The valued transaction need
-    /// not balance.
+    /// end in the same commodity (and have the same cost, if they kept one) are added first,
+    /// then rounded. The valued transaction need not balance.
+    ///
+    /// As [`Ledger::transactions`], a ledger with error findings answers for the transactions it
+    /// lists.
     ///
     /// # Errors
     ///

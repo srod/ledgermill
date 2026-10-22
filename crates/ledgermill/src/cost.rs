@@ -47,7 +47,12 @@ impl Ledger {
     ///
     /// A unit cost multiplies, a total cost is the amount; the result keeps its places, up to
     /// ten (rounded half to even beyond that), after trailing zeros of a product are dropped.
-    /// A transaction left with no posting stays.
+    /// A transaction left with no posting stays. The amounts of a posting that holds several (an
+    /// elided or assigned amount) are added per commodity once converted, as for
+    /// [`Ledger::value`].
+    ///
+    /// As [`Ledger::transactions`], a ledger with error findings answers for the transactions it
+    /// lists: a transaction left out there is left out here (and `check()` says why).
     ///
     /// The conversion postings dropped are those tagged `_conversion-posting` that have no
     /// cost: by the reference tool when a transaction holds pairs of conversion-account
