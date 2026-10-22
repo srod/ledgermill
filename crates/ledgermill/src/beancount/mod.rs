@@ -9,6 +9,7 @@
 //! look complete.
 
 mod book;
+mod check;
 mod lima;
 mod plain;
 mod pydec;
@@ -31,7 +32,7 @@ pub(crate) fn is_beancount(name: &str) -> bool {
 pub(crate) struct Loaded {
     /// By date, then source line.
     pub transactions: Vec<Transaction>,
-    /// By line.
+    /// In the order the reference tool prints them (spec/beancount/check-order.md).
     pub findings: Vec<Finding>,
 }
 
@@ -69,7 +70,6 @@ fn refusal_message(construct: &str) -> &'static str {
         "plugin" => "Plugins are not supported.",
         "option" => "This option is not supported yet.",
         "pad" => "Pad directives are not supported yet.",
-        "balance" => "Balance assertions are not supported yet.",
         "number-expression" => "Arithmetic in a number is not supported yet.",
         "number-too-large" => "This number is too large to handle.",
         "inferred-price" => "A price to work out next to a cost is not supported.",
@@ -199,6 +199,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         if let Item::Open {
             account,
             method: Some(method),
+            ..
         } = item
         {
             methods.insert(account.clone(), *method);
@@ -206,12 +207,16 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     }
     let mut books = lima::Books::new(methods, read.default_method);
     let mut transactions = Vec::new();
+    // What the checks need of each transaction that booking keeps, and the one error that is
+    // printed last, after every other check.
+    let mut kept: Vec<check::Kept> = Vec::new();
+    let mut unbalanced: Vec<Finding> = Vec::new();
     let mut average_accounts: HashSet<String> = HashSet::new();
     let mut refused = false;
 
     for item in &read.items {
         match item {
-            Item::Open { .. } => {}
+            Item::Open { .. } | Item::Balance { .. } => {}
             Item::Refused { line, construct } => {
                 refused = true;
                 findings.push(unsupported(
@@ -291,7 +296,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                                 .iter()
                                 .map(|(c, q)| json!({ "commodity": c, "quantity": q.to_string() }))
                                 .collect();
-                            findings.push(finding(
+                            unbalanced.push(finding(
                                 &file.name,
                                 tx.line,
                                 "unbalanced-transaction",
@@ -299,6 +304,19 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                                 "The postings do not add up to zero.",
                             ));
                         }
+                        kept.push(check::Kept {
+                            date: tx.date,
+                            line: tx.line,
+                            postings: booked
+                                .postings
+                                .iter()
+                                .map(|p| check::Posted {
+                                    account: p.account.clone(),
+                                    currency: p.currency.clone(),
+                                    units: p.units.clone(),
+                                })
+                                .collect(),
+                        });
                         transactions.push(Transaction {
                             date: tx.date.to_string(),
                             status: status_of(tx.flag),
@@ -318,12 +336,24 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         }
     }
     if refused {
+        // A partial answer would look complete, and the later checks would run on it.
         transactions.clear();
+        findings.sort_by_key(|f| f.line);
+        return Loaded {
+            transactions,
+            findings,
+        };
     }
+    // The checks come in the order the reference prints them, not in line order.
+    findings.extend(
+        check::run(&read.items, &kept)
+            .into_iter()
+            .map(|p| finding(&file.name, p.line, p.code, p.details, p.message)),
+    );
+    findings.extend(unbalanced);
     // The items arrive in date order already; the sort pins the order the reference tool uses.
     transactions
         .sort_by(|a, b| (a.date.as_str(), a.source.line).cmp(&(b.date.as_str(), b.source.line)));
-    findings.sort_by_key(|f| f.line);
     Loaded {
         transactions,
         findings,

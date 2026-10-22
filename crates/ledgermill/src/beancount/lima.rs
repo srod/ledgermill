@@ -167,6 +167,7 @@ fn posting(
 /// Read one file's text. `text` has no `include` line (the caller refuses those first).
 pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     // Offsets from the parser refer to the rewritten text, so lines are counted in it too.
+    let negative_tolerance = super::text::negative_tolerance_lines(text);
     let normalized = super::text::normalize(text);
     let starts = line_starts(&normalized);
     let sources = parser::BeancountSources::from(normalized);
@@ -218,6 +219,8 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
                 }));
             }
             parser::DirectiveVariant::Open(open) => items.push(Item::Open {
+                date: day!(directive.date()),
+                line,
                 account: open.account().item().to_string(),
                 method: open.booking().map(|b| method(*b.item())),
             }),
@@ -225,10 +228,31 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
                 line,
                 construct: "pad",
             }),
-            parser::DirectiveVariant::Balance(_) => items.push(Item::Refused {
-                line,
-                construct: "balance",
-            }),
+            parser::DirectiveVariant::Balance(balance) => {
+                let atol = balance.atol().item();
+                let amount = atol.amount().item();
+                match literal(amount.number().item()) {
+                    Some(expected) => items.push(Item::Balance {
+                        date: day!(directive.date()),
+                        line,
+                        account: balance.account().item().to_string(),
+                        expected,
+                        tolerance: atol.tolerance().map(|t| {
+                            let t = number(*t.item());
+                            if negative_tolerance.contains(&line) {
+                                t.negated()
+                            } else {
+                                t
+                            }
+                        }),
+                        currency: amount.currency().item().to_string(),
+                    }),
+                    None => items.push(Item::Refused {
+                        line,
+                        construct: "number-expression",
+                    }),
+                }
+            }
             // These do not change what transactions and postings report.
             _ => {}
         }

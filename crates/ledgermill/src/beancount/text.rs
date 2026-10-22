@@ -2,6 +2,8 @@
 //! the parser sees them (it would read the filesystem for `include`, and a few number
 //! expressions would make it panic).
 
+use std::collections::HashSet;
+
 /// Byte offsets where each line starts.
 pub(super) fn line_starts(text: &str) -> Vec<usize> {
     std::iter::once(0)
@@ -359,6 +361,32 @@ fn trailing_dots_dropped(line: &str) -> String {
     out
 }
 
+/// Where the minus sign of a negative tolerance is on a `balance` line (`500 ~ -0.5 EUR`). The
+/// reference reads it and a negative tolerance passes nothing (spec/beancount/balance-directive.md);
+/// the parser does not read it, so `normalize` drops the sign and `negative_tolerance_lines` says
+/// which lines had one.
+fn negative_tolerance_at(line: &str) -> Option<usize> {
+    if line.starts_with([' ', '\t']) {
+        return None;
+    }
+    let code = line.split(';').next()?;
+    if code.split_whitespace().nth(1) != Some("balance") {
+        return None;
+    }
+    let after = code.get(code.find('~')? + 1..)?;
+    let trimmed = after.trim_start();
+    trimmed.starts_with('-').then(|| code.len() - trimmed.len())
+}
+
+/// The lines whose `balance` has a negative tolerance.
+pub(super) fn negative_tolerance_lines(text: &str) -> HashSet<u32> {
+    text.split('\n')
+        .enumerate()
+        .filter(|(_, line)| negative_tolerance_at(line).is_some())
+        .filter_map(|(index, _)| u32::try_from(index + 1).ok())
+        .collect()
+}
+
 /// The text rewritten into forms the parser reads, with every line kept where it was: bare
 /// capital-letter flags get the parser's quote (`P` becomes `'P`), and `{{ total }}` becomes
 /// `{# total}`. Both are accepted by the reference tool (spec/beancount/header-flags.md,
@@ -393,6 +421,9 @@ pub(super) fn normalize(text: &str) -> String {
         }
         if line.starts_with([' ', '\t']) && is_tag_line(&line) {
             line = format!("  ;{line}");
+        }
+        if let Some(at) = negative_tolerance_at(&line) {
+            line.replace_range(at..=at, " ");
         }
         out.push_str(&line);
         out.push_str(end);

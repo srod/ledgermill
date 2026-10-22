@@ -28,17 +28,6 @@ fn refused(name: &str, content: &str, line: u32, construct: &str) {
 }
 
 #[test]
-fn pad_and_balance_are_refused() {
-    let pad = include_str!("../../../spec/beancount/probes/refused/pad.beancount");
-    refused("pad.beancount", pad, 4, "pad");
-    refused("pad.beancount", pad, 5, "balance");
-    let balance = include_str!("../../../spec/beancount/probes/refused/balance.beancount");
-    refused("balance.beancount", balance, 7, "balance");
-    let app = include_str!("../../../harness/journals/app/generated-padding.beancount");
-    refused("generated-padding.beancount", app, 4, "pad");
-}
-
-#[test]
 fn plugin_include_and_unchecked_options_are_refused() {
     refused(
         "p.beancount",

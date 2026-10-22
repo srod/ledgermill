@@ -75,8 +75,19 @@ pub(super) struct RawTransaction {
 #[derive(Debug, Clone)]
 pub(super) enum Item {
     Open {
+        date: Day,
+        line: u32,
         account: String,
         method: Option<Method>,
+    },
+    /// `balance`: the tolerance is the one written after `~`, if any.
+    Balance {
+        date: Day,
+        line: u32,
+        account: String,
+        expected: Decimal,
+        tolerance: Option<Decimal>,
+        currency: String,
     },
     Transaction(RawTransaction),
     /// A directive that changes what transactions come out and is not built yet.
@@ -84,6 +95,18 @@ pub(super) enum Item {
         line: u32,
         construct: &'static str,
     },
+}
+
+impl Item {
+    /// The date and line of a directive that is not a transaction.
+    pub(super) fn place(&self) -> Option<(Day, u32)> {
+        match self {
+            Item::Open { date, line, .. } | Item::Balance { date, line, .. } => {
+                Some((*date, *line))
+            }
+            Item::Transaction(_) | Item::Refused { .. } => None,
+        }
+    }
 }
 
 /// The result of reading one file.
