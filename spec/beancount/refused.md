@@ -4,6 +4,9 @@ Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery
 
 ## Rule
 
+`pad` and `balance` are not refused for good: their rules are in pad.md and balance-directive.md, and the
+engine will learn them. Until it does, ledgermill reports them as `unsupported-syntax` (spec/README.md).
+
 ledgermill refuses what could change which transactions or postings come out, or their figures,
 and that it does not reproduce yet. It reports `unsupported-syntax` (`details.construct` names it,
 see spec/README.md), returns **no** transaction for the file (a partial answer would look
@@ -12,7 +15,6 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | Probe | bean-check | ledgermill `construct` |
 |---|---|---|
 | `average-booking` | rejects: "AVERAGE method is not supported", at the sale | `average-booking` (`details.account`) |
-| `balance` | accepts | `balance` |
 | `cost-merge` | rejects: "Cost merging is not supported yet" | `cost-merge` |
 | `cost-partial-per-unit`, `cost-partial-total` | accept: the missing part of `{2 # EUR}` / `{# 1 EUR}` is worked out | `cost-partial` |
 | `inferred-price-with-cost` | rejects: "Too many missing numbers" | `inferred-price` |
@@ -20,11 +22,9 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `number-expression` | accepts: `(1 + 2) * 3 EUR` is `9` | `number-expression` |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
-| `pad` | accepts, and adds a transaction (flag `P`) | `pad` |
 | `plugin` | accepts, the plugin runs | `plugin` |
 
-Why each is refused: `include` and `plugin` bring in files or rewrite the entries; `pad` adds a
-transaction no line of the file shows; `balance` asserts what the running inventory holds; a
+Why each is refused: `include` and `plugin` bring in files or rewrite the entries; a
 number expression needs the expression grammar; an option other than the ones in options-and-directives.md may
 change tolerances, account names or booking; `cost-merge` (`{..., *}`) and AVERAGE booking merge
 lots. ledgermill refuses a rejected journal as unsupported rather than as an error when the
@@ -44,19 +44,17 @@ Also refused, without a probe because nothing needs a reference to confirm it:
 
 ## Probe
 
-`probes/refused/average-booking.beancount`, `probes/refused/balance.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/pad.beancount`, `probes/refused/plugin.beancount`
+`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin.beancount`
 
 Command:
 
 ```sh
 spec/beancount/show.sh spec/beancount/probes/refused/average-booking.beancount
-spec/beancount/show.sh spec/beancount/probes/refused/balance.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/cost-merge.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/include.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/number-expression.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/option-tolerance.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/option-unknown.beancount
-spec/beancount/show.sh spec/beancount/probes/refused/pad.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/plugin.beancount
 ```
 
@@ -72,15 +70,6 @@ bean-check: average-booking.beancount:8: AVERAGE method is not supported
 ef883d,transaction,8,2026-01-10,*,,sell
 20c573,Assets:Stock,,1,BTC,10,EUR,2026-01-02,,,,6
 20c573,Assets:Bank,,-10,EUR,,,,,,,7
-```
-
-balance:
-
-```text
-bean-check: (no output, exit 0)
-53c9f8,transaction,4,2026-01-02,*,,pay
-53c9f8,Assets:Bank,,500.00,EUR,,,,,,,5
-53c9f8,Income:Pay,,-500.00,EUR,,,,,,,6
 ```
 
 cost-merge:
@@ -123,15 +112,6 @@ bean-check: (no output, exit 0)
 ebffa0,transaction,6,2026-01-02,*,,renamed account types
 ebffa0,Expenses:Food,,1,EUR,,,,,,,7
 ebffa0,Actifs:Bank,,-1,EUR,,,,,,,8
-```
-
-pad:
-
-```text
-bean-check: (no output, exit 0)
-800fe5,transaction,4,2026-01-02,P,,(Padding inserted for Balance of 500.00 EUR for difference 500.00 EUR)
-800fe5,Assets:Bank,,500.00,EUR,,,,,,,5
-800fe5,Equity:Opening,,-500.00,EUR,,,,,,,5
 ```
 
 plugin:

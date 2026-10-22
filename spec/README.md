@@ -27,8 +27,9 @@ Each note has:
   cost_number,cost_currency,cost_date,cost_label,price_number,price_currency,filename,lineno`;
   `id` is shortened to 6 characters and shared by the postings of a transaction. A price is the
   per-unit price, a cost the lot's cost per unit.
-- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses (not run by the harness); a
-  `beancount/probes/pending/` directory holds the ones it gets wrong and is to fix, when there are any.
+- `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses (not run by the harness);
+  `beancount/probes/pending/` the ones it gets wrong and is to fix (not run either). `beancount/verdicts.sh` prints
+  bean-check's verdict and first error for every journal of the corpus.
 
 ## Index (hledger 1.52.4)
 
@@ -67,6 +68,12 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [inferred-cost-and-price](beancount/inferred-cost-and-price.md) | `{}` and `@ EUR`: the cost or price left to balancing |
 | [balancing](beancount/balancing.md) | tolerance, unbalanced transactions, two elided postings |
 | [source-lines-and-ordering](beancount/source-lines-and-ordering.md) | reported lines, output order |
+| [pad](beancount/pad.md) | the transaction `pad` adds, when it pads, unused pads, sub-accounts, lots |
+| [balance-directive](beancount/balance-directive.md) | `balance` assertions: when checked, what is summed, tolerance, the failure message |
+| [check-errors](beancount/check-errors.md) | bean-check's other errors: accounts, open/close, currencies, document, tags, names, syntax |
+| [check-order](beancount/check-order.md) | the order bean-check prints errors in, so which one is first |
+| [check-verdicts](beancount/check-verdicts.md) | bean-check's verdict and first error on every journal of the corpus |
+| [syntax](beancount/syntax.md) | every directive and construct: supported, ignored with a warning, or refused |
 | [postings](beancount/postings.md) | the flat posting list: row order, lot rows, flags |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
 | [refused](beancount/refused.md) | what ledgermill refuses, and what the reference says |
@@ -96,7 +103,7 @@ A `.beancount` or `.bean` file is read on its own (see [refused](beancount/refus
 - `include`, `plugin`: refused before the parser runs;
 - `option` (`details.name`): any option outside the harmless list (options-and-directives);
 - `number-expression` (arithmetic in a number) and `number-too-large` (more than 22 characters);
-- `pad` and `balance`: directives not built yet;
+- `pad` and `balance`: directives not built yet (pad.md, balance-directive.md say what to build);
 - `inferred-price` (a price to work out next to a cost, or with zero units), `inferred-cost` (a
   cost to work out next to a reduction with an open cost, or with zero units and nothing to pay),
   `cost-partial` (`{# 5 EUR}`, `{2 # EUR}`), `cost-merge` (`{..., *}`), `number-too-precise`;
@@ -120,3 +127,38 @@ leaves it out; ledgermill does the same. `details.reason` is one of `ambiguous-l
 `unbalanced-transaction` (error): a currency group is outside the tolerance
 (`details.residual`: a `{commodity, quantity}` per group). bean-check reports it but bean-query
 still lists the transaction; ledgermill returns it too.
+
+#### Proposed, not built yet: what `check()` should report
+
+The rest of what `bean-check` rejects (check-errors.md, check-order.md, balance-directive.md, pad.md).
+`check()` should give the same verdict as `bean-check` and, as its first finding, the one on the same
+file and line as the first error `bean-check` prints. That order is not line order: it is the steps of
+check-order.md, and findings are ordered that way (today they are ordered by line, which would need to
+change). One finding per error is enough; an error `bean-check` prints twice need not be repeated.
+`details` names the account or currency, not the reference's message.
+
+All are errors, on the line check-errors.md gives for each:
+
+- `account-not-open`: `details.account`, `details.reason`: `never-opened`, `not-yet-open` or `closed`.
+  The line of a transaction's header, or of the directive.
+- `duplicate-open`, `duplicate-close`, `close-without-open`: `details.account`.
+- `currency-not-allowed`: `details.account`, `details.currency`, `details.directive`: `transaction`
+  (including the padding transaction, on the pad's line) or `balance`.
+- `assertion-failed`: a `balance` that does not hold: `details.account`, `details.currency`,
+  `details.expected` and `details.accumulated` (decimal strings, as written or summed), `details.difference`
+  (`accumulated - expected`).
+- `duplicate-assertion`: `details.account`, `details.currency`, `details.expected`, `details.first`
+  (the first assertion's amount of that day).
+- `unused-pad`: `details.account`, `details.source`; on the pad's line.
+- `pad-with-cost`: `details.account`, `details.currency`; on the balance's line. The padding is still made.
+- `duplicate-commodity`: `details.currency`.
+- `invalid-account-name`: `details.account`.
+- `unbalanced-push`: `details.kind` (`tag` or `metadata`), `details.name`, `details.reason`
+  (`pop-without-push`, or `push-not-popped` on line 0).
+- `duplicate-metadata`: `details.key`, `details.scope` (`entry` or `posting`), on the transaction's header line.
+- `parse-error` (existing) also covers tokens, syntax errors and impossible dates; `booking-error` and
+  `unbalanced-transaction` stay as they are.
+
+Warning: `ignored-syntax` (`details.construct`: `document`). The directive is read and skipped:
+ledgermill does not look at files, so it cannot give the `File does not exist` error `bean-check` gives.
+syntax.md lists what is supported, ignored with this warning, or refused.

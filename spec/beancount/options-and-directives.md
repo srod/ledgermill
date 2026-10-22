@@ -10,12 +10,15 @@ These change no transaction and no posting, and ledgermill reads past them:
   `conversion_currency` and the `account_previous_*`, `account_current_*`, `account_unrealized_gains`
   and `account_rounding` names. `booking_method` is also accepted, and it is used
   (lots-and-booking.md);
-- the directives `open` (its booking method is used, nothing else), `close`, `commodity`, `event`,
-  `note`, `custom`, `price`, and `query`;
+- the directives `open` (its booking method is used, and the currencies it lists, check-errors.md), `close`,
+  `commodity`, `event`, `note`, `custom`, `price`, and `query` (they change no transaction and no posting,
+  though `check()` reports some of their mistakes, check-errors.md);
 - `pushtag`/`poptag` and `pushmeta`/`popmeta`: a transaction inside them has the same rows as one
   outside.
 
-Every other option is refused (refused.md), as are `include`, `plugin`, `pad` and `balance`.
+Every other option is refused (refused.md), as are `include` and `plugin`. `pad` and `balance` are
+read (pad.md, balance-directive.md; not built yet), and `document` is skipped with a warning
+(check-errors.md). The whole list of constructs is in syntax.md.
 
 ## Probe
 
