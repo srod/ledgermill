@@ -223,6 +223,14 @@ Another gap: a priced posting that is itself on a conversion account and directl
 
 ## Balance assertions and assignments
 
+*Superseded by the spec notes [assertion-syntax](assertion-syntax.md), [assertions](assertions.md),
+[assertion-order](assertion-order.md), [assignments](assignments.md),
+[assignment-lots-and-costs](assignment-lots-and-costs.md),
+[assignment-processing](assignment-processing.md) and [assertion-failures](assertion-failures.md). The text
+below is kept as it was; where it is imprecise, the notes say so: the places of an assigned amount (a zero
+side gives the other back as written), posting dates, the two ways a transaction is processed, a price in
+the asserted amount, the order of errors.*
+
 - `acc  AMOUNT = B` asserts acc's balance in B's commodity, excluding sub-accounts, after this posting. `=*` includes sub-accounts.
   `==` also requires every other commodity to be zero (m8). Exact comparison (`1.004` vs `1.00` fails; `1` vs `1.0` passes).
 - Running balances are kept **per file** (each `-f` file has its own balances), in date order within the file (stable

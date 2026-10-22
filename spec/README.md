@@ -18,6 +18,9 @@ Each note has:
   line. An amount is `[commodity, decimalMantissa, decimalPlaces]`, then its price as
   `["@"|"@@", commodity, mantissa, places]` and its lot as `{cost, date, label}` when it has them.
 - `hledger/probes/` – the probe journals.
+- `hledger/show-assertions.sh` prints the assertions hledger reads (position, asserted amount, flags, the
+  amounts an assignment got). `hledger/assertion-verdicts.sh` prints hledger's verdict on every journal with an
+  assertion or assignment, and for a rejected one the file, line and kind of its first error.
 - `hledger/prototype-observations.md` – the notes of our earlier TypeScript prototype, kept as a
   starting point. They are our own text, written from running hledger.
 
@@ -53,6 +56,14 @@ Each note has:
 | [inferred-prices](hledger/inferred-prices.md) | the price given when two commodities do not balance |
 | [conversion](hledger/conversion.md) | conversion accounts, `type:` tags, pairs that balance by quantity |
 | [ordering](hledger/ordering.md) | output order, several files |
+| [assertion-syntax](hledger/assertion-syntax.md) | `=`, `==`, `=*`, `==*`: spacing, the asserted amount, what is a parse error |
+| [assertions](hledger/assertions.md) | what an assertion compares: commodities, sub-accounts, exactness, costs |
+| [assertion-order](hledger/assertion-order.md) | the order of the running balances: dates, posting dates, files |
+| [assignments](hledger/assignments.md) | the amount an assignment gets: places, `==`, `=*`, the balance afterwards |
+| [assignment-lots-and-costs](hledger/assignment-lots-and-costs.md) | lots on the amounts `==` zeroes, a price in the asserted amount |
+| [assignment-processing](hledger/assignment-processing.md) | balancing, elided amounts, plain vs assignment transactions, what is refused |
+| [assertion-failures](hledger/assertion-failures.md) | the line blamed, which failure and which error comes first, `-I` |
+| [assertion-verdicts](hledger/assertion-verdicts.md) | hledger's verdict and first error on every corpus journal with an assertion |
 
 ## Index (Beancount 3.2.3)
 
@@ -92,6 +103,43 @@ to.
 two-elided-amounts`), or a conversion pair carries a price (`conversion-posting-with-cost`).
 hledger fails the whole command here; ledgermill reports the finding and still returns the
 transaction.
+
+#### Balance assertions and assignments (proposed, not built yet)
+
+Until this is built, a balance assertion or assignment is `unsupported-syntax` with `construct:
+balance-assertion`, as above. Backed by the notes [assertion-syntax](hledger/assertion-syntax.md),
+[assertions](hledger/assertions.md), [assertion-order](hledger/assertion-order.md),
+[assignments](hledger/assignments.md), [assignment-lots-and-costs](hledger/assignment-lots-and-costs.md),
+[assignment-processing](hledger/assignment-processing.md) and
+[assertion-failures](hledger/assertion-failures.md). hledger fails the whole command on any of
+these; like `unbalanced-transaction`, ledgermill reports the finding and still returns the
+transactions, with the amounts of the assignments filled in (an empty amount list when the difference is zero).
+
+`assertion-failed` (error), on the **line of the posting that carries the assertion**. `details`:
+`account` (after aliases), `commodity` (`""` for a number with no commodity; for `==` the commodity
+hledger names: the asserted one if its balance is wrong, else the first other commodity of the
+account whose balance is not zero), `expected` (the asserted quantity, a decimal string as
+written), `actual` (the running balance in that commodity, an exact decimal string; `"0"` when the
+account holds none), `total` (true for `==`, `==*`) and `inclusive` (true for `=*`, `==*`).
+One finding per failing assertion, in the order given below (not
+file order); the first is the one hledger prints. A failed assertion changes no balance.
+
+`unbalanced-transaction` (existing) also covers a group that does not sum to zero once the assigned amounts
+are in, and two amount-less postings (`reason: two-elided-amounts`), on the transaction's header
+line, as hledger's `FILE:FIRST-LAST`. An assignment is not an amount-less posting.
+
+`assignment-with-posting-date` (error): an assignment posting with a `date:` tag or a bracketed
+date in its comment. `details.account`. hledger names no line (it prints the transaction); use the
+posting's line. `date2:` is fine.
+
+`parse-error` (existing): a malformed assertion ([assertion-syntax](hledger/assertion-syntax.md)), on the posting's line.
+
+Order of findings, which is the order of hledger's errors within a file: parse errors; the problems of
+plain transactions (those without an assignment) in file order; then, in date order (ties by file position), the
+failing assertions of plain postings and, for a transaction with an assignment taken as a block at its
+date, its posting-date error, its failing assertions, and its balancing problems. With several files, a file
+is finished before the next. A price in the asserted amount of an assignment ([assignment-lots-and-costs](hledger/assignment-lots-and-costs.md))
+may be answered with `unsupported-syntax`, `construct: assignment-with-price`, in a first version.
 
 ### Beancount
 
