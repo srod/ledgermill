@@ -2,3 +2,7 @@
 # Journals are test data with made-up words on purpose, so they are not checked.
 [files]
 extend-exclude = ["*.journal", "LICENSE-*"]
+
+[default]
+# The 6-character transaction ids that open the rows in spec notes are hashes, not words.
+extend-ignore-re = ["(?m)^[0-9a-f]{6},"]
