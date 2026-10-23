@@ -329,7 +329,10 @@ fn is_tag_line(line: &str) -> bool {
 }
 
 /// `5.` as `5`: the reference reads a number that ends in a dot, the parser does not.
-fn trailing_dots_dropped(line: &str) -> String {
+///
+/// On a directive line (`strict`) only a dot followed by a space or the end counts: a currency
+/// such as `X1.Y` has a dot after a digit too.
+fn trailing_dots_dropped(line: &str, strict: bool) -> String {
     let mut out = String::with_capacity(line.len());
     let mut in_string = false;
     let mut escaped = false;
@@ -337,9 +340,13 @@ fn trailing_dots_dropped(line: &str) -> String {
     let mut previous = ' ';
     let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
-        let next_is_digit = chars.peek().is_some_and(char::is_ascii_digit);
+        let ends_number = if strict {
+            chars.peek().is_none_or(|next| next.is_whitespace())
+        } else {
+            !chars.peek().is_some_and(char::is_ascii_digit)
+        };
         let skip =
-            !in_string && !in_comment && c == '.' && previous.is_ascii_digit() && !next_is_digit;
+            !in_string && !in_comment && c == '.' && previous.is_ascii_digit() && ends_number;
         if in_string {
             if escaped {
                 escaped = false;
@@ -504,8 +511,8 @@ pub(super) fn normalize(text: &str) -> String {
         if line.starts_with([' ', '\t']) && line.contains("{{") {
             line = single_braces(&line);
         }
-        if line.starts_with([' ', '\t']) && line.contains('.') {
-            line = trailing_dots_dropped(&line);
+        if line.contains('.') {
+            line = trailing_dots_dropped(&line, !line.starts_with([' ', '\t']));
         }
         if line.starts_with([' ', '\t']) && is_tag_line(&line) {
             line = format!("  ;{line}");

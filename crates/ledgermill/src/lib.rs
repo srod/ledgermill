@@ -72,7 +72,11 @@ impl Ledger {
     /// taken from the transactions. A directive whose rate is followed by a price, a lot or a label
     /// is refused with an `unsupported-syntax` finding (`price-annotation`) and not listed.
     ///
-    /// Beancount: always empty. Its `price` directives are separate work and are not listed yet.
+    /// Beancount: the `price` directives, sorted by date, the same date in the order written (a stable
+    /// sort, as the `prices` table lists them: spec/beancount/price-table.md). Nothing is dropped:
+    /// a directive written twice is listed twice. `rate.quantity` is the number as `number(amount)`
+    /// prints it, so a rate below 0.000001 has an exponent (`1E-7`). Empty when the file has an
+    /// `unsupported-syntax` finding: a Beancount file with a refused construct lists nothing.
     pub fn prices(&self) -> &[PriceDirective] {
         &self.price_list
     }
@@ -142,6 +146,7 @@ pub fn load(files: &[SourceFile]) -> Ledger {
             postings: beancount::flatten(&loaded.transactions),
             transactions: loaded.transactions,
             findings: loaded.findings,
+            price_list: loaded.prices,
             beancount: true,
             ..Ledger::default()
         };

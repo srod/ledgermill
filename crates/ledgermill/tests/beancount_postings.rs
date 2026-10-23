@@ -149,8 +149,9 @@ fn every_row_is_a_regular_posting_and_no_price_is_listed() {
             .iter()
             .all(|p| p.kind == ledgermill::PostingKind::Regular)
     );
-    // Beancount prices are separate work: `prices()` is empty for now.
-    assert!(ledger.prices().is_empty());
+    // The price directive is listed apart from the postings (spec/beancount/price-table.md).
+    assert_eq!(ledger.prices().len(), 1);
+    assert_eq!(ledger.prices()[0].commodity, "USD");
 }
 
 #[test]

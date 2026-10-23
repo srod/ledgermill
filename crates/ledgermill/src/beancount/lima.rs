@@ -335,6 +335,22 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
                 line,
                 currency: commodity.currency().item().to_string(),
             }),
+            parser::DirectiveVariant::Price(price) => {
+                let amount = price.amount().item();
+                match literal(amount.number().item()) {
+                    Some(number) => items.push(Item::Price {
+                        date: day!(directive.date()),
+                        line,
+                        currency: price.currency().item().to_string(),
+                        number,
+                        quote: amount.currency().item().to_string(),
+                    }),
+                    None => items.push(Item::Refused {
+                        line,
+                        construct: "number-expression",
+                    }),
+                }
+            }
             parser::DirectiveVariant::Note(note) => items.push(Item::Note {
                 date: day!(directive.date()),
                 line,

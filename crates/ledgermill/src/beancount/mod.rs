@@ -16,10 +16,10 @@ mod pydec;
 mod text;
 
 use crate::model::{
-    Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, Quantity, Severity, Source,
-    SourceFile, Status, Transaction,
+    Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, PriceDirective, Quantity,
+    Severity, Source, SourceFile, Status, Transaction,
 };
-use plain::{BookFailure, IssueKind, Item, Method, ParseIssue};
+use plain::{BookFailure, Day, IssueKind, Item, Method, ParseIssue};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
@@ -34,6 +34,8 @@ pub(crate) struct Loaded {
     pub transactions: Vec<Transaction>,
     /// In the order the reference tool prints them (spec/beancount/check-order.md).
     pub findings: Vec<Finding>,
+    /// The `price` directives, by date and then line (spec/beancount/price-table.md).
+    pub prices: Vec<PriceDirective>,
 }
 
 fn finding(
@@ -242,6 +244,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         return Loaded {
             transactions: Vec::new(),
             findings,
+            prices: Vec::new(),
         };
     }
 
@@ -255,6 +258,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
             return Loaded {
                 transactions: Vec::new(),
                 findings,
+                prices: Vec::new(),
             };
         }
     };
@@ -284,6 +288,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
             Item::Open { .. }
             | Item::Close { .. }
             | Item::Commodity { .. }
+            | Item::Price { .. }
             | Item::Pad { .. }
             | Item::Balance { .. }
             | Item::Note { .. }
@@ -427,6 +432,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         return Loaded {
             transactions,
             findings,
+            prices: Vec::new(),
         };
     }
     // The checks come in the order the reference prints them, not in line order.
@@ -459,5 +465,36 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     Loaded {
         transactions,
         findings,
+        prices: listed_prices(&file.name, &read.items),
     }
+}
+
+/// The `price` directives as the `prices` table lists them: by date, the same date in the order
+/// written (spec/beancount/price-table.md).
+fn listed_prices(file: &str, items: &[Item]) -> Vec<PriceDirective> {
+    let mut prices: Vec<(Day, u32, PriceDirective)> = items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Price {
+                date,
+                line,
+                currency,
+                number,
+                quote,
+            } => Some((
+                *date,
+                *line,
+                PriceDirective {
+                    date: date.to_string(),
+                    commodity: currency.clone(),
+                    rate: quantity(quote, number),
+                    file: file.to_string(),
+                    line: *line,
+                },
+            )),
+            _ => None,
+        })
+        .collect();
+    prices.sort_by_key(|(date, line, _)| (*date, *line));
+    prices.into_iter().map(|(_, _, price)| price).collect()
 }

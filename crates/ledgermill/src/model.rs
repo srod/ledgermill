@@ -50,6 +50,9 @@ pub struct Quantity {
 /// places it was written with (`0.80` stays `0.80`, an exponent is expanded), read under the number
 /// marks in force at that line. A rate with no commodity of its own is listed with at least the
 /// places of the `D` sample, as `hledger prices` prints it.
+///
+/// Beancount: a `price` directive; `rate.quantity` is `number(amount)` as the reference prints it
+/// (places kept, no digit-group commas, an exponent for a number below 0.000001: `1E-7`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PriceDirective {
     /// `YYYY-MM-DD`; a time of day on the line is dropped.

@@ -107,6 +107,14 @@ pub(super) enum Item {
         tolerance: Option<Decimal>,
         currency: String,
     },
+    /// A `price`: one unit of `currency` was worth `number` of `quote` on `date`.
+    Price {
+        date: Day,
+        line: u32,
+        currency: String,
+        number: Decimal,
+        quote: String,
+    },
     /// A `note`; only the account it names matters.
     Note {
         date: Day,
@@ -134,6 +142,7 @@ impl Item {
             Item::Open { date, line, .. }
             | Item::Close { date, line, .. }
             | Item::Commodity { date, line, .. }
+            | Item::Price { date, line, .. }
             | Item::Pad { date, line, .. }
             | Item::Balance { date, line, .. }
             | Item::Note { date, line, .. }
