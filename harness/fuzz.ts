@@ -443,6 +443,7 @@ const BEAN_RATES = ["2", "3", "7", "0.5", "1.25", "0.3333333333", "1000.5", "0",
 // No tiny units and no cost of zero: interpolating those next to a cost is not what this asks about.
 const BEAN_UNITS = ["1", "3", "9", "0.9", "2.50", "0.207", "100", "1.5", "2.25", "12345.678", "0.01", "10"] as const;
 const BEAN_ACCOUNTS = ["Assets:A", "Assets:B", "Assets:C", "Assets:A:Sub"] as const;
+const BEAN_LOT_ACCOUNTS = ["Assets:L1", "Assets:L2", "Assets:L2:Sub"] as const;
 
 /**
  * A Beancount journal that bean-check accepts: prices of random pairs on random days (out of order, twice a day,
@@ -455,7 +456,7 @@ function beanJournal(): { text: string; used: string[] } {
   if (used.length < 3) used.push("EUR", "USD", "AAA");
   const others = (c: string) => used.filter((u) => u !== c);
   let text = 'option "operating_currency" "EUR"\n';
-  for (const a of ["Assets:A", "Assets:B", "Assets:C", "Assets:A:Sub", "Equity:O"]) text += `2026-01-01 open ${a}\n`;
+  for (const a of [...BEAN_ACCOUNTS, ...BEAN_LOT_ACCOUNTS, "Equity:O"]) text += `2026-01-01 open ${a}\n`;
   text += "\n";
   for (let k = 0, n = int(14); k < n; k++) {
     const from = pick(used);
@@ -472,7 +473,9 @@ function beanJournal(): { text: string; used: string[] } {
       const account = pick(BEAN_ACCOUNTS);
       const units = pick(BEAN_UNITS);
       const roll = r();
-      if (roll < 0.3) text += `  ${account}  ${units} ${c} {${pick(["3", "4.5", "1.25", "0.1", "2"])} ${pick(others(c))}}\n`;
+      // Lots live in accounts of their own: plain units of the same commodity next to a lot in one account hit booking
+      // shapes the transactions comparison owns (see harness/README.md), not what this asks about.
+      if (roll < 0.3) text += `  ${pick(BEAN_LOT_ACCOUNTS)}  ${units} ${c} {${pick(["3", "4.5", "1.25", "0.1", "2"])} ${pick(others(c))}}\n`;
       else if (roll < 0.4) text += `  ${account}  ${units} ${c} @ ${pick(["2", "3.5", "0.8"])} ${pick(others(c))}\n`;
       else text += `  ${account}  ${chance(0.4) ? "-" : ""}${units} ${c}\n`;
     }
