@@ -12,11 +12,12 @@ toolchain in `rust-toolchain.toml`) and `wasm-bindgen-cli` 0.2.129:
 
 ```sh
 cargo install --locked wasm-bindgen-cli@0.2.129
-cargo build --release --target wasm32-unknown-unknown -p ledgermill-wasm
-wasm-bindgen --target web --out-dir pkg target/wasm32-unknown-unknown/release/ledgermill_wasm.wasm
+crates/ledgermill-wasm/build.sh
 ```
 
-Rebuild both steps after changing the Rust code: the harness loads `pkg/`.
+The script builds the wasm, runs `wasm-bindgen` into `pkg/` and adds the npm `package.json`
+(`@ledgermill/wasm`). Run it again after changing the Rust code: the harness loads `pkg/`. An app
+can use the package before the first release with `cd pkg && bun link`.
 
 Beancount: the harness runs `bean-check` and `bean-query` from `PATH`, and the versions matter
 (the spec notes record what these ones print):

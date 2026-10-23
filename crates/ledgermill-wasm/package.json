@@ -1,0 +1,20 @@
+{
+  "name": "@ledgermill/wasm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ledgermill ledger engines compiled to WebAssembly, with their wasm-bindgen glue.",
+  "license": "MIT OR Apache-2.0",
+  "repository": "github:srod/ledgermill",
+  "type": "module",
+  "main": "./ledgermill_wasm.js",
+  "types": "./ledgermill_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./ledgermill_wasm.d.ts",
+      "default": "./ledgermill_wasm.js"
+    },
+    "./ledgermill_wasm_bg.wasm": "./ledgermill_wasm_bg.wasm"
+  },
+  "files": ["ledgermill_wasm.js", "ledgermill_wasm.d.ts", "ledgermill_wasm_bg.wasm", "ledgermill_wasm_bg.wasm.d.ts"],
+  "sideEffects": false
+}
