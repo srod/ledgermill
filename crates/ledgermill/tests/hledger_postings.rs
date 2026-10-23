@@ -413,9 +413,9 @@ fn a_worked_out_amount_is_listed_with_the_display_precision_of_its_terms() {
             "2026-01-04 | unit prices grouped, the first price gives the places | a | 3 Q | post-elided-places.journal:20",
             "2026-01-04 | unit prices grouped, the first price gives the places | b | 2 Q | post-elided-places.journal:21",
             "2026-01-04 | unit prices grouped, the first price gives the places | c | -7.5 R | post-elided-places.journal:22",
-            "2026-01-05 | totals, the most places | a | 1 X | post-elided-places.journal:25",
-            "2026-01-05 | totals, the most places | b | 1 X | post-elided-places.journal:26",
-            "2026-01-05 | totals, the most places | c | -3.00 Y | post-elided-places.journal:27",
+            "2026-01-05 | totals, the first gives the places | a | 1 X | post-elided-places.journal:25",
+            "2026-01-05 | totals, the first gives the places | b | 1 X | post-elided-places.journal:26",
+            "2026-01-05 | totals, the first gives the places | c | -3.00 Y | post-elided-places.journal:27",
             "2026-01-06 | another place for R elsewhere changes nothing | f | 0.001 R | post-elided-places.journal:30",
             "2026-01-06 | another place for R elsewhere changes nothing | g | -0.001 R | post-elided-places.journal:31",
             "2026-01-07 | an assignment lists the places of the difference | n1 | 2.00 X | post-elided-places.journal:34",
@@ -426,6 +426,28 @@ fn a_worked_out_amount_is_listed_with_the_display_precision_of_its_terms() {
             "2026-01-09 | second | b | -1.5 X | post-elided-places.journal:43",
             "2026-01-10 | total assignment | n2 | -9 X | post-elided-places.journal:46",
             "2026-01-10 | total assignment | b | 9 X | post-elided-places.journal:47",
+            "2026-01-11 | totals, the first gives the places (not the most) | a | 3 X | post-elided-places.journal:50",
+            "2026-01-11 | totals, the first gives the places (not the most) | b | 1 X | post-elided-places.journal:51",
+            "2026-01-11 | totals, the first gives the places (not the most) | c | -2.0 EUR | post-elided-places.journal:52",
+        ]
+    );
+}
+
+#[test]
+fn an_amount_without_a_commodity_is_listed_with_the_places_of_d() {
+    assert_eq!(
+        post_lines(&[probe!("post-default-commodity")]),
+        [
+            "2026-01-01 | bare amount | a | 5.00 EUR | post-default-commodity.journal:5",
+            "2026-01-01 | bare amount | b | -5.00 EUR | post-default-commodity.journal:6",
+            "2026-01-02 | bare amount with more places | a | 5.123 EUR | post-default-commodity.journal:9",
+            "2026-01-02 | bare amount with more places | b | -5.123 EUR | post-default-commodity.journal:10",
+            "2026-01-03 | named amount | a | 5 EUR | post-default-commodity.journal:13",
+            "2026-01-03 | named amount | b | -5 EUR | post-default-commodity.journal:14",
+            "2026-01-04 | bare amount, group mark | a | 1000.00 EUR | post-default-commodity.journal:17",
+            "2026-01-04 | bare amount, group mark | b | -1000.00 EUR | post-default-commodity.journal:18",
+            "2026-01-05 | bare amount in a cost | a | 3 X | post-default-commodity.journal:21",
+            "2026-01-05 | bare amount in a cost | b | -6.00 EUR | post-default-commodity.journal:22",
         ]
     );
 }

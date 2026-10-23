@@ -75,6 +75,8 @@ fn cmp_group(a: &Option<Price>, b: &Option<Price>) -> Ordering {
 #[derive(Debug, Clone)]
 struct Entry {
     quantity: Decimal,
+    /// The display precision of the balance: the most places among the amounts added to it.
+    shown: u32,
     price: Option<Price>,
     /// The lot of the one posting that made this entry; adding a second posting drops it.
     lot: Option<WrittenLot>,
@@ -84,6 +86,7 @@ struct Entry {
 struct Group {
     price: Option<Price>,
     quantity: Decimal,
+    shown: u32,
     /// The lot, when exactly one entry made the group.
     lot: Option<WrittenLot>,
 }
@@ -94,6 +97,7 @@ fn groups(entries: &[&Entry]) -> Vec<Group> {
         match out.iter_mut().find(|g| same_group(&g.price, &e.price)) {
             Some(g) => {
                 g.quantity = g.quantity.combine(&e.quantity, ZeroTie::KeepLater);
+                g.shown = g.shown.max(e.shown);
                 if let (Some(p), Some(q)) = (g.price.as_mut(), e.price.as_ref())
                     && p.kind == CostKind::Total
                 {
@@ -104,6 +108,7 @@ fn groups(entries: &[&Entry]) -> Vec<Group> {
             None => out.push(Group {
                 price: e.price.clone(),
                 quantity: e.quantity.clone(),
+                shown: e.shown,
                 lot: e.lot.clone(),
             }),
         }
@@ -121,6 +126,7 @@ fn subtract(held: &mut [Group], taken: &[Group]) {
         // Observed places (assignments.md): nothing is taken off when the account holds a
         // zero; otherwise plain arithmetic, a zero whole being no exception, except that a share
         // equal to the account's own balance has the places of that balance.
+        g.shown = g.shown.max(t.shown);
         if !t.quantity.is_zero() {
             let share = g.quantity.add(&t.quantity.negated());
             g.quantity = if share.cmp_value(&t.quantity).is_eq() {
@@ -141,6 +147,8 @@ fn subtract(held: &mut [Group], taken: &[Group]) {
 struct Piece {
     price: Option<Price>,
     quantity: Decimal,
+    /// The places it is listed with, at least those of the quantity (see `WrittenAmount`).
+    shown: u32,
     lot: Option<WrittenLot>,
 }
 
@@ -178,6 +186,7 @@ fn difference(asserted: Option<&WrittenAmount>, held: &[Group]) -> Vec<Piece> {
                     quantity: a
                         .quantity
                         .combine(&g.quantity.negated(), ZeroTie::KeepEarlier),
+                    shown: a.display_places.max(g.shown),
                     lot: None,
                 });
             }
@@ -189,6 +198,7 @@ fn difference(asserted: Option<&WrittenAmount>, held: &[Group]) -> Vec<Piece> {
                     p
                 }),
                 quantity: g.quantity.negated(),
+                shown: g.shown,
                 lot: g.lot.clone(),
             }),
         }
@@ -197,6 +207,7 @@ fn difference(asserted: Option<&WrittenAmount>, held: &[Group]) -> Vec<Piece> {
         out.push(Piece {
             price: asserted_price,
             quantity: a.quantity.clone(),
+            shown: a.display_places,
             lot: None,
         });
     }
@@ -238,6 +249,7 @@ impl Balances {
         match entries.iter_mut().find(|e| same_group(&e.price, &price)) {
             Some(e) => {
                 e.quantity = e.quantity.combine(&amount.quantity, ZeroTie::KeepLater);
+                e.shown = e.shown.max(amount.display_places);
                 if let (Some(held), Some(added)) = (e.price.as_mut(), price.as_ref())
                     && held.kind == CostKind::Total
                 {
@@ -248,6 +260,7 @@ impl Balances {
             None => {
                 entries.push(Entry {
                     quantity: amount.quantity.clone(),
+                    shown: amount.display_places,
                     price,
                     lot: amount.lot.clone(),
                 });
@@ -394,7 +407,7 @@ impl Balances {
                 match difference(target, &below_groups).as_slice() {
                     [only] => Some(WrittenAmount {
                         commodity: commodity.clone(),
-                        display_places: only.quantity.places(),
+                        display_places: only.quantity.places().max(only.shown),
                         quantity: only.quantity.clone(),
                         cost: None,
                         lot: None,
@@ -419,6 +432,7 @@ impl Balances {
                     .filter(|p| target.is_some() || !p.is_zero())
                     .map(|p| Entry {
                         quantity: p.quantity,
+                        shown: p.shown,
                         price: p.price,
                         lot: None,
                     })
@@ -431,6 +445,7 @@ impl Balances {
                     match left.iter_mut().find(|e| same_group(&e.price, &p.price)) {
                         Some(e) => {
                             e.quantity = e.quantity.combine(&p.quantity, ZeroTie::KeepLater);
+                            e.shown = e.shown.max(p.shown);
                             if let (Some(held), Some(add)) = (e.price.as_mut(), p.price.as_ref())
                                 && held.kind == CostKind::Total
                             {
@@ -440,6 +455,7 @@ impl Balances {
                         }
                         None => left.push(Entry {
                             quantity: p.quantity.clone(),
+                            shown: p.shown,
                             price: p.price.clone(),
                             lot: None,
                         }),
@@ -451,7 +467,7 @@ impl Balances {
             for piece in pieces {
                 amounts.push(WrittenAmount {
                     commodity: commodity.clone(),
-                    display_places: piece.quantity.places(),
+                    display_places: piece.quantity.places().max(piece.shown),
                     quantity: piece.quantity,
                     cost: piece.price.as_ref().map(Price::written),
                     lot: if is_asserted { None } else { piece.lot },

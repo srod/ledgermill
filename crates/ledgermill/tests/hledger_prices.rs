@@ -340,7 +340,7 @@ fn each_row_gives_the_file_as_loaded_and_the_line_of_its_p() {
 
 #[test]
 fn a_rate_followed_by_a_price_a_lot_or_a_label_is_refused_at_its_line() {
-    let (name, text) = probe!("prices-rate-annotations");
+    let (name, text) = probe!("refused/prices-rate-annotations");
     let ledger = load(&[file(name, text)]);
     let refused: Vec<(u32, &str)> = ledger
         .check()

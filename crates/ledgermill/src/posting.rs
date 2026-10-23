@@ -409,6 +409,12 @@ fn parse_amount_tail(
         }
         *cur = probe;
     }
+    // An amount with no commodity of its own takes `D`'s and is listed with its places.
+    let listed = |amount: &ReadAmount| match amount.named {
+        true => amount.quantity.places(),
+        false => amount.quantity.places().max(styles.default_places),
+    };
+    let display_places = listed(&main);
     let ReadAmount {
         commodity,
         quantity,
@@ -427,8 +433,8 @@ fn parse_amount_tail(
     }
     let cost = cost.map(|(kind, price)| WrittenCost {
         kind,
+        display_places: listed(&price),
         commodity: price.commodity,
-        display_places: price.quantity.places(),
         value: match kind {
             CostKind::Unit => price.quantity,
             // A total takes the sign of the quantity it prices; a zero quantity counts as
@@ -440,7 +446,7 @@ fn parse_amount_tail(
     });
     Ok(WrittenAmount {
         commodity,
-        display_places: quantity.places(),
+        display_places,
         quantity,
         cost,
         lot,

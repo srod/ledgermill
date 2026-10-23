@@ -328,8 +328,8 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
     type Key = (bool, String, u8, String, Decimal);
     struct Group {
         quantity: Decimal,
-        /// The places the group's result is listed with: the most among the amounts (the
-        /// totals) it was made from; for unit prices those of the first price.
+        /// The places the group's result is listed with: the most among the amounts it was made
+        /// from; for a group with a price, those of its first price.
         shown: u32,
         total: Option<Decimal>,
         lots: Vec<Option<WrittenLot>>,
@@ -367,7 +367,7 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
             let shown = cost.map_or(a.display_places, |c| c.display_places);
             match groups.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, g)) => {
-                    if key.2 != 2 {
+                    if key.2 == 0 {
                         g.shown = g.shown.max(shown);
                     }
                     g.quantity = g.quantity.combine(&a.quantity, ZeroTie::KeepLater);

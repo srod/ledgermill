@@ -276,7 +276,11 @@ The row shows `max(places of the quantity, precision)` places. A zero is always 
 - the sums of the groups into one commodity: the most places of the groups (a cost of `2` and a total of `1.25` into one
   commodity leave two places);
 - the precision is never taken from another transaction (`0.001 R` elsewhere changes nothing);
-- an amount worked out by an assignment is listed with the places of the difference (no padding was seen).
+- an amount worked out by an assignment (`p = X`): the places of the difference, but at least the precision of the asserted
+  amount and of the balance (the most places among the amounts that made it): `3 EUR` held and `= 0.00 EUR` give `-3.00`
+  though the quantity is `-3`; `0.00 EUR` held and `= 3 EUR` give `3.00`. The probe is
+  `probes/assign-diff-places.journal`; the CSV rows of its second transaction (line 5) are
+  `p1 -3.00 EUR` and `z 3.00 EUR`.
 
 ### Probe
 
