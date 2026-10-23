@@ -2,7 +2,7 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-23 (the day of the probes: "today" below).
 
-Status: spec only; the engine call is not built.
+Status: built as `Ledger::holdings()`; the harness compares it with hledger on every journal of the corpus.
 
 Plainledger reads its holdings from four `hledger balance` runs. The engine call to design for is
 `holdings({ end?: D, commodity: V })`. For every account and every commodity C it answers four
@@ -210,7 +210,50 @@ Per account and per commodity C, the position is the **sum of the amounts**, exa
 
 Valuing the sum or summing the values is the same to ten places: three postings of 1 EUR valued in Y (P Y = 3 EUR) give 1.0000000000 Y, as
 the sum 3 EUR times the 255-place inverse does, not 3 times 0.3333333333 (0.9999999999). The rounding to ten places is done once, on the sum.
-A quantity of a position is a [number](numbers.md) with up to 255 places inside and at most ten places once valued (not shortened if it was rounded).
+A quantity of a position is a [number](numbers.md) with up to 255 places inside and at most ten places once it is given (see the next rule).
+
+## Rule: every sum is rounded to ten places once, when it is given
+
+hledger adds exactly and rounds **the sum** half to even to ten places at the end, whatever the run: the units too (an amount
+written with eleven places or more has its sum rounded, and `print -O json` rounds each posting alone, so adding what `print`
+shows would be wrong), the cost, the value and the cost value. Rounding does not happen before an addition or a valuation: the
+cost of the postings is summed unrounded, then valued, then rounded (hold-units-round `g`: the cost `2.4e-10 EUR` and the plain
+`4e-11 X`, `8e-11 EUR` valued, add to `3.2e-10`, so `3e-10 EUR`, not the `2e-10` of a cost rounded first). A sum that rounds to zero is `0.0000000000` in the JSON, an amount that is there with
+the value zero; its row is as in the rows rule below.
+
+### Probe
+
+`probes/hold-units-round.journal`
+
+### Command and output
+
+a is the tie `0.12345678905 X` (even: `...890`), c two amounts of 4e-11 (8e-11 added, `1e-10`), e a negative tie (`-2e-10`), g an amount at
+a cost with plain ones, i eleven places or more in a commodity with no price (`1.1234567890`), k a sum of 3e-11 (zero once rounded as units,
+`1e-10` once valued):
+
+```text
+$ spec/hledger/show-holdings.sh spec/hledger/probes/hold-units-round.journal
+a: X 0.1234567890
+c: X 0.0000000001
+e: X -0.0000000002
+g: X 0.0000000001
+h: EUR -0.0000000002 | X 0.0000000000
+i: EUR 1.1234567890
+k: X 0.0000000000
+$ spec/hledger/show-holdings.sh --cost spec/hledger/probes/hold-units-round.journal
+g: EUR 0.0000000002 | X 0.0000000000
+$ spec/hledger/show-holdings.sh --value=end,EUR spec/hledger/probes/hold-units-round.journal
+a: EUR 0.2469135781
+c: EUR 0.0000000002
+e: EUR -0.0000000005
+k: EUR 0.0000000001
+$ spec/hledger/show-holdings.sh --cost --value=end,EUR spec/hledger/probes/hold-units-round.journal
+g: EUR 0.0000000003
+k: EUR 0.0000000001
+```
+
+(Lines of the other accounts, the balancing `b`, `d`, `f`, `h`, `j`, `l`, left out.) The engine's `units` is therefore the sum rounded to ten places, ten
+kept (`0.0000000001`) and fewer when it has fewer (`1.5`).
 
 ### Probe
 
@@ -557,15 +600,15 @@ zzz (no --) on dashes => 0 rows
 Per (account, commodity C), over all the real postings of the ledger that count:
 
 1. **Postings:** real only (`(a)` and `[a]` out). A posting counts if its own date (`date:` tag, else the transaction's date) is before `end`, or always without `end`. The secondary date is not used.
-2. **`units`:** exact sum of the quantities of C, costs and lots ignored. A zero sum may be reported as zero; hledger omits it.
+2. **`units`:** the sum of the quantities of C, costs and lots ignored, exact, rounded to ten places when it has more (rule above). A zero sum may be reported as zero; hledger omits it.
 3. **`cost`:** `at_cost()` of each posting (conversion postings dropped, as for `print --cost`), summed per commodity, for the postings that held C.
    The result has any number of commodities, C itself when a posting had no cost.
 4. **`value`:** the units valued by `value(E, V)`, with C = V unchanged and "no path" unchanged.
 5. **`costValue`:** `cost` first, then each commodity of it valued by `value(E, V)`.
 6. **E (valuation date):** `end - 1 day` when `end` is given; else the latest of all transaction dates, all posting dates (including virtual postings and `date:` tags) and all `P` dates that are not after `today`. This uses the whole journal, not the rows asked for, and `today` is an input.
-7. **Rounding:** only once, on the final amount of a (account, C, V) position: half to even to ten places, ten places kept ([value-arithmetic](value-arithmetic.md)). No rounding per posting.
+7. **Rounding:** only once, on the final amount of a (account, C) position (units, each commodity of the cost, the value, each commodity of the cost value): half to even to ten places, ten places kept ([value-arithmetic](value-arithmetic.md)). No rounding per posting, none of a cost before it is valued.
 8. **No rows when nothing counts:** with `end` before every posting, `holdings()` returns nothing.
-9. **Exactness:** compare with JSON, not the CSV; the CSV rounds half to even to the commodity's display precision (8 places with no style) and writes the decimal mark of the style.
+9. **Exactness:** compare with JSON, not the CSV (the JSON's sums are rounded to ten places, as rule 7 says); the CSV rounds half to even to the commodity's display precision (8 places with no style) and writes the decimal mark of the style.
 
 ## Gaps
 

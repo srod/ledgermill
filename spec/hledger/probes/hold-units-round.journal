@@ -1,0 +1,29 @@
+; Sums are exact inside and rounded half to even to ten places once, when they are given: units
+; included, valued or not. a is a tie (0.12345678905) and rounds to the even digit; c adds two
+; amounts that are 0 once rounded alone (4e-11 + 4e-11 = 8e-11, which is 1e-10); e is a negative
+; tie; g mixes an amount at a cost with plain ones; k is 5e-11 less 5e-11 plus 3e-11.
+P 2026-01-01 X 2 EUR
+
+2026-01-02 a tie
+    a   0.12345678905 X
+    b
+2026-01-03 two small amounts
+    c   0.00000000004 X
+    c   0.00000000004 X
+    d
+2026-01-04 negative tie
+    e  -0.00000000025 X
+    f
+2026-01-05 an amount at a cost and plain ones
+    g   0.00000000004 X @ 3 EUR
+    g   0.00000000004 X @ 3 EUR
+    g   0.00000000004 X
+    h
+2026-01-06 more places than ten, in a commodity with no price
+    i   1.12345678901234 EUR
+    j
+2026-01-07 a sum that is zero after rounding
+    k   0.00000000005 X
+    k  -0.00000000005 X
+    k   0.00000000003 X
+    l
