@@ -1,0 +1,54 @@
+; A pair priced in both directions: the inverse of a price comes back as 1 / (1 / price) for the pair written
+; second or longer. Rates with no exact inverse (3, 7, 11, 13), one unit of each commodity.
+2026-01-01 open Assets:A1
+2026-01-01 open Assets:B1
+2026-01-01 open Assets:A2
+2026-01-01 open Assets:B2
+2026-01-01 open Assets:A3
+2026-01-01 open Assets:B3
+2026-01-01 open Assets:A4
+2026-01-01 open Assets:B4
+2026-01-01 open Assets:B5
+2026-01-01 open Assets:C5
+2026-01-01 open Equity:Other
+
+; 1: A1 priced first, B1 on a later day
+2026-01-01 price A1 3 B1
+2026-01-02 price B1 7 A1
+; 2: the same with the days swapped
+2026-01-02 price A2 3 B2
+2026-01-01 price B2 7 A2
+; 3: both on one day, A3 written first
+2026-01-01 price A3 3 B3
+2026-01-01 price B3 7 A3
+; 4: two prices each way
+2026-01-01 price A4 3 B4
+2026-01-03 price A4 11 B4
+2026-01-02 price B4 7 A4
+2026-01-04 price B4 13 A4
+; 5: one price B5 to C5, two prices back: the shorter list is the one that is doubled
+2026-01-01 price B5 1000.5 C5
+2026-01-04 price C5 0.3 B5
+2026-01-05 price C5 0.5 B5
+
+2026-01-01 * "one unit of each"
+  Assets:A1  1 A1
+  Assets:B1  1 B1
+  Assets:A2  1 A2
+  Assets:B2  1 B2
+  Assets:A3  1 A3
+  Assets:B3  1 B3
+  Assets:A4  1 A4
+  Assets:B4  1 B4
+  Assets:B5  1 B5
+  Assets:C5  1 C5
+  Equity:Other  -1 A1
+  Equity:Other  -1 B1
+  Equity:Other  -1 A2
+  Equity:Other  -1 B2
+  Equity:Other  -1 A3
+  Equity:Other  -1 B3
+  Equity:Other  -1 A4
+  Equity:Other  -1 B4
+  Equity:Other  -1 B5
+  Equity:Other  -1 C5

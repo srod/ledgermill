@@ -26,6 +26,16 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
   the inverse of zero does not exist. Going the other way, an older inverse entry of the pair stays the latest
   one there is (below: `EUR` in `ZER` is `5.0` after the price of zero as before it; `NIL`, priced at zero and
   nothing else, gives `EUR` no rate to `NIL`). A negative price is a negative rate.
+- **A pair priced both ways builds its rates in two steps,** which shows when an inverse is not exact (3, 7, 11):
+  each pair starts with its own prices, then the pairs are visited one after another and each appends the inverses
+  of what it holds *at that moment* to the list of the opposite pair. A pair visited first is therefore given
+  the inverses of its opposite's inverses, that is its own prices again as `1 / (1 / price)` (`7` comes back
+  as `6.999999999999999999999999998`), and for one date the entry appended last wins, so that doubled price beats
+  the plain one. A pair that was priced one way only is never doubled. The order of the visits that fits every
+  journal tried (140 random ones, three or four commodities, up to nine prices, in any order and on any
+  day): the pair with the shortest list of its own prices first, and among equals the pair that appears last in
+  the prices table first. With one price each way that doubles the pair that appears second in the table; the
+  earlier probes of this note use inverses that are exact (`4` and `0.25`), which hides it.
 - **No chain.** Only a direct or an inverse entry is a rate; going from `CAD` to `EUR` through `USD` is not
   done, although both prices exist. (A cost's currency is the one bridge: convert-positions.md.)
 - An amount that is already in `V` stays as it is; so does one with no rate. The product is rounded to 28
@@ -35,7 +45,7 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
 
 ## Probe
 
-`probes/convert-rate-dates.beancount`, `probes/convert-rate-inverse.beancount`
+`probes/convert-rate-dates.beancount`, `probes/convert-rate-inverse.beancount`, `probes/convert-rate-both-ways.beancount`
 
 Command:
 
@@ -44,11 +54,13 @@ spec/beancount/show-value.sh spec/beancount/probes/convert-rate-dates.beancount 
 # ... and the same for the other dates below; then, for the inverse journal
 spec/beancount/show-value.sh spec/beancount/probes/convert-rate-inverse.beancount EUR 2026 2 2 '^Assets:'
 spec/beancount/show-holdings.sh spec/beancount/probes/convert-rate-dates.beancount EUR
+spec/beancount/show-rates.sh spec/beancount/probes/convert-rate-both-ways.beancount A1 B1
 ```
 
 `show-value.sh` runs Plainledger's value query, with the posting columns cut to account, units, the
 amount and commodity of `convert()`, and the line; the last argument keeps the accounts that match.
-`show-holdings.sh` runs its units and holdings queries (holdings.md). `bean-check` has no output (exit 0)
+`show-holdings.sh` runs its units and holdings queries (holdings.md). `show-rates.sh` runs the value query for one posting
+(one unit of a commodity) on six dates at once, and prints the six numbers in a row (`-` where the unit stays). `bean-check` has no output (exit 0)
 for both journals.
 
 ## Output
@@ -121,7 +133,7 @@ Without a date (the holdings query), every commodity takes its latest entry, the
 `EEE` takes its entry of 02-05:
 
 ```text
-== convert-rate-dates.beancount V=EUR 
+== convert-rate-dates.beancount V=EUR
 -- bean-check
 -- units: account,currency,units
 Assets:Dated,AAA,(10 AAA)
@@ -205,4 +217,20 @@ Assets:Short,-2.50,ZER,-2.50,ZER,31
 Assets:Negative,-4,NEG,-4,NEG,30
 Assets:Chain,3,CAD,3,CAD,32
 Assets:Cash,10,EUR,10,EUR,33
+```
+
+convert-rate-both-ways (one unit of each; the rate from FROM to TO on 2026-01-01 to 2026-01-06, one column a day):
+
+```text
+== convert-rate-both-ways.beancount (A1 priced 3 B1 on 01-01, B1 priced 7 A1 on 01-02; pair 2 has the days swapped; pair 3 one day; pair 4 two prices each way; pair 5 one price one way and two back)
+A1>B1:  3  0.1428571428571428571428571429  0.1428571428571428571428571429  0.1428571428571428571428571429  0.1428571428571428571428571429  0.1428571428571428571428571429
+B1>A1:  0.3333333333333333333333333333  6.999999999999999999999999998  6.999999999999999999999999998  6.999999999999999999999999998  6.999999999999999999999999998  6.999999999999999999999999998
+A2>B2:  0.1428571428571428571428571429  3.000000000000000000000000000  3.000000000000000000000000000  3.000000000000000000000000000  3.000000000000000000000000000  3.000000000000000000000000000
+B2>A2:  7  0.3333333333333333333333333333  0.3333333333333333333333333333  0.3333333333333333333333333333  0.3333333333333333333333333333  0.3333333333333333333333333333
+A3>B3:  0.1428571428571428571428571429  0.1428571428571428571428571429  0.1428571428571428571428571429  0.1428571428571428571428571429  0.1428571428571428571428571429  0.1428571428571428571428571429
+B3>A3:  6.999999999999999999999999998  6.999999999999999999999999998  6.999999999999999999999999998  6.999999999999999999999999998  6.999999999999999999999999998  6.999999999999999999999999998
+A4>B4:  3  0.1428571428571428571428571429  11  0.07692307692307692307692307692  0.07692307692307692307692307692  0.07692307692307692307692307692
+B4>A4:  0.3333333333333333333333333333  6.999999999999999999999999998  0.09090909090909090909090909091  13.00000000000000000000000000  13.00000000000000000000000000  13.00000000000000000000000000
+B5>C5:  1000.500000000000000000000000  1000.500000000000000000000000  1000.500000000000000000000000  3.333333333333333333333333333  2  2
+C5>B5:  0.0009995002498750624687656171914  0.0009995002498750624687656171914  0.0009995002498750624687656171914  0.3  0.5  0.5
 ```

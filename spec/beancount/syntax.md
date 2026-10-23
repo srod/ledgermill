@@ -26,7 +26,7 @@ Three classes.
 | `open` (currencies, booking method) | supported | `check-currency-constraint`, `booking-option` |
 | `close` | supported | `check-close-errors`, `directives-ignored` |
 | `commodity` | supported | `check-commodity-duplicate`, `options-harmless` |
-| `price` | supported | `options-harmless` |
+| `price` | supported (listed, and the rates of `convert()`) | `options-harmless`, `price-table`, `convert-rate-dates` |
 | `event`, `query`, `custom` | supported | `options-harmless`, `directives-ignored`, `check-accepted` |
 | `note` | supported | `options-harmless`, `check-directive-accounts` |
 | `balance` | supported | `balance-directive` and the `balance-directive-*` probes |
@@ -50,7 +50,7 @@ Three classes.
 | any other `option` | unsupported | `option-tolerance`, `option-unknown` |
 | `plugin` | unsupported | `plugin` |
 | `include` | unsupported | `include` |
-| arithmetic in a number | unsupported | `number-expression` |
+| arithmetic in a number, in a transaction or a `price` | unsupported | `number-expression`, `price-expression` |
 | partial costs `{2 # EUR}`, `{# 1 EUR}` | unsupported | `cost-partial-per-unit`, `cost-partial-total` |
 | cost merge `{..., *}` | unsupported | `cost-merge` |
 | booking method AVERAGE | unsupported | `average-booking` |

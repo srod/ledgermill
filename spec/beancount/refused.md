@@ -20,7 +20,7 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `cost-partial-per-unit`, `cost-partial-total` | accept: the missing part of `{2 # EUR}` / `{# 1 EUR}` is worked out | `cost-partial` |
 | `inferred-price-with-cost` | rejects: "Too many missing numbers" | `inferred-price` |
 | `include` | rejects here, the file is missing: "File glob ... does not match any files" | `include` |
-| `number-expression` | accepts: `(1 + 2) * 3 EUR` is `9` | `number-expression` |
+| `number-expression` | accepts: `(1 + 2) * 3 EUR` is `9`; the same in a `price` directive (price-table.md) | `number-expression` |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
 | `plugin` | accepts, the plugin runs | `plugin` |

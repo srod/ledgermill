@@ -110,6 +110,11 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [postings](beancount/postings.md) | the flat posting list: row order, lot rows, flags |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
 | [refused](beancount/refused.md) | what ledgermill refuses, and what the reference says |
+| [price-table](beancount/price-table.md) | the `prices` table: the `price` directives by date, the numbers as parsed |
+| [convert-rates](beancount/convert-rates.md) | `convert()`: the latest price of a pair on or before the date, inverse prices, zero, no chain |
+| [convert-positions](beancount/convert-positions.md) | `convert()` of a position: the units' rate, else the cost currency as a bridge; `@` and a cost are no rates |
+| [cost-of-position](beancount/cost-of-position.md) | `cost(position)`: the units times the booked cost per unit, 28 digits |
+| [holdings](beancount/holdings.md) | the units and holdings queries: sums that drop a zero, the date filter, what ledgermill gives |
 
 ## ledgermill findings
 
@@ -185,7 +190,7 @@ A `.beancount` or `.bean` file is read on its own (see [refused](beancount/refus
 
 - `include`, `plugin`: refused before the parser runs;
 - `option` (`details.name`): any option outside the harmless list (options-and-directives);
-- `number-expression` (arithmetic in a number) and `number-too-large` (more than 22 characters);
+- `number-expression` (arithmetic in a number, also in a `price`) and `number-too-large` (more than 22 characters);
 - `inferred-price` (a price to work out next to a cost, or with zero units), `inferred-cost` (a
   cost to work out next to a reduction with an open cost, or with zero units and nothing to pay),
   `cost-partial` (`{# 5 EUR}`, `{2 # EUR}`), `cost-merge` (`{..., *}`), `number-too-precise`;
@@ -256,3 +261,12 @@ what bean-query lists for the errors of the checks (accounts, currencies, duplic
 unbalanced transactions); a transaction rejected by booking is left out, as there. A file with a parse-level error
 (syntax, a bad account root, a tag or metadata mistake) has no transaction at all, although bean-query lists some of
 them: the parser we build on gives up on the whole file. Any `unsupported-syntax` leaves the list empty.
+
+#### Prices and valuation
+
+`Ledger::prices()`, `value(date, commodity)`, `at_cost()` and `holdings(query)` answer for Beancount from
+[price-table](beancount/price-table.md), [convert-rates](beancount/convert-rates.md),
+[convert-positions](beancount/convert-positions.md), [cost-of-position](beancount/cost-of-position.md) and
+[holdings](beancount/holdings.md). A Beancount file with an `unsupported-syntax` finding lists no transaction and no
+price, and these reads then return that finding as their error instead of an empty answer. `invalid-argument`
+(`details.argument`: `date`, `end` or `today`) and `value-without-commodity` are as for hledger.

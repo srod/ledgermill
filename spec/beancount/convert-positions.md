@@ -2,7 +2,7 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-23.
 
-Status: to build (`Ledger::value()` and `Ledger::holdings()` for Beancount). The rate of one pair of commodities
+Status: **built** (`Ledger::value()` and `Ledger::holdings()` for Beancount). The rate of one pair of commodities
 is in convert-rates.md; this note is what `convert(position, "V")`, `convert(position, "V", date)` and
 `convert(cost(position), "V")` do with a posting.
 
