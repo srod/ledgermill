@@ -1,0 +1,40 @@
+; The rate of an inverse price, a zero price, a negative one, and a path through a third commodity.
+2026-01-01 open Assets:Quarter
+2026-01-01 open Assets:Tenth
+2026-01-01 open Assets:Zero
+2026-01-01 open Assets:Negative
+2026-01-01 open Assets:Short
+2026-01-01 open Assets:Chain
+2026-01-01 open Assets:Cash
+2026-01-01 open Equity:Other
+
+; EUR is worth 4 QTR, so QTR is worth 0.25 EUR
+2026-02-01 price EUR 4 QTR
+; EUR is worth 0.1 TNT, so TNT is worth 10 EUR, which Decimal division writes as 1E+1
+2026-02-01 price EUR 0.1 TNT
+; a price of zero: valuing ZER in EUR gives zero; the inverse of zero does not exist
+2026-02-01 price ZER 2 EUR
+2026-02-02 price ZER 0 EUR
+; a price of zero and no other: EUR has no rate to NIL
+2026-02-01 price NIL 0 EUR
+; a negative price
+2026-02-01 price NEG -0.50 EUR
+; CAD is worth USD, USD is worth EUR: no path of two prices is followed
+2026-02-01 price CAD 2 USD
+2026-02-01 price USD 0.40 EUR
+
+2026-01-02 * "hold"
+  Assets:Quarter   10 QTR
+  Assets:Tenth     10 TNT
+  Assets:Zero      10 ZER
+  Assets:Negative  -4 NEG
+  Assets:Short     -2.50 ZER
+  Assets:Chain      3 CAD
+  Assets:Cash      10 EUR
+  Equity:Other    -10 QTR
+  Equity:Other    -10 TNT
+  Equity:Other    -10 ZER
+  Equity:Other      4 NEG
+  Equity:Other     -3 CAD
+  Equity:Other      2.50 ZER
+  Equity:Other    -10 EUR

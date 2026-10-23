@@ -1,0 +1,42 @@
+; Which price convert() uses: the date asked, none given, and the ties.
+2026-01-01 open Assets:Dated
+2026-01-01 open Assets:SameDay
+2026-01-01 open Assets:DirectFirst
+2026-01-01 open Assets:InverseFirst
+2026-01-01 open Assets:Mixed
+2026-01-01 open Equity:Other
+
+; a history, with one price far in the future
+2026-01-10 price AAA 1 EUR
+2026-02-10 price AAA 2 EUR
+2026-03-10 price AAA 3 EUR
+2099-01-01 price AAA 9 EUR
+
+; two prices of one pair on one day: the one written last
+2026-02-01 price BBB 2 EUR
+2026-02-01 price BBB 3 EUR
+
+; a price and the inverse price on one day: the one written last, whichever way it points
+2026-02-01 price CCC 2 EUR
+2026-02-01 price EUR 4 CCC
+2026-02-01 price EUR 4 DDD
+2026-02-01 price DDD 2 EUR
+
+; the pair seen both ways on different days: the latest, whichever way it points
+2026-02-03 price EEE 3 EUR
+2026-02-04 price EUR 0.1 EEE
+2026-02-05 price EEE 5 EUR
+; written below a later date
+2026-02-02 price EEE 7 EUR
+
+2026-01-02 * "hold ten of each"
+  Assets:Dated        10 AAA
+  Assets:SameDay      10 BBB
+  Assets:DirectFirst  10 CCC
+  Assets:InverseFirst 10 DDD
+  Assets:Mixed        10 EEE
+  Equity:Other       -10 AAA
+  Equity:Other       -10 BBB
+  Equity:Other       -10 CCC
+  Equity:Other       -10 DDD
+  Equity:Other       -10 EEE

@@ -2,11 +2,13 @@
 # Print what bean-check and bean-query report for one journal, in the value query Plainledger runs
 # (harness/lib.ts has the same text; its posting columns are cut here to the useful ones): every
 # posting valued in V at the prices of a date, then the cost query, which does not depend on either.
-# usage: spec/beancount/show-value.sh FILE V YYYY MM DD
+# usage: spec/beancount/show-value.sh FILE V YYYY MM DD [ACCOUNT-REGEX]
+# With a regex, only the postings of the accounts it matches are listed.
 # Cleaned for reading only: CRs and the padding spaces are dropped.
-f="$1"; V="$2"; Y="$3"; M="$4"; D="$5"
+f="$1"; V="$2"; Y="$3"; M="$4"; D="$5"; ONLY="$6"
 CONVERT="convert(position, \"$V\", date($Y, $M, $D))"
 VALUE="SELECT account, number, currency, number($CONVERT) AS amount, currency($CONVERT) AS commodity, lineno FROM postings"
+[ -n "$ONLY" ] && VALUE="$VALUE WHERE account ~ '$ONLY'"
 clean() {
   tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//'
 }
