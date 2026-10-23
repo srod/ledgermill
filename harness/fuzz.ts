@@ -1,5 +1,6 @@
 // bun harness/fuzz.ts [COUNT] [SEED] [--keep] [--save DIR]
 // bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep] [--save DIR]
+// bun harness/fuzz.ts --beancount [COUNT] [SEED] [--keep] [--save DIR]
 // Random journals, mostly valid, compared like the corpus: hledger against our wasm. Covers
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
 // inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
@@ -8,7 +9,10 @@
 // With `--graph`: dense random networks of prices (9 to 11 commodities, 1 to 16 `P` lines) valued
 // by two random `--value` runs each, raw and `--cost` too. Each journal is also asked two `holdings()` questions
 // (no end date, and one end date; a random valuation commodity). `--save DIR` writes the journals that fail
-// there, with their questions. Every case must
+// there, with their questions. With `--beancount`: random Beancount journals (price directives among seven
+// commodities, lots, price annotations, plain units of either sign) compared against bean-check and bean-query
+// for their transactions and postings, their prices, their cost and, at several dates and commodities,
+// their value and holdings. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,6 +26,7 @@ const count = Number(args[0] ?? 500);
 const seed = Number(args[1] ?? 1);
 const keep = process.argv.includes("--keep");
 const graph = process.argv.includes("--graph");
+const beancount = process.argv.includes("--beancount");
 
 // xorshift32: the same seed gives the same journals on every machine.
 function rng(start: number): () => number {
@@ -432,15 +437,59 @@ function graphJournal(): { text: string; used: string[] } {
   return { text, used };
 }
 
+// ───────────── Beancount ─────────────
+const BEAN_COMMODITIES = ["EUR", "USD", "CHF", "AAA", "BBB", "CCC", "DDD"] as const;
+const BEAN_RATES = ["2", "3", "7", "0.5", "1.25", "0.3333333333", "1000.5", "0", "-4", "1.000", "0.00000000005", "12345.6789", "0.1", "1.1", "0.07", "0.3", "62.2", "35884.57"] as const;
+// No tiny units and no cost of zero: interpolating those next to a cost is not what this asks about.
+const BEAN_UNITS = ["1", "3", "9", "0.9", "2.50", "0.207", "100", "1.5", "2.25", "12345.678", "0.01", "10"] as const;
+const BEAN_ACCOUNTS = ["Assets:A", "Assets:B", "Assets:C", "Assets:A:Sub"] as const;
+
+/**
+ * A Beancount journal that bean-check accepts: prices of random pairs on random days (out of order, twice a day,
+ * zero and negative now and then, one in 2099 now and then), and transactions whose postings are plain units of
+ * either sign, units bought at a cost, or units with a price; `Equity:O` takes the rest. A cost is never negative and
+ * units at a cost never zero or negative (booking errors are not what this asks about).
+ */
+function beanJournal(): { text: string; used: string[] } {
+  const used = BEAN_COMMODITIES.filter(() => chance(0.8));
+  if (used.length < 3) used.push("EUR", "USD", "AAA");
+  const others = (c: string) => used.filter((u) => u !== c);
+  let text = 'option "operating_currency" "EUR"\n';
+  for (const a of ["Assets:A", "Assets:B", "Assets:C", "Assets:A:Sub", "Equity:O"]) text += `2026-01-01 open ${a}\n`;
+  text += "\n";
+  for (let k = 0, n = int(14); k < n; k++) {
+    const from = pick(used);
+    const to = pick(others(from));
+    const day = chance(0.05) ? "2099-01-01" : `2026-01-0${1 + int(6)}`;
+    const rate = pick(BEAN_RATES);
+    text += `${day} price ${from} ${chance(0.1) ? rate.replace(/^-/, "") : rate} ${to}\n`;
+  }
+  text += "\n";
+  for (let k = 0, n = 1 + int(5); k < n; k++) {
+    text += `2026-01-0${1 + int(6)} * "t${k}"\n`;
+    for (let p = 0, m = 1 + int(4); p < m; p++) {
+      const c = pick(used);
+      const account = pick(BEAN_ACCOUNTS);
+      const units = pick(BEAN_UNITS);
+      const roll = r();
+      if (roll < 0.3) text += `  ${account}  ${units} ${c} {${pick(["3", "4.5", "1.25", "0.1", "2"])} ${pick(others(c))}}\n`;
+      else if (roll < 0.4) text += `  ${account}  ${units} ${c} @ ${pick(["2", "3.5", "0.8"])} ${pick(others(c))}\n`;
+      else text += `  ${account}  ${chance(0.4) ? "-" : ""}${units} ${c}\n`;
+    }
+    text += "  Equity:O\n\n";
+  }
+  return { text, used };
+}
+
 // ───────────── run ─────────────
 const dir = mkdtempSync(join(tmpdir(), "ledgermill-fuzz-"));
 const raw = { PASS: 0, FAIL: 0, SKIP: 0 };
 const t = tallies();
 let valid = 0;
 for (let k = 0; k < count; k++) {
-  const j = graph ? graphJournal() : journal();
+  const j = beancount ? beanJournal() : graph ? graphJournal() : journal();
   const second = "second" in j ? j.second : undefined;
-  const paths = [join(dir, `f${k}.journal`)];
+  const paths = [join(dir, `f${k}.${beancount ? "beancount" : "journal"}`)];
   writeFileSync(paths[0] as string, j.text);
   if (second !== undefined) {
     paths.push(join(dir, `f${k}b.journal`));
@@ -463,15 +512,21 @@ for (let k = 0; k < count; k++) {
     if (saveDir) {
       mkdirSync(saveDir, { recursive: true });
       const questions = asked.map((q) => `${q.end ?? "-"},${q.commodity}`).join(" ");
-      const name = join(saveDir, `${graph ? "graph" : "fuzz"}-${seed}-${k}`);
-      writeFileSync(`${name}.journal`, `; ${v.note}\n; holdings questions (end,commodity): ${questions}\n${j.text}`);
+      const name = join(saveDir, `${beancount ? "bean" : graph ? "graph" : "fuzz"}-${seed}-${k}`);
+      writeFileSync(`${name}.${beancount ? "beancount" : "journal"}`, `; ${v.note}\n; holdings questions (end,commodity): ${questions}\n${j.text}`);
       if (second !== undefined) writeFileSync(`${name}.second.journal`, second);
     }
   }
 }
 const counts = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
-console.log(`fuzz${graph ? " --graph" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${raw.FAIL} fail, ${raw.SKIP} skip`);
-console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}\n  holdings: ${counts(t.holdings)}`);
+console.log(`fuzz${graph ? " --graph" : ""}${beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${raw.FAIL} fail, ${raw.SKIP} skip`);
+if (beancount) {
+  const b = t.beancount;
+  console.log(`  prices: ${counts(b.prices)}\n  cost: ${counts(b.cost)}\n  value: ${counts(b.value)}\n  holdings: ${counts(b.holdings)}`);
+} else {
+  console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}\n  holdings: ${counts(t.holdings)}`);
+}
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
-if (raw.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL > 0) process.exitCode = 1;
+const b = t.beancount;
+if (raw.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0) process.exitCode = 1;

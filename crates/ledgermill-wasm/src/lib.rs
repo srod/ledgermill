@@ -27,7 +27,7 @@ impl Ledger {
         Ok(serde_json::to_string(&self.0.postings())?)
     }
 
-    /// JSON array of the `P` directives (`Ledger::prices`); `[]` for Beancount.
+    /// JSON array of the `P` directives, or for Beancount the `price` directives (`Ledger::prices`).
     pub fn prices(&self) -> Result<String, JsError> {
         Ok(serde_json::to_string(&self.0.prices())?)
     }
@@ -37,7 +37,8 @@ impl Ledger {
         Ok(serde_json::to_string(&self.0.check())?)
     }
 
-    /// JSON array of transactions as `hledger print --cost` gives them (`Ledger::at_cost`).
+    /// JSON array of transactions as `hledger print --cost` gives them, or for Beancount with every cost
+    /// as `cost(position)` (`Ledger::at_cost`).
     ///
     /// When the core refuses, this throws an `Error` whose `message` is the finding as JSON
     /// (`code`, `severity`, `file`, `line`, `details`, `message`), as it does for any other failure.
@@ -46,8 +47,9 @@ impl Ledger {
         answer(self.0.at_cost())
     }
 
-    /// JSON array of transactions as `hledger print --value=DATE,COMMODITY` gives them
-    /// (`Ledger::value`); `date` is `YYYY-MM-DD`. A refusal or an invalid date throws an `Error`
+    /// JSON array of transactions as `hledger print --value=DATE,COMMODITY` gives them, or for
+    /// Beancount with every posting as `convert(position, COMMODITY, DATE)` (`Ledger::value`);
+    /// `date` is `YYYY-MM-DD`. A refusal or an invalid date throws an `Error`
     /// whose `message` is the finding as JSON, as for `atCost`.
     pub fn value(&self, date: &str, commodity: &str) -> Result<String, JsError> {
         answer(self.0.value(date, commodity))

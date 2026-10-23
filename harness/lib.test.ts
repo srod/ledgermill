@@ -5,7 +5,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type Comparison,
+  beanHoldingQuestions,
+  beanValueQueries,
   compareAll,
+  compareBeanCost,
+  compareBeanHoldings,
+  compareBeanPrices,
+  compareBeanValue,
+  decodeCell,
+  oursAsExactRows,
+  tallies,
+  tally,
   compareCost,
   compareHoldings,
   comparePlainledger,
@@ -577,4 +587,103 @@ test("comparePlainledger reproduces Plainledger's reads and reports a virtual po
   const virtual = await comparePlainledger([journal], new Map());
   expect(virtual.verdict).toEqual(pass);
   expect(virtual.changes).toBe("assets:bank [X] marketValue: Plainledger=30 ours=20");
+}, 60_000);
+
+// ───────────── Beancount: prices, cost, value, holdings ─────────────
+const sep = "\0";
+
+test("decodeCell reads the amounts of a holdings cell, sorted by commodity, and nothing else", () => {
+  expect(decodeCell("()")).toEqual([]);
+  expect(decodeCell("(-0.5 EUR)")).toEqual([`EUR${sep}-0.5`]);
+  expect(decodeCell("(35 USD,20 EUR,3 CHF,2 MMM)")).toEqual([`CHF${sep}3`, `EUR${sep}20`, `MMM${sep}2`, `USD${sep}35`]);
+  expect(decodeCell(" (0.9999999999999999999999999999 EUR) ")).toEqual([`EUR${sep}0.9999999999999999999999999999`]);
+  expect(() => decodeCell("10 EUR")).toThrow("not a cell");
+  expect(() => decodeCell("(10)")).toThrow("not an amount");
+});
+
+test("oursAsExactRows keeps the places as given and leaves out a holding with nothing in it", () => {
+  const q = (commodity: string, quantity: string) => ({ commodity, quantity });
+  const rows = oursAsExactRows([
+    { account: "Assets:A", commodity: "X", units: "10.50", cost: [q("EUR", "21.00")], value: [], cost_value: [q("EUR", "21.00")] },
+    { account: "Assets:B", commodity: "X", units: "0", cost: [], value: [], cost_value: [] },
+  ]);
+  expect([...rows.keys()]).toEqual([`Assets:A${sep}X`]);
+  expect(rows.get(`Assets:A${sep}X`)).toEqual({ units: "10.50", cost: [`EUR${sep}21.00`], value: [], costValue: [`EUR${sep}21.00`] });
+  // places are part of the comparison: 21.0 is not 21.00
+  const theirs = new Map([[`Assets:A${sep}X`, { units: "10.50", cost: [`EUR${sep}21.0`], value: [], costValue: [`EUR${sep}21.00`] }]]);
+  expect(diffHoldingRows(theirs, rows, "bean-query")).toBe("Assets:A [X] cost: bean-query=EUR 21.0 ours=EUR 21.00");
+  expect(diffHoldingRows(rows, rows, "bean-query")).toBeNull();
+});
+
+test("beanValueQueries asks around the price dates of the table and, with none, at a transaction", () => {
+  const tx = (date: string) => ({ date }) as never;
+  expect(beanValueQueries(["2026-07-31", "2026-08-01", "2026-07-31"], { from: "USD", to: "EUR" }, []).map((q) => `${q.date} ${q.commodity}`)).toEqual(
+    ["2026-07-30", "2026-07-31", "2026-08-01", "2026-08-31"].flatMap((d) => ["EUR", "USD"].map((c) => `${d} ${c}`)),
+  );
+  expect(beanValueQueries(["2026-01-01"], { from: "BTC", to: "CHF" }, []).filter((q) => q.date === "2026-01-01").map((q) => q.commodity)).toEqual(["EUR", "USD", "CHF", "BTC"]);
+  expect(beanValueQueries([], null, [tx("2026-01-01"), tx("2026-01-02"), tx("2026-01-03")])).toEqual([
+    { date: "2026-01-02", commodity: "EUR" },
+    { date: "2026-01-02", commodity: "USD" },
+  ]);
+  expect(beanValueQueries([], null, [])).toEqual([]);
+});
+
+test("beanHoldingQuestions asks with no date and at the first, middle and last value date", () => {
+  const values = ["2026-07-30", "2026-07-31", "2026-08-01"].flatMap((date) => ["EUR", "USD"].map((commodity) => ({ date, commodity })));
+  expect(beanHoldingQuestions(values).map((q) => `${q.through ?? "-"} ${q.commodity}`)).toEqual(
+    ["-", "2026-07-30", "2026-07-31", "2026-08-01"].flatMap((d) => ["EUR", "USD"].map((c) => `${d} ${c}`)),
+  );
+  expect(beanHoldingQuestions([])).toEqual([{ through: null, commodity: "EUR" }]);
+});
+
+test("tally adds a Beancount case to its own counts", () => {
+  const t = tallies();
+  const c: Comparison = {
+    raw: pass,
+    cost: pass,
+    values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: { status: "SKIP", note: "" } }],
+    postings: null,
+    prices: pass,
+    holdings: [],
+    plainledger: null,
+    beanHoldings: [{ question: { through: null, commodity: "EUR" }, verdict: { status: "FAIL", note: "x" } }],
+    format: "beancount",
+  };
+  tally(c, t);
+  expect(t.beancount).toEqual({
+    cost: { PASS: 1, FAIL: 0, SKIP: 0 },
+    value: { PASS: 0, FAIL: 0, SKIP: 1 },
+    prices: { PASS: 1, FAIL: 0, SKIP: 0 },
+    holdings: { PASS: 0, FAIL: 1, SKIP: 0 },
+  });
+  expect(t.cost).toEqual({ PASS: 0, FAIL: 0, SKIP: 0 });
+  expect(summarize(c)).toEqual({ status: "FAIL", note: "holdings through=- in EUR: x" });
+});
+
+// These run bean-query (on PATH, like the rest of the harness) on probes of the spec.
+const beanProbe = (name: string) => join(import.meta.dir, "../spec/beancount/probes", `${name}.beancount`);
+test("the Beancount reads pass on the probes of their notes", async () => {
+  for (const name of ["price-table", "convert-rate-dates", "convert-cost-bridge", "cost-of-position", "holdings-sums"]) {
+    const c = await compareAll([beanProbe(name)]);
+    expect([name, c.raw.status, c.prices?.status, c.cost?.status]).toEqual([name, "PASS", "PASS", "PASS"]);
+    expect(c.values.every((v) => v.verdict.status === "PASS")).toBe(true);
+    expect((c.beanHoldings ?? []).every((v) => v.verdict.status === "PASS")).toBe(true);
+    expect((c.beanHoldings ?? []).length).toBeGreaterThan(0);
+  }
+}, 120_000);
+
+test("a Beancount journal we refuse is a SKIP, and is not asked the reads", async () => {
+  const c = await compareAll([join(import.meta.dir, "../spec/beancount/probes/refused/price-expression.beancount")]);
+  expect(c.raw.status).toBe("SKIP");
+  expect([c.prices, c.cost, c.values, c.beanHoldings]).toEqual([null, null, [], undefined]);
+}, 60_000);
+
+test("the Beancount read comparisons can be called alone", async () => {
+  const path = beanProbe("convert-rate-dates");
+  const booked = (await compareAll([path])).raw;
+  expect(booked.status).toBe("PASS");
+  expect((await compareBeanValue(path, [], { date: "2026-02-03", commodity: "EUR" })).status).toBe("FAIL");
+  expect((await compareBeanHoldings(path, { through: "2026-01-09", commodity: "EUR" })).status).toBe("PASS");
+  expect((await compareBeanPrices(path, [])).note).toContain("length bean-query=");
+  expect((await compareBeanCost(path, [])).status).toBe("FAIL");
 }, 60_000);

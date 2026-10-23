@@ -515,25 +515,28 @@ export function compareRejection(ref: { message: string; first: Position | null 
   return { status: "FAIL", note: `first error: hledger ${theirs} (${ref.message}), ours ${ours.code} at ${mine}` };
 }
 
-async function compareBeancountCase(path: string): Promise<Verdict> {
+/** The verdict of a Beancount case, and whether bean-check accepts the journal and we list what bean-query lists (the other reads start from there). */
+async function compareBeancountCase(path: string): Promise<{ verdict: Verdict; agreed: boolean; ours?: Loaded }> {
   const rejection = await runBeanCheck(path);
   const ours = runOurs([path]);
-  if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
+  const no = (verdict: Verdict) => ({ verdict, agreed: false });
+  if ("thrown" in ours) return no({ status: "FAIL", note: `wasm threw: ${ours.thrown}` });
   const errors = ours.findings.filter((f) => f.severity === "error");
   const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
-  if (unsupported) return { status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` };
+  if (unsupported) return no({ status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` });
   if (rejection) {
     const verdict = compareFirstError(rejection, errors, ours.findings);
-    if (verdict.status !== "PASS" || !listsComparable(errors)) return verdict;
+    if (verdict.status !== "PASS" || !listsComparable(errors)) return no(verdict);
   } else if (errors[0]) {
-    return { status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, bean-check accepts` };
+    return no({ status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, bean-check accepts` });
   }
   const ref = await queryBeancount(path);
   const diff = firstDiff(withBasenames(ref.transactions), withBasenames(normalizeOurs(ours.transactions)));
-  if (diff) return { status: "FAIL", note: diff };
+  if (diff) return no({ status: "FAIL", note: diff });
   const postingsDiff = firstDiff(postingBasenames(ref.postings), postingBasenames(ours.postings));
-  if (postingsDiff) return { status: "FAIL", note: `postings: ${postingsDiff}` };
-  return { status: "PASS", note: rejection ? "both fail, same first error, same lists" : "" };
+  if (postingsDiff) return no({ status: "FAIL", note: `postings: ${postingsDiff}` });
+  if (rejection) return no({ status: "PASS", note: "both fail, same first error, same lists" });
+  return { verdict: { status: "PASS", note: "" }, agreed: true, ours };
 }
 
 // ───────────── the verdict ─────────────
@@ -551,9 +554,7 @@ export async function compareCase(paths: string[], ignorePlaces = false): Promis
 /** The verdict of a hledger case, and whether hledger accepts the journal and we agree with it (the other comparisons start from there). */
 async function compareRaw(paths: string[], ignorePlaces: boolean): Promise<{ verdict: Verdict; agreed: boolean; ours?: Loaded }> {
   const [first] = paths;
-  if (first !== undefined && paths.length === 1 && isBeancountPath(first)) {
-    return { verdict: await compareBeancountCase(first), agreed: false };
-  }
+  if (first !== undefined && paths.length === 1 && isBeancountPath(first)) return compareBeancountCase(first);
   const ref = await runHledger(paths);
   const ours = runOurs(paths);
   const no = (verdict: Verdict) => ({ verdict, agreed: false });
@@ -912,18 +913,18 @@ export function oursAsRows(holdings: Holding[]): Map<string, HoldingRow> {
 const shown = (lines: string[]): string => (lines.length ? lines.map((l) => l.replace("\0", " ")).join(", ") : "-");
 
 /** The first difference between the reference's rows and ours (`ACCOUNT [COMMODITY] field: hledger=… ours=…`), or null. */
-export function diffHoldingRows(theirs: Map<string, HoldingRow>, ours: Map<string, HoldingRow>): string | null {
+export function diffHoldingRows(theirs: Map<string, HoldingRow>, ours: Map<string, HoldingRow>, reference = "hledger"): string | null {
   for (const key of [...new Set([...theirs.keys(), ...ours.keys()])].sort()) {
     const [a, b] = [theirs.get(key) ?? emptyRow(), ours.get(key) ?? emptyRow()];
     const [account, commodity] = key.split("\0");
     const at = `${account} [${commodity}]`;
-    if (a.units !== b.units) return `${at} units: hledger=${a.units} ours=${b.units}`;
+    if (a.units !== b.units) return `${at} units: ${reference}=${a.units} ours=${b.units}`;
     for (const [field, x, y] of [
       ["cost", a.cost, b.cost],
       ["value", a.value, b.value],
       ["costValue", a.costValue, b.costValue],
     ] as const)
-      if (x.join("\n") !== y.join("\n")) return `${at} ${field}: hledger=${shown(x)} ours=${shown(y)}`;
+      if (x.join("\n") !== y.join("\n")) return `${at} ${field}: ${reference}=${shown(x)} ours=${shown(y)}`;
   }
   return null;
 }
@@ -1203,7 +1204,266 @@ export async function comparePlainledger(paths: string[], cache: RunCache): Prom
   }
 }
 
-/** Every comparison of one hledger case: the raw one, `--cost`, and `--value` for each query. The last two only when the first passes. */
+// ───────────── Beancount: prices, cost, value and holdings ─────────────
+// The queries Plainledger sends to bean-query (apps/server/lib/beancountQueries.ts, packages/ledger-domain/src/holdings/
+// beancountHoldingsQueries.ts), word for word; spec/beancount/price-table.md, convert-rates.md, convert-positions.md,
+// cost-of-position.md and holdings.md say what each gives.
+const PRICE_QUERY = "SELECT date, currency, number(amount), currency(amount) FROM prices";
+/** Not Plainledger's: the file and line of each price entry, in the order of the table, for the line we list. */
+const PRICE_LINES_QUERY = "SELECT date, lineno, filename FROM entries WHERE type = 'price'";
+const POSTING_COLUMNS = "id, account, posting_flag, number, currency, cost_number, cost_currency, cost_date, cost_label, number(price), currency(price), filename, lineno";
+const COST_QUERY = `SELECT ${POSTING_COLUMNS}, number(cost(position)) AS amount, currency(cost(position)) AS commodity FROM postings`;
+
+function convertedQuery(date: string, commodity: string): string {
+  const [year, month, day] = date.split("-");
+  const converted = `convert(position, "${commodity}", date(${year}, ${month}, ${day}))`;
+  return `SELECT ${POSTING_COLUMNS}, number(${converted}) AS amount, currency(${converted}) AS commodity FROM postings`;
+}
+
+function unitsQuery(through: string | null): string {
+  return `SELECT account, currency, str(sum(units(position))) AS units${through ? ` WHERE date <= ${through}` : ""} GROUP BY account, currency`;
+}
+
+function holdingsQuery(commodity: string, through: string | null): string {
+  const where = through ? `WHERE date <= ${through}` : "";
+  return [
+    "SELECT account, currency, str(sum(units(position))) AS units, str(sum(cost(position))) AS cost_basis,",
+    `str(sum(convert(cost(position), "${commodity}"))) AS cost_basis_value, str(sum(convert(position, "${commodity}"))) AS market_value`,
+    where,
+    "GROUP BY account, currency",
+  ].join(" ");
+}
+
+/**
+ * The rows bean-query prints for a query, header left out, padding trimmed. A failure of bean-query, or a Python
+ * traceback in its output, is an error without its text: tracebacks are not read (EXPOSURE.md).
+ */
+async function beanRows(path: string, query: string): Promise<string[][]> {
+  const proc = Bun.spawn(["bean-query", "-f", "csv", path, query], { stdout: "pipe", stderr: "pipe" });
+  const [stdout, stderr, exitCode] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  if (exitCode !== 0 || /Traceback \(most recent call last\)/.test(stdout + stderr))
+    throw new Error("bean-query failed or printed a traceback (not shown; EXPOSURE.md says what to do)");
+  const [, ...rows] = decodeCsv(stdout);
+  return rows.filter((r) => r.length > 1).map((r) => r.map((c) => c.trim()));
+}
+
+type BeanRuns = Map<string, Promise<string[][]>>;
+
+const beanRowsCached = (runs: BeanRuns, path: string, query: string): Promise<string[][]> => {
+  let run = runs.get(query);
+  if (!run) runs.set(query, (run = beanRows(path, query)));
+  return run;
+};
+
+const failed = (error: unknown): Verdict => ({ status: "FAIL", note: String(error instanceof Error ? error.message : error) });
+
+/** `Ledger::prices()` against the prices table, in order, then the file and line of each entry. */
+export async function compareBeanPrices(path: string, ours: PriceDirective[], runs: BeanRuns = new Map()): Promise<Verdict> {
+  try {
+    const rows = await beanRowsCached(runs, path, PRICE_QUERY);
+    const lines = await beanRowsCached(runs, path, PRICE_LINES_QUERY);
+    if (rows.length !== ours.length) return { status: "FAIL", note: `length bean-query=${rows.length} ours=${ours.length}` };
+    for (const [i, row] of rows.entries()) {
+      const [mine, line] = [ours[i] as PriceDirective, lines[i] as string[]];
+      const [date, commodity, number, quote] = row as [string, string, string, string];
+      const theirs = `${date} ${commodity} ${number} ${quote}`;
+      const got = `${mine.date} ${mine.commodity} ${mine.rate.quantity} ${mine.rate.commodity}`;
+      if (theirs !== got) return { status: "FAIL", note: `[${i}] bean-query=${theirs} ours=${got}` };
+      const [lineDate, lineno, filename] = line as [string, string, string];
+      if (lineDate !== mine.date || Number(lineno) !== mine.line || basename(filename) !== basename(mine.file))
+        return { status: "FAIL", note: `[${i}] entry bean-query=${lineDate} ${basename(filename)}:${lineno} ours=${mine.date} ${basename(mine.file)}:${mine.line}` };
+    }
+    return { status: "PASS", note: "" };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/**
+ * One amount per posting of `after` against the `amount` and `commodity` columns (the last two) of a postings query
+ * that starts with POSTING_COLUMNS, row by row. `before` are the postings as booked: the account, units and commodity
+ * columns must agree with them, so that a row cannot be matched to the wrong posting.
+ */
+function diffPostingAmounts(rows: string[][], before: Transaction[], after: Transaction[]): string | null {
+  const [was, now] = [before.flatMap((t) => t.postings), after.flatMap((t) => t.postings)];
+  if (rows.length !== was.length || rows.length !== now.length) return `length bean-query=${rows.length} ours=${now.length} (booked ${was.length})`;
+  for (const [i, row] of rows.entries()) {
+    const [p, q] = [was[i] as Posting, now[i] as Posting];
+    const [account, number, currency, amount, commodity, lineno] = [row[1], row[3], row[4], row[row.length - 2], row[row.length - 1], row[row.length - 3]] as string[];
+    const a = q.amounts[0] as Amount;
+    const unit = p.amounts[0] as Amount;
+    if (account !== p.account || number !== unit.quantity || currency !== unit.commodity)
+      return `[${i}] posting bean-query=${account} ${number} ${currency} ours=${p.account} ${unit.quantity} ${unit.commodity}`;
+    if (amount !== a.quantity || commodity !== a.commodity)
+      return `[${i}] ${account} ${number} ${currency} (line ${lineno}): bean-query=${amount} ${commodity} ours=${a.quantity} ${a.commodity}`;
+  }
+  return null;
+}
+
+/** An answer of ours that is a refusal is a SKIP when it says "not supported", else a FAIL; a crash is a FAIL. */
+function refusal(ours: { refused: Finding } | { thrown: string }): Verdict {
+  if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
+  const { code, details, message } = ours.refused;
+  if (code === "unsupported-syntax") return { status: "SKIP", note: `unsupported: ${details.construct ?? "?"}` };
+  return { status: "FAIL", note: `ours returns ${code} (${message}), bean-query accepts` };
+}
+
+/** `Ledger::at_cost()` against the cost query. */
+export async function compareBeanCost(path: string, booked: Transaction[], runs: BeanRuns = new Map()): Promise<Verdict> {
+  const ours = runOursQuery([path], (ledger) => ledger.atCost());
+  if (!("answer" in ours)) return refusal(ours);
+  try {
+    const diff = diffPostingAmounts(await beanRowsCached(runs, path, COST_QUERY), booked, ours.answer);
+    return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/** `Ledger::value(date, commodity)` against the value query on that date. */
+export async function compareBeanValue(path: string, booked: Transaction[], { date, commodity }: Query, runs: BeanRuns = new Map()): Promise<Verdict> {
+  const ours = runOursQuery([path], (ledger) => ledger.value(date, commodity));
+  if (!("answer" in ours)) return refusal(ours);
+  try {
+    const diff = diffPostingAmounts(await beanRowsCached(runs, path, convertedQuery(date, commodity)), booked, ours.answer);
+    return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/** The amounts of a cell of the holdings queries, `(35 USD,20 EUR,3 CHF)` or `()`, as `COMMODITY\0NUMBER` lines in code point order. */
+export function decodeCell(cell: string): string[] {
+  const inner = /^\((.*)\)$/s.exec(cell.trim())?.[1];
+  if (inner === undefined) throw new Error(`not a cell: ${cell}`);
+  return inner
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s !== "")
+    .map((s) => {
+      const [number, commodity, ...rest] = s.split(" ");
+      if (number === undefined || commodity === undefined || rest.length > 0) throw new Error(`not an amount: ${s}`);
+      return `${commodity}\0${number}`;
+    })
+    .sort();
+}
+
+/** The units of a cell: its number (`0` for an empty cell). A cell of units holds at most the commodity of its row. */
+const cellUnits = (cell: string): string => decodeCell(cell)[0]?.split("\0")[1] ?? "0";
+
+/** Our holdings as rows, exact: the strings as given, a row with nothing in it left out (the reference lists a `()` row). */
+export function oursAsExactRows(holdings: Holding[]): Map<string, HoldingRow> {
+  const lines = (list: Quantity[]) => list.map((q) => `${q.commodity}\0${q.quantity}`).sort();
+  const rows = new Map<string, HoldingRow>();
+  for (const h of holdings) {
+    const row = { units: h.units, cost: lines(h.cost), value: lines(h.value), costValue: lines(h.cost_value) };
+    if (!isEmptyRow(row)) rows.set(rowKey(h.account, h.commodity), row);
+  }
+  return rows;
+}
+
+/** A question for the Beancount holdings: `through` is Plainledger's `asOfDate` (inclusive), null for none. */
+export type BeanHoldingQuestion = { through: string | null; commodity: string };
+
+const nextDay = (date: string): string => isoDate(Date.parse(`${date}T00:00:00Z`) + DAY);
+const previousDay = (date: string): string => isoDate(Date.parse(`${date}T00:00:00Z`) - DAY);
+
+/**
+ * `Ledger::holdings()` against the units query and the holdings query: `end` is the day after `through` (the
+ * date filter is inclusive there, exclusive here). Every cell exactly, places included; the order of the amounts
+ * inside a cell is not compared (spec/beancount/holdings.md). A row bean-query lists with nothing in it counts as
+ * absent, as ours may leave it out.
+ */
+export async function compareBeanHoldings(path: string, q: BeanHoldingQuestion, runs: BeanRuns = new Map()): Promise<Verdict> {
+  const query = { commodity: q.commodity, end: q.through ? nextDay(q.through) : null, today: localToday() };
+  const ours = runOursHoldings([path], query);
+  if (!("holdings" in ours)) return refusal(ours);
+  const order = holdingsInOrder(ours.holdings);
+  if (order) return { status: "FAIL", note: order };
+  try {
+    const theirs = new Map<string, HoldingRow>();
+    const units = new Map<string, string>();
+    for (const [account, currency, cell] of await beanRowsCached(runs, path, unitsQuery(q.through)))
+      units.set(rowKey(account as string, currency as string), cellUnits(cell as string));
+    for (const row of await beanRowsCached(runs, path, holdingsQuery(q.commodity, q.through))) {
+      const [account, currency, unitsCell, cost, costValue, value] = row as [string, string, string, string, string, string];
+      const key = rowKey(account, currency);
+      if (units.get(key) !== cellUnits(unitsCell)) return { status: "FAIL", note: `${account} [${currency}] units: the two queries disagree` };
+      const mine = { units: cellUnits(unitsCell), cost: decodeCell(cost), value: decodeCell(value), costValue: decodeCell(costValue) };
+      if (!isEmptyRow(mine)) theirs.set(key, mine);
+    }
+    const diff = diffHoldingRows(theirs, oursAsExactRows(ours.holdings), "bean-query");
+    return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/**
+ * The `--value` questions for a Beancount journal, from the price table bean-query lists: one day before the first
+ * price date, each distinct date (six at most, spread evenly), 30 days after the last; in EUR, USD and the
+ * commodities of the first price. With no price, the middle transaction's date in EUR and USD.
+ */
+export function beanValueQueries(priceDates: string[], firstPrice: { from: string; to: string } | null, transactions: Transaction[]): Query[] {
+  const dates = [...new Set(priceDates)].sort();
+  const [first, last] = [dates[0], dates[dates.length - 1]];
+  const targets = [...new Set(["EUR", "USD", firstPrice?.to ?? "", firstPrice?.from ?? ""])].filter((c) => c !== "");
+  let when: string[];
+  if (first === undefined || last === undefined) {
+    const middle = transactions[Math.floor(transactions.length / 2)]?.date;
+    when = middle === undefined ? [] : [middle];
+  } else {
+    const spread = dates.length <= 6 ? dates : Array.from({ length: 6 }, (_, i) => dates[Math.floor((i * (dates.length - 1)) / 5)] as string);
+    const at = (date: string, days: number) => isoDate(Date.parse(`${date}T00:00:00Z`) + days * DAY);
+    when = [...new Set([at(first, -1), ...spread, at(last, 30)])];
+  }
+  return when.filter((d) => d >= "1000-01-01" && d <= "9998-12-31").flatMap((date) => targets.map((commodity) => ({ date, commodity })));
+}
+
+/** The holdings questions: no date, and the first, middle and last of the value dates, in the same commodities as the value questions. */
+export function beanHoldingQuestions(values: Query[]): BeanHoldingQuestion[] {
+  const dates = [...new Set(values.map((v) => v.date))].sort();
+  const through = [null, ...new Set([dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]].filter((d): d is string => d !== undefined))];
+  const commodities = [...new Set(values.map((v) => v.commodity))];
+  return through.flatMap((t) => (commodities.length ? commodities : ["EUR"]).map((commodity) => ({ through: t, commodity })));
+}
+
+/** Everything compared for one Beancount journal that bean-check accepts and whose transactions we list as it does. */
+export async function compareBeancountReads(
+  path: string,
+  ours: Loaded,
+  raw: Verdict,
+  asked: { queries?: Query[]; holdings?: boolean | HoldingQuestion[] } = {},
+): Promise<Comparison> {
+  const runs: BeanRuns = new Map();
+  const prices = await compareBeanPrices(path, ours.prices, runs);
+  const cost = await compareBeanCost(path, ours.transactions, runs);
+  let priceRows: string[][] = [];
+  try {
+    priceRows = await beanRowsCached(runs, path, PRICE_QUERY);
+  } catch {
+    // the prices verdict already says so
+  }
+  const [firstRow] = priceRows;
+  const questions =
+    asked.queries ??
+    beanValueQueries(
+      priceRows.map((r) => r[0] as string),
+      firstRow ? { from: firstRow[1] as string, to: firstRow[3] as string } : null,
+      ours.transactions,
+    );
+  const values: Comparison["values"] = [];
+  for (const query of questions) values.push({ query, verdict: await compareBeanValue(path, ours.transactions, query, runs) });
+  const held: Comparison["beanHoldings"] = [];
+  // Given questions have an exclusive `end` (hledger's `-e`): the date filter of the query is the day before.
+  const given = Array.isArray(asked.holdings)
+    ? asked.holdings.map((q): BeanHoldingQuestion => ({ through: q.end ? previousDay(q.end) : null, commodity: q.commodity }))
+    : null;
+  for (const question of given ?? beanHoldingQuestions(questions)) held.push({ question, verdict: await compareBeanHoldings(path, question, runs) });
+  return { raw, cost, values, postings: null, prices, holdings: [], beanHoldings: held, plainledger: null, format: "beancount" };
+}
+
+/** Every comparison of one case: the raw one, `--cost`, and `--value` for each query. The last two only when the first passes. */
 export type Comparison = {
   raw: Verdict;
   cost: Verdict | null;
@@ -1213,6 +1473,10 @@ export type Comparison = {
   holdings: { question: HoldingQuestion; verdict: Verdict }[];
   /** Plainledger's own reads (see `comparePlainledger`), for the cases that ask for them. */
   plainledger: PlainledgerVerdict | null;
+  /** Beancount only: the holdings questions, against bean-query's units and holdings queries. */
+  beanHoldings?: { question: BeanHoldingQuestion; verdict: Verdict }[];
+  /** Beancount cases fill `prices`, `cost`, `values` and `beanHoldings`; absent for hledger. */
+  format?: "beancount";
 };
 
 /**
@@ -1228,6 +1492,9 @@ export async function compareAll(
 ): Promise<Comparison> {
   const { verdict: raw, agreed, ours } = await compareRaw(paths, ignorePlaces);
   if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null };
+  const [only] = paths;
+  if (only !== undefined && paths.length === 1 && isBeancountPath(only))
+    return compareBeancountReads(only, ours, raw, { queries, holdings });
   const postings = await comparePostings(paths, ours.postings);
   const prices = await comparePrices(paths, ours.prices);
   const cost = await compareCost(paths, ignorePlaces);
@@ -1257,6 +1524,10 @@ export function summarize(c: Comparison): Verdict {
       ...verdict,
       note: verdict.note && `holdings end=${question.end ?? "-"} in ${question.commodity}: ${verdict.note}`,
     })),
+    ...(c.beanHoldings ?? []).map(({ question, verdict }) => ({
+      ...verdict,
+      note: verdict.note && `holdings through=${question.through ?? "-"} in ${question.commodity}: ${verdict.note}`,
+    })),
     ...(c.plainledger ? [c.plainledger.verdict] : []),
   ];
   for (const status of ["FAIL", "SKIP"] as const) {
@@ -1278,7 +1549,16 @@ const total = (...ts: Counts[]): Counts => ({
 });
 
 /** The tallies of what a hledger case compared besides the raw comparison. */
-export type Tallies = { cost: Counts; value: Counts; postings: Counts; prices: Counts; holdings: Counts; plainledger: Counts };
+export type Tallies = {
+  cost: Counts;
+  value: Counts;
+  postings: Counts;
+  prices: Counts;
+  holdings: Counts;
+  plainledger: Counts;
+  /** What a Beancount case compared: `Ledger::at_cost()`, `value()`, `prices()` and `holdings()` against bean-query. */
+  beancount: { cost: Counts; value: Counts; prices: Counts; holdings: Counts };
+};
 export const tallies = (): Tallies => ({
   cost: counts(),
   value: counts(),
@@ -1286,10 +1566,19 @@ export const tallies = (): Tallies => ({
   prices: counts(),
   holdings: counts(),
   plainledger: counts(),
+  beancount: { cost: counts(), value: counts(), prices: counts(), holdings: counts() },
 });
 
 /** Add what a hledger case compared under `--cost`, `--value`, `postings()`, `prices()` and `holdings()` to the tallies. */
 export function tally(c: Comparison, t: Tallies): void {
+  if (c.format === "beancount") {
+    const b = t.beancount;
+    if (c.cost) b.cost[c.cost.status]++;
+    for (const { verdict } of c.values) b.value[verdict.status]++;
+    if (c.prices) b.prices[c.prices.status]++;
+    for (const { verdict } of c.beanHoldings ?? []) b.holdings[verdict.status]++;
+    return;
+  }
   if (c.cost) t.cost[c.cost.status]++;
   for (const { verdict } of c.values) t.value[verdict.status]++;
   if (c.postings) t.postings[c.postings.status]++;
@@ -1335,9 +1624,15 @@ export async function runCases(
   console.log(`hledger --cost:  ${countsLine(t.cost)}\nhledger --value: ${countsLine(t.value)} (one per date and commodity asked)`);
   console.log(`hledger holdings: ${countsLine(t.holdings)} (one per end date and commodity asked)`);
   console.log(`Plainledger's reads: ${countsLine(t.plainledger)} (journals of the app corpus)`);
+  const b2 = t.beancount;
+  if (total(b2.cost, b2.value, b2.prices, b2.holdings).PASS > 0 || total(b2.cost, b2.value, b2.prices, b2.holdings).FAIL > 0) {
+    console.log(`\nbeancount prices:   ${countsLine(b2.prices)}\nbeancount cost:     ${countsLine(b2.cost)}`);
+    console.log(`beancount value:    ${countsLine(b2.value)} (one per date and commodity asked)`);
+    console.log(`beancount holdings: ${countsLine(b2.holdings)} (units and holdings queries, one per date and commodity asked)`);
+  }
   if (changes.length > 0)
     console.log(`\nPlainledger's figures that change with real postings only (expected; a virtual posting on a tracked account):\n${changes.map((c) => `  ${c}`).join("\n")}`);
-  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger);
+  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, b2.cost, b2.value, b2.prices, b2.holdings);
   console.log(`\n${all.PASS} pass, ${all.FAIL} fail, ${all.SKIP} skip`);
   if (all.FAIL > 0) process.exitCode = 1;
 }

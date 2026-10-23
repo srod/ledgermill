@@ -35,6 +35,7 @@ bun harness/compare.ts --quiet    # only the lines that are not PASS
 bun harness/fuzz.ts [N] [SEED]    # N random journals (default 500); CI runs 1,000 with a new seed each run
                                   # (--save DIR writes the journals that fail to DIR, with their holdings questions)
 bun harness/fuzz.ts --graph [N] [SEED]   # N random networks of prices, valued at random dates; CI runs 300
+bun harness/fuzz.ts --beancount [N] [SEED]   # N random Beancount journals with prices, lots and costs; CI runs 150
 bun harness/real.ts FILE...       # your own journals (several files: each alone, then all together)
 bun test harness/lib.test.ts      # the harness's own checks
 ```
@@ -53,8 +54,9 @@ Each case ends in one verdict:
   we report no error, or that we report `unbalanced-transaction` while hledger accepts. A FAIL is a
   bug in the engine or in the harness; the exit code is 1.
 
-The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, `--cost`, `--value`, holdings and
-Plainledger's reads; the lines before it count each of them: see "Postings and prices", "Cost and value" and "Holdings").
+The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, `--cost`, `--value`, holdings,
+Plainledger's reads and the Beancount reads; the lines before it count each of them: see "Postings and prices", "Cost and value",
+"Holdings" and "Beancount prices, cost, value and holdings").
 
 When hledger rejects a journal (exits non-zero), the harness takes the file and line of the **first error**
 from the first line of its stderr and compares them with our **first error-severity finding**
@@ -226,7 +228,38 @@ Verdicts are as above, with these Beancount cases:
 The summary prints a line per format when both are run. A FAIL is also: we report an error where
 `bean-check` accepts, or the transactions or the postings differ.
 
-The fuzzer (`fuzz.ts`) writes random, mostly valid journals covering number forms and marks,
+#### Beancount prices, cost, value and holdings
+
+Every Beancount journal that `bean-check` accepts and whose transactions and postings pass the comparison above is asked
+`prices()`, `at_cost()`, `value()` and `holdings()` too. Each is compared with `bean-query -f csv` run with the query texts
+Plainledger sends (`apps/server/lib/beancountQueries.ts`, `packages/ledger-domain/src/holdings/beancountHoldingsQueries.ts`),
+word for word, except where said. Numbers are compared as the exact strings the reference prints, places and exponents
+included (`1E-7`, `-0.00`), never by value. A tool that exits non-zero or prints a Python traceback is a FAIL whose message
+does not repeat its output: tracebacks are not read (`EXPOSURE.md`).
+
+- **prices**: `SELECT date, currency, number(amount), currency(amount) FROM prices` against `ledger.prices()`, in order,
+  row by row (date, commodity, rate commodity and number), and `SELECT date, lineno, filename FROM entries WHERE type =
+  'price'` (not Plainledger's) for the line and file of each (`spec/beancount/price-table.md`).
+- **cost**: the postings query with `number(cost(position)) AS amount, currency(cost(position)) AS commodity` against
+  `ledger.atCost()`, posting by posting; the account, units and commodity columns must agree with the posting too, so that
+  a row cannot be matched to another posting (`cost-of-position.md`).
+- **value**: the same query with `convert(position, "V", date(Y, M, D))` against `ledger.value(date, V)`
+  (`convert-rates.md`, `convert-positions.md`). The questions (`beanValueQueries`) are asked of the reference's own price
+  table: one day before the first price date, each distinct price date (six at most, spread evenly), 30 days after the
+  last; in `EUR`, `USD` and the two commodities of the first price. A journal with no price: the middle transaction's date,
+  in `EUR` and `USD`.
+- **holdings**: for no date and the first, middle and last date of the value questions, in the same commodities, the units
+  query and the holdings query (`WHERE date <= D` when a date is given) against `ledger.holdings({ commodity, end, today })`,
+  with `end` the day after `D` (`end` is exclusive, `date <= D` is not; `holdings.md`). Every cell exactly, in a cell the
+  amounts as a set (their order is not settled), a `()` row as absent. The two queries must agree on the units too.
+
+The summary has a line each (`beancount prices`, `beancount cost`, `beancount value`, `beancount holdings`). We refuse a
+journal with an `unsupported-syntax` finding: SKIP, and none of this is asked. Plainledger's own Beancount test journals
+(`journals/app/*.beancount`) go through the same comparisons, so its holdings, units, prices and cost queries are covered on
+them. `fuzz.ts --beancount` writes random Beancount journals (prices among seven commodities, out of order, twice a day,
+zero and negative, one in 2099 now and then; lots, price annotations and plain units of either sign) and asks all of the above.
+
+The fuzzer (`fuzz.ts`) writes random, mostly valid hledger journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
 and big numbers, and for hledger `=` and `~` rules, about a third of them invalid on purpose (they must
 fail in both), and `P` lines (about 45%: dates, times of day, zero and negative prices). Each hledger
