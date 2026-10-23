@@ -13,14 +13,18 @@ use crate::problem::unsupported_finding;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-/// The finding for a Beancount ledger, whose valuation is not built.
-pub(crate) fn beancount_refusal() -> Finding {
-    unsupported_finding(
-        "beancount-valuation",
-        "Beancount valuation is not supported yet.",
-        "",
-        0,
-    )
+impl Ledger {
+    /// A Beancount ledger lists nothing when a construct was refused, so a valuation of it would
+    /// look complete and be empty: the first refusal is the answer instead.
+    pub(crate) fn beancount_refusal(&self) -> Option<Finding> {
+        if !self.beancount {
+            return None;
+        }
+        self.findings
+            .iter()
+            .find(|f| f.code == "unsupported-syntax" && f.severity == Severity::Error)
+            .cloned()
+    }
 }
 
 /// One amount of a posting on its way to the output: the commodity it ends in and its value
@@ -181,7 +185,16 @@ impl Ledger {
     /// A finding with code `invalid-argument` when `date` is not a real `YYYY-MM-DD` date. A
     /// finding with code `unsupported-syntax` (details `construct`): `value-without-commodity`
     /// for an empty `commodity` (hledger reads `--value=DATE,` as another mode that the spec
-    /// does not cover), `beancount-valuation` for a Beancount ledger.
+    /// does not cover), and for a Beancount ledger the first `unsupported-syntax` finding of
+    /// [`Ledger::check`], if any.
+    ///
+    /// Beancount (`convert(position, commodity, date)`: spec/beancount/convert-rates.md and
+    /// `convert-positions.md`): rates come from the `price` directives only, never from `@`, `@@` or a
+    /// cost; the latest entry of the pair, direct or inverse (`1 / price`), dated on or before `date`
+    /// (the day itself counts); no chain of pairs. A position with a cost that has no rate of its own
+    /// goes through its cost's currency when both rates exist. A converted amount has neither cost nor
+    /// lot; its quantity prints as `number()` does (exponent included, `-0` for a negative zero). A
+    /// position already in `commodity` or with no rate stays whole.
     pub fn value(&self, date: &str, commodity: &str) -> Result<Vec<Transaction>, Finding> {
         let Some(date) = Date::from_iso(date) else {
             return Err(Finding {
@@ -194,8 +207,8 @@ impl Ledger {
                 message: "The date is not a YYYY-MM-DD date.".into(),
             });
         };
-        if self.beancount {
-            return Err(beancount_refusal());
+        if let Some(refusal) = self.beancount_refusal() {
+            return Err(refusal);
         }
         if commodity.is_empty() {
             return Err(unsupported_finding(
@@ -203,6 +216,14 @@ impl Ledger {
                 "Valuing in no commodity is not supported.",
                 "",
                 0,
+            ));
+        }
+        if self.beancount {
+            return Ok(crate::beancount::value(
+                &self.transactions,
+                &self.price_list,
+                commodity,
+                &date.to_string(),
             ));
         }
         let graph = Graph::at(&self.prices, date);

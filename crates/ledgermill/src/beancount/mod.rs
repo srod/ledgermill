@@ -14,6 +14,9 @@ mod lima;
 mod plain;
 mod pydec;
 mod text;
+mod value;
+
+pub(crate) use value::{at_cost, holdings, value};
 
 use crate::model::{
     Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, PriceDirective, Quantity,

@@ -63,11 +63,18 @@ impl Ledger {
     /// A finding with code `unsupported-syntax` (and, as its details' `construct`,
     /// `cost-conversion-postings`) for the first transaction that has pairs of conversion
     /// postings together with several priced postings or with a balance assignment: the spec
-    /// does not say which postings the reference drops there. Also `beancount-valuation` for a
-    /// Beancount ledger, which has no cost conversion yet.
+    /// does not say which postings the reference drops there.
+    ///
+    /// Beancount (`cost(position)`: spec/beancount/cost-of-position.md): a posting with a cost becomes
+    /// its units times the cost per unit, in the cost's currency, rounded to 28 digits and printed as
+    /// `number()` does; the other postings stay whole. Every transaction is answered; the one error is
+    /// the first `unsupported-syntax` finding of [`Ledger::check`], when the file had one.
     pub fn at_cost(&self) -> Result<Vec<Transaction>, Finding> {
         if self.beancount {
-            return Err(crate::valuation::beancount_refusal());
+            return match self.beancount_refusal() {
+                Some(refusal) => Err(refusal),
+                None => Ok(crate::beancount::at_cost(&self.transactions)),
+            };
         }
         let mut out = Vec::with_capacity(self.transactions.len());
         for (t, exact) in self.transactions.iter().zip(&self.exact) {

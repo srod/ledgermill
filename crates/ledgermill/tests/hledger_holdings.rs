@@ -458,25 +458,6 @@ fn valuing_in_no_commodity_is_refused() {
 }
 
 #[test]
-fn a_beancount_ledger_is_refused() {
-    let finding = refusal(
-        &[(
-            "t.beancount",
-            "2026-01-01 open Assets:A\n2026-01-01 open Equity:B\n",
-        )],
-        "EUR",
-        None,
-    );
-    assert_eq!(
-        code_and_construct(&finding),
-        (
-            "unsupported-syntax".into(),
-            json!({ "construct": "beancount-valuation" })
-        )
-    );
-}
-
-#[test]
 fn a_date_that_is_not_a_date_is_an_invalid_argument() {
     let p = probe!("hold-cost");
     for end in ["2026-02-30", "2026-1-1", "tomorrow", ""] {

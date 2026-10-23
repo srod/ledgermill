@@ -64,6 +64,30 @@ impl Num {
         Num::new(mantissa, -i64::from(scale))
     }
 
+    /// The number as `Display` or `plain` writes it back: an optional `-`, digits with an optional
+    /// point, and an optional `E` with a signed exponent. `None` for anything else.
+    pub(super) fn parse(text: &str) -> Option<Num> {
+        let (negative, rest) = match text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, text),
+        };
+        let (mantissa, exponent) = match rest.split_once('E') {
+            Some((mantissa, exponent)) => (mantissa, exponent.parse::<i64>().ok()?),
+            None => (rest, 0),
+        };
+        let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+        let digits = format!("{whole}{fraction}");
+        if whole.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        let coefficient: BigInt = digits.parse().ok()?;
+        let places = i64::try_from(fraction.len()).ok()?;
+        Some(Num::new(
+            if negative { -coefficient } else { coefficient },
+            exponent - places,
+        ))
+    }
+
     pub(super) fn zero() -> Num {
         Num::new(BigInt::zero(), 0)
     }

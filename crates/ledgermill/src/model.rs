@@ -68,17 +68,17 @@ pub struct PriceDirective {
     pub line: u32,
 }
 
-/// What `Ledger::holdings` is asked (hledger only).
+/// What `Ledger::holdings` is asked.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HoldingsQuery {
     /// The commodity `value` and `cost_value` are given in (`V`); not empty.
     pub commodity: String,
-    /// `YYYY-MM-DD`, exclusive like `-e`: only postings dated before it count, and values are taken
-    /// at the day before. `None`: every posting counts.
+    /// `YYYY-MM-DD`, exclusive like `-e`: only postings dated before it count. hledger values at the day
+    /// before; Beancount at the latest prices there are. `None`: every posting counts.
     #[serde(default)]
     pub end: Option<String>,
     /// `YYYY-MM-DD`, today's date. The core has no clock; it decides which `P` lines may move the
-    /// valuation date when there is no `end`.
+    /// valuation date when there is no `end` (hledger). Beancount does not use it.
     pub today: String,
 }
 
@@ -94,6 +94,7 @@ pub struct Holding {
     pub commodity: String,
     /// The sum of the quantities of `commodity`, costs and lots ignored: exact, rounded half to even
     /// to ten places when it has more (`"0.0000000001"`). May be `"0"`: see `Ledger::holdings`.
+    /// Beancount: the plain decimal digits of the sum, no exponent and no rounding to ten places.
     pub units: String,
     /// The same postings at their cost (`hledger --cost`): the costs' commodities, and `commodity`
     /// itself for the amounts without a cost.

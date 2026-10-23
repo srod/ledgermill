@@ -31,9 +31,9 @@ pub use model::*;
 
 /// A loaded ledger. Freed by drop.
 ///
-/// Besides the public lists it keeps what `at_cost`, `value` and `holdings` need (hledger only):
-/// every `P` line and the exact amounts and dates of each transaction, so that those questions read
-/// nothing again.
+/// Besides the public lists it keeps what `at_cost`, `value` and `holdings` need (hledger): every `P`
+/// line and the exact amounts and dates of each transaction, so that those questions read nothing
+/// again. A Beancount ledger answers them from its public lists.
 #[derive(Debug, Default)]
 pub struct Ledger {
     transactions: Vec<Transaction>,
@@ -121,6 +121,8 @@ fn refuse_set(construct: &str, at: &SourceFile) -> Ledger {
                 "Several Beancount files cannot be loaded together yet.".into()
             },
         }],
+        // Answers like a Beancount ledger with a refused construct: nothing, then the refusal.
+        beancount: true,
         ..Ledger::default()
     }
 }

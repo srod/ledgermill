@@ -91,8 +91,8 @@ fn valued<'a>(
 }
 
 impl Ledger {
-    /// The holdings of every account, per commodity, over the real postings of the ledger
-    /// (hledger only): what `balance --layout=tidy --real` gives with `-e end`, with `--cost`,
+    /// The holdings of every account, per commodity, over the real postings of the ledger:
+    /// for hledger, what `balance --layout=tidy --real` gives with `-e end`, with `--cost`,
     /// `--value=end,V` and both, for each commodity, as `spec/hledger/holdings.md` says.
     ///
     /// A posting counts when it is real (`(a)` and `[a]` are ignored everywhere) and its own date
@@ -116,13 +116,28 @@ impl Ledger {
     ///
     /// Filtering by account prefix, symbol aliases and the missing-cost rule are left to the caller.
     ///
+    /// # Beancount
+    ///
+    /// The sums of the units and holdings queries Plainledger sends
+    /// (`spec/beancount/holdings.md`), per account and posting commodity. `end` is exclusive here
+    /// too: the postings of transactions dated before it, which is `WHERE date <= D` with `D` the
+    /// day before `end` (padding transactions count, on their `pad`). The valuation date is **not**
+    /// `end - 1`: `convert(position, V)` takes the latest price of each pair there is in the
+    /// ledger, whatever `end` and `today` say, and `today` is not used. `units` is the plain
+    /// decimal sum (`"0"` when it is gone); `cost`, `value` and `cost_value` are `sum(cost(position))`,
+    /// `sum(convert(position, V))` and `sum(convert(cost(position), V))` (convert-positions.md: a
+    /// position with a cost goes through its cost's currency), each position converted and rounded
+    /// to 28 digits on its own, no further rounding. A sum that is exactly zero is dropped as soon
+    /// as it is reached, so what follows starts again with its own places. A holding is listed when
+    /// its units or one of the three lists is not empty. Ordering as for hledger.
+    ///
     /// # Errors
     ///
     /// A finding with code `invalid-argument` (details `argument`: `end` or `today`) for a date that
     /// is not a real `YYYY-MM-DD`. A finding with code `unsupported-syntax` (details `construct`):
-    /// `value-without-commodity` for an empty `query.commodity`, `beancount-valuation` for a
-    /// Beancount ledger, and `cost-conversion-postings` for a transaction [`Ledger::at_cost`]
-    /// refuses.
+    /// `value-without-commodity` for an empty `query.commodity`, `cost-conversion-postings` for a
+    /// transaction [`Ledger::at_cost`] refuses, and for a Beancount ledger the first
+    /// `unsupported-syntax` finding of [`Ledger::check`], if any.
     pub fn holdings(&self, query: &HoldingsQuery) -> Result<Vec<Holding>, Finding> {
         let end = match &query.end {
             None => None,
@@ -130,8 +145,8 @@ impl Ledger {
         };
         let today =
             Date::from_iso(&query.today).ok_or_else(|| invalid_argument("today", &query.today))?;
-        if self.beancount {
-            return Err(crate::valuation::beancount_refusal());
+        if let Some(refusal) = self.beancount_refusal() {
+            return Err(refusal);
         }
         if query.commodity.is_empty() {
             return Err(unsupported_finding(
@@ -139,6 +154,22 @@ impl Ledger {
                 "Valuing in no commodity is not supported.",
                 "",
                 0,
+            ));
+        }
+        if self.beancount {
+            // `WHERE date <= D` with D the day before `end`; no day before the first one.
+            let through = match end {
+                None => None,
+                Some(end) => match end.previous_day() {
+                    Some(day) => Some(day.to_string()),
+                    None => return Ok(Vec::new()),
+                },
+            };
+            return Ok(crate::beancount::holdings(
+                &self.transactions,
+                &self.price_list,
+                &query.commodity,
+                through.as_deref(),
             ));
         }
         if let Some((t, _)) = self

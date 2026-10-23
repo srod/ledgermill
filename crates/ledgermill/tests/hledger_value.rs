@@ -508,25 +508,6 @@ fn valuing_in_no_commodity_is_refused() {
 }
 
 #[test]
-fn a_beancount_ledger_is_refused() {
-    let ledger = load(&[file(
-        "t.beancount",
-        "2026-01-01 open Assets:A\n2026-01-01 open Equity:E\n2026-01-02 * \"t\"\n  Assets:A  1 EUR\n  Equity:E\n",
-    )]);
-    let finding = ledger.value("2026-01-02", "EUR").unwrap_err();
-    assert_eq!(finding.code, "unsupported-syntax");
-    assert_eq!(
-        finding.details,
-        json!({ "construct": "beancount-valuation" })
-    );
-    let finding = ledger.at_cost().unwrap_err();
-    assert_eq!(
-        finding.details,
-        json!({ "construct": "beancount-valuation" })
-    );
-}
-
-#[test]
 fn a_journal_with_an_error_gives_what_transactions_gives_valued() {
     // The second transaction does not balance: hledger rejects the journal, and `transactions()`
     // still lists it; so does `value`.
