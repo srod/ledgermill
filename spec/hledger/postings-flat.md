@@ -174,7 +174,7 @@ An assignment (`= 5 X`, `== 0`) is a posting with the amount hledger worked out:
 rows (negated balance), a difference of zero gives one row `0` with no commodity (`n 0` in 2026-01-09, `n 0` in
 2026-01-10 whose partner `m` gets `0` too).
 Rows keep the places of the amounts: a sum has the places of its terms ([balancing](balancing.md)); `10 X @ 2.5 EUR`
-leaves `-25.0 EUR` for the elided posting.
+leaves `-25.0 EUR` for the elided posting (the precise rule is in the next section).
 
 ### Probe
 
@@ -252,6 +252,59 @@ $ spec/hledger/show-postings.sh spec/hledger/probes/post-elided.journal
 9 2026-01-09 | "a difference of zero leaves an empty amount" | post-elided.journal:48-50 | m | 0 X
 10 2026-01-10 | "and so does an elided posting after it" | post-elided.journal:51-53 | n | 0
 10 2026-01-10 | "and so does an elided posting after it" | post-elided.journal:51-53 | m | 0
+```
+
+## Rule: the places of a worked-out amount
+
+The CSV prints the quantity with **at least the display precision** of its amount, not only the places the quantity has in
+`print -O json` (`decimalPlaces`). For a written amount both are the places written. For an amount worked out by
+balancing they can differ: the JSON quantity keeps the sum's own places (with the zero quirk of
+[elided-amounts](elided-amounts.md)), while the precision is that of the amounts the sum was made of, and the CSV pads to it.
+The row shows `max(places of the quantity, precision)` places. A zero is always `0`.
+
+- a sum of plain amounts: the most places among the terms, whatever order and zeros there are (`1.25`, `-1.25`, `3` leave
+  `-3.00`, though the quantity is `-3`);
+- a unit price (`@`): the places of the **first** price of the group of equal prices (`3 Q @ 1.5 R` with `2 Q @ 1.50 R`
+  leaves `-7.5 R`; alone, `10 Z @ 2.50 W` leaves `-25.00 W`); the places of the quantity count too;
+- a total price (`@@`): the most places among the totals (`1.50` and `1.5` leave `-3.00`);
+- the sums of the groups into one commodity: the most places of the groups;
+- the precision is never taken from another transaction (`0.001 R` elsewhere changes nothing);
+- an amount worked out by an assignment is listed with the places of the difference (no padding was seen).
+
+### Probe
+
+`probes/post-elided-places.journal`
+
+### Command and output
+
+```text
+$ spec/hledger/show-postings.sh spec/hledger/probes/post-elided-places.journal
+1 2026-01-01 | "zero in the middle of the sum" | post-elided-places.journal:3-7 | a | 1.25 C
+1 2026-01-01 | "zero in the middle of the sum" | post-elided-places.journal:3-7 | b | -1.25 C
+1 2026-01-01 | "zero in the middle of the sum" | post-elided-places.journal:3-7 | c | 3 C
+1 2026-01-01 | "zero in the middle of the sum" | post-elided-places.journal:3-7 | d | -3.00 C
+2 2026-01-02 | "whole term after" | post-elided-places.journal:9-13 | a | 1.25 C
+2 2026-01-02 | "whole term after" | post-elided-places.journal:9-13 | b | 3 C
+2 2026-01-02 | "whole term after" | post-elided-places.journal:9-13 | c | -1.25 C
+2 2026-01-02 | "whole term after" | post-elided-places.journal:9-13 | d | -3.00 C
+3 2026-01-03 | "unit prices" | post-elided-places.journal:15-17 | a | 10 Z
+3 2026-01-03 | "unit prices" | post-elided-places.journal:15-17 | b | -25.00 W
+4 2026-01-04 | "unit prices grouped, the first price gives the places" | post-elided-places.journal:19-22 | a | 3 Q
+4 2026-01-04 | "unit prices grouped, the first price gives the places" | post-elided-places.journal:19-22 | b | 2 Q
+4 2026-01-04 | "unit prices grouped, the first price gives the places" | post-elided-places.journal:19-22 | c | -7.5 R
+5 2026-01-05 | "totals, the most places" | post-elided-places.journal:24-27 | a | 1 X
+5 2026-01-05 | "totals, the most places" | post-elided-places.journal:24-27 | b | 1 X
+5 2026-01-05 | "totals, the most places" | post-elided-places.journal:24-27 | c | -3.00 Y
+6 2026-01-06 | "another place for R elsewhere changes nothing" | post-elided-places.journal:29-31 | f | 0.001 R
+6 2026-01-06 | "another place for R elsewhere changes nothing" | post-elided-places.journal:29-31 | g | -0.001 R
+7 2026-01-07 | "an assignment lists the places of the difference" | post-elided-places.journal:33-35 | n1 | 2.00 X
+7 2026-01-07 | "an assignment lists the places of the difference" | post-elided-places.journal:33-35 | b | -2.00 X
+8 2026-01-08 | "and so does a difference from a balance" | post-elided-places.journal:37-39 | n2 | 7.5 X
+8 2026-01-08 | "and so does a difference from a balance" | post-elided-places.journal:37-39 | b | -7.5 X
+9 2026-01-09 | "second" | post-elided-places.journal:41-43 | n2 | 1.5 X
+9 2026-01-09 | "second" | post-elided-places.journal:41-43 | b | -1.5 X
+10 2026-01-10 | "total assignment" | post-elided-places.journal:45-47 | n2 | -9 X
+10 2026-01-10 | "total assignment" | post-elided-places.journal:45-47 | b | 9 X
 ```
 
 ## Rule: costs, lots and assertions are not in the row

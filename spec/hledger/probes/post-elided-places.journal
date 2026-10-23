@@ -1,0 +1,47 @@
+; The places of an amount worked out by balancing: the sum's own places, but at least the display precision
+; of the amounts it was made from (a written amount's is its places; a price's is the price's).
+2026-01-01 zero in the middle of the sum
+    a  1.25 C
+    b  -1.25 C
+    c  3 C
+    d
+
+2026-01-02 whole term after
+    a  1.25 C
+    b  3 C
+    c  -1.25 C
+    d
+
+2026-01-03 unit prices
+    a  10 Z @ 2.50 W
+    b
+
+2026-01-04 unit prices grouped, the first price gives the places
+    a  3 Q @ 1.5 R
+    b  2 Q @ 1.50 R
+    c
+
+2026-01-05 totals, the most places
+    a  1 X @@ 1.50 Y
+    b  1 X @@ 1.5 Y
+    c
+
+2026-01-06 another place for R elsewhere changes nothing
+    f  0.001 R
+    g  -0.001 R
+
+2026-01-07 an assignment lists the places of the difference
+    n1  2.00 X = 2.00 X
+    b
+
+2026-01-08 and so does a difference from a balance
+    n2  = 7.5 X
+    b
+
+2026-01-09 second
+    n2  = 9 X
+    b
+
+2026-01-10 total assignment
+    n2  == 0.00
+    b
