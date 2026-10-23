@@ -468,16 +468,22 @@ function beanJournal(): { text: string; used: string[] } {
   text += "\n";
   for (let k = 0, n = 1 + int(5); k < n; k++) {
     text += `2026-01-0${1 + int(6)} * "t${k}"\n`;
+    // One currency is left to the elided posting: costs and prices are in `base`, and plain units of another commodity
+    // come with their offset. Several residual currencies, and lots next to plain units of their commodity in one
+    // account, are booking shapes the transactions comparison owns, not what these reads ask about.
+    const base = pick(used);
+    const nonBase = used.filter((u) => u !== base);
     for (let p = 0, m = 1 + int(4); p < m; p++) {
-      const c = pick(used);
+      const c = pick(nonBase);
       const account = pick(BEAN_ACCOUNTS);
       const units = pick(BEAN_UNITS);
       const roll = r();
-      // Lots live in accounts of their own: plain units of the same commodity next to a lot in one account hit booking
-      // shapes the transactions comparison owns (see harness/README.md), not what this asks about.
-      if (roll < 0.3) text += `  ${pick(BEAN_LOT_ACCOUNTS)}  ${units} ${c} {${pick(["3", "4.5", "1.25", "0.1", "2"])} ${pick(others(c))}}\n`;
-      else if (roll < 0.4) text += `  ${account}  ${units} ${c} @ ${pick(["2", "3.5", "0.8"])} ${pick(others(c))}\n`;
-      else text += `  ${account}  ${chance(0.4) ? "-" : ""}${units} ${c}\n`;
+      if (roll < 0.3) text += `  ${pick(BEAN_LOT_ACCOUNTS)}  ${units} ${c} {${pick(["3", "4.5", "1.25", "0.1", "2"])} ${base}}\n`;
+      else if (roll < 0.4) text += `  ${account}  ${units} ${c} @ ${pick(["2", "3.5", "0.8"])} ${base}\n`;
+      else if (roll < 0.7) {
+        const sign = chance(0.4) ? "-" : "";
+        text += `  ${account}  ${sign}${units} ${c}\n  Equity:O  ${sign ? "" : "-"}${units} ${c}\n`;
+      } else text += `  ${account}  ${chance(0.4) ? "-" : ""}${units} ${base}\n`;
     }
     text += "  Equity:O\n\n";
   }
