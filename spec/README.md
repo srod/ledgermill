@@ -22,6 +22,8 @@ Each note has:
   transactions in a short form, one line each, amounts as decimal numbers (the valuation notes use it), and
   `hledger/show-tags.sh` the tags hledger puts on postings (`_conversion-posting`, `_cost-posting`).
   `hledger/show-postings.sh` prints the rows of `print --location -O csv`, one line each (the flat postings note uses it).
+  `hledger/show-prices.sh` prints the `P` lines `prices` lists, as Plainledger's two runs read them (the prices note uses it),
+  and `hledger/show-holdings.sh` the exact amounts per account of `balance --real`, from `-O json` (the holdings note uses it).
 - `hledger/probes/` – the probe journals.
 - `hledger/show-assertions.sh` prints the assertions hledger reads (position, asserted amount, flags, the
   amounts an assignment got). `hledger/assertion-verdicts.sh` prints hledger's verdict on every journal with an
@@ -83,6 +85,8 @@ Each note has:
 | [value-arithmetic](hledger/value-arithmetic.md) | `--value=DATE,COMM`: products, rounding, cost and lot of an amount, merged amounts of a posting |
 | [cost](hledger/cost.md) | `--cost`: unit and total costs, lots, inferred prices, a posting with several amounts, which conversion postings are dropped |
 | [postings-flat](hledger/postings-flat.md) | `print --location -O csv`: one row per posting and commodity, row order, header line range, virtual postings, costs, elided amounts, the posting's own line |
+| [prices-list](hledger/prices-list.md) | `prices`: only the `P` lines, sorted by date, the exact rate under the marks in force, names, the `-c` run |
+| [holdings](hledger/holdings.md) | `balance --layout=tidy --real` with `-e`, `--cost`, `--value=end,COMM`, `cur:`: which postings count, the valuation date, cost then value, rounding |
 
 ## Index (Beancount 3.2.3)
 
