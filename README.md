@@ -42,7 +42,7 @@ the finding as JSON.
 `holdings(query)` takes `{ commodity, end, today }` (JSON in the wasm binding, `HoldingsQuery` in Rust): the commodity V to value
 in, `end` an optional exclusive `YYYY-MM-DD` like `-e`, and `today` the date today, because the core has no clock. It gives one
 `Holding` per account and commodity held, ordered by account name then commodity: `units` and the lists `cost`, `value` and
-`costValue` (`cost_value` in Rust), exact, every sum rounded to ten places once. Only real postings count; no account-prefix
+`cost_value` (the same name in JSON), exact, every sum rounded to ten places once. Only real postings count; no account-prefix
 filter and no symbol aliases (callers do those). It refuses like `at_cost` and `value` (`unsupported-syntax`) and answers an
 `invalid-argument` finding for an `end` or `today` that is not a date; see `spec/hledger/holdings.md`.
 
