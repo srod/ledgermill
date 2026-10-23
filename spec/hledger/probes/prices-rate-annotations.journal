@@ -1,0 +1,20 @@
+; What may follow the rate of a P line. The first character after the rate (blanks aside) decides:
+; @ { [ ( start a price, a lot or a label, which prices lists; the rest is dropped.
+P 2026-01-01 USD 5 EUR @ 3 X
+P 2026-01-02 USD 5 EUR @@ 3 X
+P 2026-01-03 USD 5 EUR@3 X
+P 2026-01-04 USD 5 EUR {3 X}
+P 2026-01-05 USD 5 EUR {{3 X}}
+P 2026-01-06 USD 5 EUR [2026-01-05]
+P 2026-01-07 USD 5 EUR (@) 3 X
+P 2026-01-08 USD 5 EUR ()
+P 2026-01-09 USD 5 EUR (a)
+P 2026-01-10 USD 5 EUR @ 3 X junk
+P 2026-01-11 USD 5 EUR {}
+P 2026-01-12 USD 5 EUR @
+P 2026-01-13 USD 5 EUR junk @ 3 X
+P 2026-01-14 USD 5 EUR = 3 X
+P 2026-01-15 USD 5 EUR == 3 X
+P 2026-01-16 USD 5 EUR ^ 3
+P 2026-01-17 USD 5 EUR "q"
+P 2026-01-18 USD 5 EUR 2026-01-01

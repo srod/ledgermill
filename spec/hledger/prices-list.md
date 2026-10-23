@@ -415,8 +415,46 @@ After the rate, anything separated from it by a blank is dropped (`5 EUR junk af
 (`5 EURjunk`). `P` must be in column 0 and upper case; between `comment` and `end comment` or after a `;` it is
 not read.
 
-A rate with a price after it (`5 EUR @ 3 X`) is accepted and listed with its price in the text (`5 EUR @ 3 X`).
-This is not a form to support: the engine should refuse it.
+A rate is read as an amount, so a price, a lot or a label may follow it, and `prices` lists them in the text.
+The **first character after the rate, blanks aside, decides**: `@`, `{`, `[` and `(` start such an annotation
+(`5 EUR @ 3 X`, `5 EUR@3 X`, `5 EUR {3 X}`, `5 EUR [2026-01-05]`, `5 EUR (a)`, `5 EUR @@ 3 X`); anything else is junk
+and is dropped (`=`, `==`, `^`, `"q"`, a date, and text after other junk: `5 EUR junk @ 3 X` is `5 EUR`). Two of the
+annotation forms are errors (`[junk]`, a lone `(`). An annotation is not a form to support: the engine **refuses** a
+`P` line whose first character after the rate is one of those four: an `unsupported-syntax` finding on its line
+(`details.construct` is `price-annotation`), and the line is not listed. This also refuses the few that hledger
+reads as plain (`5 EUR @`, `5 EUR {}`), which is the safe side.
+
+### Probe
+
+`probes/prices-rate-annotations.journal`, `probes/prices-error-annotation.journal`
+
+### Command and output
+
+```text
+$ spec/hledger/show-prices.sh spec/hledger/probes/prices-rate-annotations.journal
+P 2026-01-01 USD 5 EUR @ 3 X
+P 2026-01-02 USD 5 EUR @@ 3 X
+P 2026-01-03 USD 5 EUR @ 3 X
+P 2026-01-04 USD 5 EUR {3 X}
+P 2026-01-05 USD 5 EUR {1 X}
+P 2026-01-06 USD 5 EUR [2026-01-05]
+P 2026-01-07 USD 5 EUR @ 3 X
+P 2026-01-08 USD 5 EUR ()
+P 2026-01-09 USD 5 EUR (a)
+P 2026-01-10 USD 5 EUR @ 3 X
+P 2026-01-11 USD 5 EUR
+P 2026-01-12 USD 5 EUR
+P 2026-01-13 USD 5 EUR
+P 2026-01-14 USD 5 EUR
+P 2026-01-15 USD 5 EUR
+P 2026-01-16 USD 5 EUR
+P 2026-01-17 USD 5 EUR
+P 2026-01-18 USD 5 EUR
+$ hledger --no-conf -f spec/hledger/probes/prices-error-annotation.journal prices --color=n
+prices-error-annotation.journal:1:25: (an error at the `[`)
+```
+
+(The 2026-01-03 line is `5 EUR@3 X`, 01-07 is `(@) 3 X`, 01-11 `{}`, 01-12 a lone `@`.)
 
 ### Probe
 
@@ -533,8 +571,8 @@ that, and the rules above do not depend on it.)
   and the line of the `P` (1-based, as [source-lines](source-lines.md) numbers lines), not read from hledger.
 - **Year-less dates** with no `Y` take the current year; the engine needs a year from its caller or must refuse.
 - **A bare rate under `D`** shows D's places (`7.00`); whether the quantity has them is not observable.
-- **A rate with a price** (`5 EUR @ 3 X`): listed as written; not specified further, refuse it.
-- **A rate with a lot or cost basis**, and `P` lines with other trailing forms not in the probes: not probed.
+- **A rate with a price, a lot or a label**: refused by the engine (see "the line"); what hledger lists for them is not
+  specified further.
 - `prices` with a query, a period, `-b`/`-e`, `--forecast`, `--auto`, aliases: not probed (not used by Plainledger).
 - `include`d files are refused by ledgermill, so `P` lines there are not listed.
 - A reader of the rows by whitespace cannot read `P d "" 3 EUR` (two spaces) or a quoted name with spaces: it
