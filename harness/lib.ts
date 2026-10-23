@@ -35,18 +35,21 @@ export type Transaction = {
   source: { file: string; line: number };
   postings: Posting[];
 };
-/** One row of `postings()` (Beancount only for now). */
+/** One row of `postings()`. */
 export type FlatPosting = {
   date: string;
   flag: string; // the transaction's
   payee?: string;
   narration: string;
   account: string;
+  kind: string;
   number: string;
   currency: string;
   file: string;
   line: number;
 };
+/** One `P` directive, as `prices()` lists it. */
+export type PriceDirective = { date: string; commodity: string; rate: Quantity; file: string; line: number };
 type Finding = { code: string; severity: "error" | "warning"; file: string; line: number; details: { construct?: string; reason?: string } };
 
 export type Verdict = { status: "PASS" | "FAIL" | "SKIP"; note: string };
@@ -157,7 +160,8 @@ async function runHledger(paths: string[], extra: string[] = []): Promise<Refere
 }
 
 // ───────────── our side ─────────────
-type Ours = { transactions: Transaction[]; postings: FlatPosting[]; findings: Finding[] } | { thrown: string };
+type Loaded = { transactions: Transaction[]; postings: FlatPosting[]; prices: PriceDirective[]; findings: Finding[] };
+type Ours = Loaded | { thrown: string };
 
 function runOurs(paths: string[]): Ours {
   const files = paths.map((name) => ({ name, content: readFileSync(name, "utf8") }));
@@ -167,6 +171,7 @@ function runOurs(paths: string[]): Ours {
     return {
       transactions: JSON.parse(ledger.transactions()),
       postings: JSON.parse(ledger.postings()),
+      prices: JSON.parse(ledger.prices()),
       findings: JSON.parse(ledger.check()),
     };
   } catch (error) {
@@ -328,6 +333,7 @@ export function projectFlatPostings(csv: string): FlatPosting[] {
       flag: r.flag as string,
       narration: r.narration as string,
       account: r.account as string,
+      kind: "regular",
       number: (r.number as string).trim(),
       currency: r.currency as string,
       file: r.filename as string,
@@ -543,7 +549,7 @@ export async function compareCase(paths: string[], ignorePlaces = false): Promis
 }
 
 /** The verdict of a hledger case, and whether hledger accepts the journal and we agree with it (the other comparisons start from there). */
-async function compareRaw(paths: string[], ignorePlaces: boolean): Promise<{ verdict: Verdict; agreed: boolean }> {
+async function compareRaw(paths: string[], ignorePlaces: boolean): Promise<{ verdict: Verdict; agreed: boolean; ours?: Loaded }> {
   const [first] = paths;
   if (first !== undefined && paths.length === 1 && isBeancountPath(first)) {
     return { verdict: await compareBeancountCase(first), agreed: false };
@@ -561,7 +567,180 @@ async function compareRaw(paths: string[], ignorePlaces: boolean): Promise<{ ver
   const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.transactions)];
   const diff = ignorePlaces ? firstDiff(valuesOnly(theirs), valuesOnly(mine)) : firstDiff(theirs, mine);
   if (diff) return no({ status: "FAIL", note: diff });
-  return { verdict: { status: "PASS", note: ignorePlaces ? "same values (places may differ)" : "" }, agreed: true };
+  return { verdict: { status: "PASS", note: ignorePlaces ? "same values (places may differ)" : "" }, agreed: true, ours };
+}
+
+// ───────────── postings and prices ─────────────
+/** One row of `hledger print --location -O csv`, as `spec/hledger/postings-flat.md` reads it. */
+export type HledgerRow = {
+  txn: number; // `txnidx`
+  date: string;
+  status: string;
+  description: string;
+  account: string; // without brackets
+  kind: string;
+  number: string; // exact, with a point
+  commodity: string;
+  file: string; // the file as given to us
+  first: number; // the transaction's header line
+  last: number; // its last line
+};
+
+/** The kind of a CSV account and its name: `(a)` is virtual, `[a]` balanced virtual, anything else regular. */
+export function csvAccount(text: string): { account: string; kind: string } {
+  if (text.length >= 2 && text.startsWith("(") && text.endsWith(")")) return { account: text.slice(1, -1), kind: "virtual" };
+  if (text.length >= 2 && text.startsWith("[") && text.endsWith("]")) return { account: text.slice(1, -1), kind: "balanced-virtual" };
+  return { account: text, kind: "regular" };
+}
+
+/**
+ * The file name we were given for the path hledger resolved: the same string when it is absolute, else the
+ * one the path ends with after a `/` (a relative name is joined to the working directory, unnormalized).
+ */
+export function givenName(resolved: string, given: string[]): string {
+  const hit = given.find((g) => g === resolved) ?? given.find((g) => resolved.endsWith(`/${g}`));
+  if (hit === undefined) throw new Error(`hledger file ${resolved} is none of ${given.join(", ")}`);
+  return hit;
+}
+
+/** Decode `print --location -O csv`: the last line of `comment` is `location: FILE:FIRST-LAST`. */
+export function decodeHledgerPostings(csv: string, given: string[]): HledgerRow[] {
+  const [names = [], ...data] = decodeCsv(csv);
+  return data
+    .filter((cells) => cells.length > 1)
+    .map((cells) => {
+      const r = Object.fromEntries(names.map((n, i) => [n, cells[i] ?? ""])) as Record<string, string>;
+      const location = (r.comment ?? "").split("\n").at(-1) ?? "";
+      const m = /^location: (.*):(\d+)-(\d+)$/s.exec(location);
+      if (!m) throw new Error(`no location in comment: ${r.comment}`);
+      return {
+        txn: Number(r.txnidx),
+        date: r.date as string,
+        status: r.status as string,
+        description: r.description as string,
+        ...csvAccount(r.account as string),
+        number: (r.amount as string).replace(",", "."),
+        commodity: r.commodity as string,
+        file: givenName(m[1] as string, given),
+        first: Number(m[2]),
+        last: Number(m[3]),
+      };
+    });
+}
+
+/**
+ * Our rows against hledger's, row by row: everything the CSV has (date, status, description, account and kind, exact
+ * quantity, commodity, file), and for the line hledger does not give: it lies inside the transaction (`FIRST+1..=LAST`)
+ * and never goes back within one transaction (rows are grouped by `txnidx`). Null when equal.
+ */
+export function diffPostings(theirs: HledgerRow[], ours: FlatPosting[]): string | null {
+  if (theirs.length !== ours.length) return `length hledger=${theirs.length} ours=${ours.length}`;
+  for (const [i, t] of theirs.entries()) {
+    const o = ours[i] as FlatPosting;
+    const expected = {
+      date: t.date,
+      flag: t.status,
+      narration: t.description,
+      account: t.account,
+      kind: t.kind,
+      number: t.number,
+      currency: t.commodity,
+      file: t.file,
+    };
+    const { line, payee, ...rest } = o;
+    const d = firstDiff(expected, payee === undefined ? rest : { ...rest, payee }, `[${i}]`);
+    if (d) return d;
+    if (line <= t.first || line > t.last) return `[${i}].line: ${line} is outside ${t.first + 1}..=${t.last} (${t.description})`;
+    const before = theirs[i - 1];
+    if (before && before.txn === t.txn && line < (ours[i - 1] as FlatPosting).line)
+      return `[${i}].line: ${line} goes back inside a transaction (after ${(ours[i - 1] as FlatPosting).line})`;
+  }
+  return null;
+}
+
+async function runHledgerText(paths: string[], args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const proc = Bun.spawn(["hledger", "--no-conf", ...paths.flatMap((p) => ["-f", p]), ...args], { stdout: "pipe", stderr: "pipe" });
+  const [stdout, stderr, exitCode] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  return { stdout, stderr, exitCode };
+}
+
+/** `Ledger::postings()` against `hledger print --location -O csv`, for a journal hledger accepts. */
+export async function comparePostings(paths: string[], ours: FlatPosting[]): Promise<Verdict> {
+  const ref = await runHledgerText(paths, ["print", "--location", "-O", "csv"]);
+  if (ref.exitCode !== 0) return { status: "FAIL", note: `hledger fails (${ref.stderr.split("\n")[0]}) where plain print passes` };
+  const diff = diffPostings(decodeHledgerPostings(ref.stdout, paths), ours);
+  return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
+}
+
+/** One row of `hledger prices` (the second run): `P DATE FROM RATE TO`, names without their quotes. */
+export type PriceRow = { date: string; commodity: string; rate: Quantity };
+
+const unquote = (name: string): string => (name.startsWith('"') ? name.slice(1, -1) : name);
+
+/**
+ * Decode the rows of `hledger prices` as the second run of `spec/hledger/prices-list.md` prints them (the rate as
+ * `NUMBER COMMODITY`, a quoted name keeping its quotes). The commodity before the rate is accepted too.
+ */
+export function decodePrices(text: string): PriceRow[] {
+  return text
+    .split("\n")
+    .filter((l) => l !== "")
+    .map((l) => {
+      const m = /^P (\S+) ("[^"]*"|[^ ]*) (.*)$/.exec(l);
+      if (!m) throw new Error(`not a P row: ${l}`);
+      const rate = m[3] as string;
+      const after = /^(-?[0-9][0-9.]*)(?: (.*))?$/.exec(rate);
+      const before = /^("[^"]*"|[^\s\d-]\S*) (-?[0-9][0-9.]*)$/.exec(rate);
+      if (!after && !before) throw new Error(`cannot read the rate of: ${l}`);
+      const [quantity, commodity] = after ? [after[1], after[2] ?? ""] : [before?.[2], before?.[1]];
+      return { date: m[1] as string, commodity: unquote(m[2] as string), rate: { commodity: unquote(commodity as string), quantity: quantity as string } };
+    });
+}
+
+/** The commodity of the rate column of a first-run row (`RATE COMM` or `COMM RATE`; a quoted name keeps its quotes). */
+export function rateCommodity(row: string): string {
+  const rate = row.replace(/^P \S+ ("[^"]*"|[^ ]*) ?/, "");
+  return /^[-+0-9.,]/.test(rate) ? rate.replace(/^[-+0-9., ]*[0-9.,] ?/, "") : rate.replace(/ ?[-+]? ?[0-9][-+0-9.,eE ]*$/, "");
+}
+
+/** `hledger prices`, twice: the second with `-c "1.000000000000000000 COMM"` per rate commodity (spec/hledger/show-prices.sh). */
+async function runHledgerPrices(paths: string[]): Promise<{ ok: true; rows: PriceRow[] } | { ok: false; message: string }> {
+  const first = await runHledgerText(paths, ["prices", "--color=n"]);
+  if (first.exitCode !== 0) return { ok: false, message: first.stderr.split("\n")[0] ?? "" };
+  const lines = first.stdout.split("\n").filter((l) => l !== "");
+  const commodities = [...new Set(lines.map(rateCommodity))];
+  const styles = commodities.flatMap((c) => ["-c", c === "" ? "1.000000000000000000" : `1.000000000000000000 ${c}`]);
+  const second = await runHledgerText(paths, ["prices", "--color=n", ...styles]);
+  if (second.exitCode !== 0) return { ok: false, message: second.stderr.split("\n")[0] ?? "" };
+  const rows = decodePrices(second.stdout);
+  if (rows.length !== lines.length) return { ok: false, message: `the second run lists ${rows.length} rows, the first ${lines.length}` };
+  return { ok: true, rows };
+}
+
+/**
+ * Our `P` directives against hledger's, in order: date, commodity, rate commodity and the rate as the second run prints
+ * it (digits and places as written; see "what -c run 2 changes"). The file and the line are ours: the file is one we were
+ * given and the line holds a `P`. `texts` are the files, in the order of `paths`.
+ */
+export function diffPrices(theirs: PriceRow[], ours: PriceDirective[], paths: string[], texts: string[]): string | null {
+  if (theirs.length !== ours.length) return `length hledger=${theirs.length} ours=${ours.length}`;
+  for (const [i, t] of theirs.entries()) {
+    const o = ours[i] as PriceDirective;
+    const d = firstDiff(t, { date: o.date, commodity: o.commodity, rate: o.rate }, `[${i}]`);
+    if (d) return d;
+    const text = texts[paths.indexOf(o.file)];
+    if (text === undefined) return `[${i}].file: ${o.file} is none of the files given`;
+    if (!(text.split("\n")[o.line - 1] ?? "").startsWith("P")) return `[${i}].line: line ${o.line} of ${basename(o.file)} is not a P line`;
+  }
+  return null;
+}
+
+/** `Ledger::prices()` against `hledger prices`, for a journal hledger accepts. */
+export async function comparePrices(paths: string[], ours: PriceDirective[]): Promise<Verdict> {
+  const ref = await runHledgerPrices(paths);
+  if (!ref.ok) return { status: "FAIL", note: `hledger fails (${ref.message}) where plain print passes` };
+  const diff = diffPrices(ref.rows, ours, paths, paths.map((p) => readFileSync(p, "utf8")));
+  return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
 }
 
 // ───────────── --cost and --value ─────────────
@@ -645,6 +824,8 @@ export type Comparison = {
   raw: Verdict;
   cost: Verdict | null;
   values: { query: Query; verdict: Verdict }[];
+  postings: Verdict | null;
+  prices: Verdict | null;
 };
 
 /**
@@ -653,19 +834,23 @@ export type Comparison = {
  * hledger rejects, or when the raw comparison does not pass.
  */
 export async function compareAll(paths: string[], ignorePlaces = false, queries?: Query[]): Promise<Comparison> {
-  const { verdict: raw, agreed } = await compareRaw(paths, ignorePlaces);
-  if (!agreed) return { raw, cost: null, values: [] };
+  const { verdict: raw, agreed, ours } = await compareRaw(paths, ignorePlaces);
+  if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null };
+  const postings = await comparePostings(paths, ours.postings);
+  const prices = await comparePrices(paths, ours.prices);
   const cost = await compareCost(paths, ignorePlaces);
   const questions = queries ?? valueQueries(paths.map((p) => readFileSync(p, "utf8")));
   const values: Comparison["values"] = [];
   for (const query of questions) values.push({ query, verdict: await compareValue(paths, query, ignorePlaces) });
-  return { raw, cost, values };
+  return { raw, cost, values, postings, prices };
 }
 
 /** The worst verdict, with its note told apart by what was compared. */
 export function summarize(c: Comparison): Verdict {
   const parts: { status: Verdict["status"]; note: string }[] = [
     c.raw,
+    ...(c.postings ? [{ ...c.postings, note: c.postings.note && `postings: ${c.postings.note}` }] : []),
+    ...(c.prices ? [{ ...c.prices, note: c.prices.note && `prices: ${c.prices.note}` }] : []),
     ...(c.cost ? [{ ...c.cost, note: c.cost.note && `cost: ${c.cost.note}` }] : []),
     ...c.values.map(({ query, verdict }) => ({
       ...verdict,
@@ -690,10 +875,16 @@ const total = (...ts: Counts[]): Counts => ({
   SKIP: ts.reduce((n, t) => n + t.SKIP, 0),
 });
 
-/** Add what a hledger case compared under `--cost` and `--value` to the tallies. */
-export function tally(c: Comparison, cost: Counts, value: Counts): void {
-  if (c.cost) cost[c.cost.status]++;
-  for (const { verdict } of c.values) value[verdict.status]++;
+/** The tallies of what a hledger case compared besides the raw comparison. */
+export type Tallies = { cost: Counts; value: Counts; postings: Counts; prices: Counts };
+export const tallies = (): Tallies => ({ cost: counts(), value: counts(), postings: counts(), prices: counts() });
+
+/** Add what a hledger case compared under `--cost`, `--value`, `postings()` and `prices()` to the tallies. */
+export function tally(c: Comparison, t: Tallies): void {
+  if (c.cost) t.cost[c.cost.status]++;
+  for (const { verdict } of c.values) t.value[verdict.status]++;
+  if (c.postings) t.postings[c.postings.status]++;
+  if (c.prices) t.prices[c.prices.status]++;
 }
 
 /**
@@ -717,19 +908,19 @@ export async function runCases(
   await Promise.all(Array.from({ length: JOBS }, worker));
 
   const totals = { hledger: counts(), beancount: counts() };
-  const cost = counts();
-  const value = counts();
+  const t = tallies();
   for (const [i, comparison] of comparisons.entries()) {
     const c = cases[i] as { name: string; paths: string[] };
     totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"][comparison.raw.status]++;
-    tally(comparison, cost, value);
+    tally(comparison, t);
     const v = summarize(comparison);
     if (!quiet || v.status !== "PASS") console.log(`${v.status} ${c.name}${v.note ? `  ${v.note}` : ""}`);
   }
   const { hledger: h, beancount: b } = totals;
   if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${countsLine(h)}\nbeancount: ${countsLine(b)}`);
-  console.log(`\nhledger --cost:  ${countsLine(cost)}\nhledger --value: ${countsLine(value)} (one per date and commodity asked)`);
-  const all = total(h, b, cost, value);
+  console.log(`\nhledger postings: ${countsLine(t.postings)}\nhledger prices:   ${countsLine(t.prices)}`);
+  console.log(`hledger --cost:  ${countsLine(t.cost)}\nhledger --value: ${countsLine(t.value)} (one per date and commodity asked)`);
+  const all = total(h, b, t.cost, t.value, t.postings, t.prices);
   console.log(`\n${all.PASS} pass, ${all.FAIL} fail, ${all.SKIP} skip`);
   if (all.FAIL > 0) process.exitCode = 1;
 }

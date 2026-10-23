@@ -3,13 +3,21 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   type Comparison,
+  compareAll,
   compareCost,
   compareFirstError,
   compareRejection,
   compareValue,
   firstHledgerError,
+  csvAccount,
   decimalString,
   decodeCsv,
+  decodeHledgerPostings,
+  decodePrices,
+  diffPostings,
+  diffPrices,
+  givenName,
+  rateCommodity,
   firstBeancountError,
   listsComparable,
   firstDiff,
@@ -124,9 +132,9 @@ test("projectFlatPostings trims numbers and leaves a missing payee out, keeping 
     '2026-01-05,!,"Shop, Ltd","say ""hi""",Assets:B,  -1  ,BTC,/a/b.beancount,36\r\n' +
     '2026-01-05,!,"Shop, Ltd","say ""hi""",Assets:B,  -2  ,BTC,/a/b.beancount,36\r\n';
   expect(projectFlatPostings(csv)).toEqual([
-    { date: "2026-01-04", flag: "*", narration: "pay", account: "Assets:A", number: "8.50", currency: "EUR", file: "/a/b.beancount", line: 28 },
-    { date: "2026-01-05", flag: "!", payee: "Shop, Ltd", narration: 'say "hi"', account: "Assets:B", number: "-1", currency: "BTC", file: "/a/b.beancount", line: 36 },
-    { date: "2026-01-05", flag: "!", payee: "Shop, Ltd", narration: 'say "hi"', account: "Assets:B", number: "-2", currency: "BTC", file: "/a/b.beancount", line: 36 },
+    { date: "2026-01-04", flag: "*", narration: "pay", account: "Assets:A", kind: "regular", number: "8.50", currency: "EUR", file: "/a/b.beancount", line: 28 },
+    { date: "2026-01-05", flag: "!", payee: "Shop, Ltd", narration: 'say "hi"', account: "Assets:B", kind: "regular", number: "-1", currency: "BTC", file: "/a/b.beancount", line: 36 },
+    { date: "2026-01-05", flag: "!", payee: "Shop, Ltd", narration: 'say "hi"', account: "Assets:B", kind: "regular", number: "-2", currency: "BTC", file: "/a/b.beancount", line: 36 },
   ]);
 });
 
@@ -273,7 +281,13 @@ test("valueQueries spreads six dates over many price dates, crosses a year and a
 
 const pass = { status: "PASS", note: "" } as const;
 test("summarize shows the worst verdict and says whether it came from --cost or --value", () => {
-  const all: Comparison = { raw: pass, cost: pass, values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: pass }] };
+  const all: Comparison = {
+    raw: pass,
+    cost: pass,
+    values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: pass }],
+    postings: pass,
+    prices: pass,
+  };
   expect(summarize(all)).toEqual(pass);
   const skipped: Comparison = { ...all, cost: { status: "SKIP", note: "unsupported: cost-conversion-postings" } };
   expect(summarize(skipped)).toEqual({ status: "SKIP", note: "cost: unsupported: cost-conversion-postings" });
@@ -282,7 +296,18 @@ test("summarize shows the worst verdict and says whether it came from --cost or 
     values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: { status: "FAIL", note: "[0].x: hledger=1 ours=2" } }],
   };
   expect(summarize(failed)).toEqual({ status: "FAIL", note: "value=2026-01-01,EUR: [0].x: hledger=1 ours=2" });
-  expect(summarize({ raw: { status: "FAIL", note: "raw difference" }, cost: null, values: [] })).toEqual({ status: "FAIL", note: "raw difference" });
+  expect(summarize({ raw: { status: "FAIL", note: "raw difference" }, cost: null, values: [], postings: null, prices: null })).toEqual({
+    status: "FAIL",
+    note: "raw difference",
+  });
+  expect(summarize({ ...all, postings: { status: "FAIL", note: "[1].number: hledger=\"5.00\" ours=\"5\"" } })).toEqual({
+    status: "FAIL",
+    note: 'postings: [1].number: hledger="5.00" ours="5"',
+  });
+  expect(summarize({ ...all, prices: { status: "FAIL", note: "length hledger=2 ours=1" } })).toEqual({
+    status: "FAIL",
+    note: "prices: length hledger=2 ours=1",
+  });
 });
 
 // These two run hledger (on PATH, like the rest of the harness) on probes of the spec.
@@ -292,3 +317,123 @@ test("compareCost and compareValue pass on probes, and a refusal of ours is a SK
   expect((await compareValue([probe("value-p-latest")], { date: "2026-01-05", commodity: "EUR" })).status).toBe("PASS");
   expect(await compareCost([probe("conversion-several")])).toEqual({ status: "SKIP", note: "unsupported: cost-conversion-postings" });
 });
+
+// ───────────── postings and prices ─────────────
+test("csvAccount reads the kind from the brackets and strips one pair", () => {
+  expect(csvAccount("a:b")).toEqual({ account: "a:b", kind: "regular" });
+  expect(csvAccount("(v)")).toEqual({ account: "v", kind: "virtual" });
+  expect(csvAccount("[bv]")).toEqual({ account: "bv", kind: "balanced-virtual" });
+  expect(csvAccount("(((g)))")).toEqual({ account: "((g))", kind: "virtual" });
+  expect(csvAccount("()")).toEqual({ account: "", kind: "virtual" });
+  // brackets that do not match at both ends make a regular name
+  expect(csvAccount("(a) b")).toEqual({ account: "(a) b", kind: "regular" });
+  expect(csvAccount("a (b)")).toEqual({ account: "a (b)", kind: "regular" });
+  expect(csvAccount("[x)")).toEqual({ account: "[x)", kind: "regular" });
+});
+
+test("givenName finds the name we were given: the same absolute path, or a relative one at the end of the resolved path", () => {
+  expect(givenName("/tmp/a.journal", ["/tmp/a.journal", "/tmp/b.journal"])).toBe("/tmp/a.journal");
+  expect(givenName("/work/dir/./a.journal", ["./a.journal"])).toBe("./a.journal");
+  expect(givenName("/work/dir/../x/a.journal", ["../x/a.journal", "a.journal"])).toBe("../x/a.journal");
+  expect(() => givenName("/other/c.journal", ["a.journal"])).toThrow("none of");
+});
+
+const HEAD = "txnidx,date,date2,status,code,description,comment,account,amount,commodity,credit,debit,posting-status,posting-comment";
+const row = (idx: number, date: string, status: string, description: string, comment: string, account: string, amount: string, commodity: string) =>
+  [idx, date, "", status, "", description, comment, account, amount, commodity, "", "", "", ""].map((f) => (/[",\n]/.test(String(f)) ? `"${String(f).replaceAll('"', '""')}"` : f)).join(",");
+
+test("decodeHledgerPostings takes the location from the last line of a multi-line comment and resolves the file", () => {
+  const csv = [
+    HEAD,
+    row(1, "2026-01-05", "*", "Shop | a, b", 'note\nlocation: fake\nlocation: /w/a.journal:3-8', "expenses:food", "10.50", "EUR"),
+    row(1, "2026-01-05", "*", "Shop | a, b", 'note\nlocation: fake\nlocation: /w/a.journal:3-8', "(v)", "1,5", ""),
+    row(3, "2026-01-06", "!", "x", "location: /w/sp ace:d-1/a b:3-4.journal:10-12", "[bv]", "-2", "A B"),
+  ].join("\n");
+  const rows = decodeHledgerPostings(csv, ["/w/a.journal", "/w/sp ace:d-1/a b:3-4.journal"]);
+  expect(rows).toEqual([
+    { txn: 1, date: "2026-01-05", status: "*", description: "Shop | a, b", account: "expenses:food", kind: "regular", number: "10.50", commodity: "EUR", file: "/w/a.journal", first: 3, last: 8 },
+    { txn: 1, date: "2026-01-05", status: "*", description: "Shop | a, b", account: "v", kind: "virtual", number: "1.5", commodity: "", file: "/w/a.journal", first: 3, last: 8 },
+    { txn: 3, date: "2026-01-06", status: "!", description: "x", account: "bv", kind: "balanced-virtual", number: "-2", commodity: "A B", file: "/w/sp ace:d-1/a b:3-4.journal", first: 10, last: 12 },
+  ]);
+});
+
+test("diffPostings compares every field exactly and checks that the line is inside the transaction and never goes back", () => {
+  const theirs = decodeHledgerPostings(
+    [HEAD, row(1, "2026-01-05", "*", "x", "location: /w/a.journal:3-8", "a", "10.50", "EUR"), row(1, "2026-01-05", "*", "x", "location: /w/a.journal:3-8", "b", "-10.50", "EUR")].join("\n"),
+    ["/w/a.journal"],
+  );
+  const mine = (over: Record<string, unknown> = {}, over2: Record<string, unknown> = {}) => [
+    { date: "2026-01-05", flag: "*", narration: "x", account: "a", kind: "regular", number: "10.50", currency: "EUR", file: "/w/a.journal", line: 5, ...over },
+    { date: "2026-01-05", flag: "*", narration: "x", account: "b", kind: "regular", number: "-10.50", currency: "EUR", file: "/w/a.journal", line: 6, ...over2 },
+  ];
+  expect(diffPostings(theirs, mine())).toBeNull();
+  expect(diffPostings(theirs, mine({ number: "10.5" }))).toBe('[0].number: hledger="10.50" ours="10.5"');
+  expect(diffPostings(theirs, mine({}, { kind: "virtual" }))).toBe('[1].kind: hledger="regular" ours="virtual"');
+  expect(diffPostings(theirs, mine({ file: "/w/b.journal" }))).toContain("[0].file");
+  expect(diffPostings(theirs, mine({ flag: "" }))).toContain("[0].flag");
+  expect(diffPostings(theirs, mine({ payee: "p" }))).toContain("[0].payee");
+  expect(diffPostings(theirs, mine({ line: 3 }))).toBe("[0].line: 3 is outside 4..=8 (x)");
+  expect(diffPostings(theirs, mine({}, { line: 9 }))).toBe("[1].line: 9 is outside 4..=8 (x)");
+  expect(diffPostings(theirs, mine({ line: 7 }, { line: 6 }))).toBe("[1].line: 6 goes back inside a transaction (after 7)");
+  expect(diffPostings(theirs, mine().slice(0, 1))).toBe("length hledger=2 ours=1");
+});
+
+test("rateCommodity reads the commodity of a first-run row whichever side it is on, quotes kept", () => {
+  expect(rateCommodity("P 2026-01-01 USD 0.8 EUR")).toBe("EUR");
+  expect(rateCommodity("P 2026-01-01 USD $0.8")).toBe("$");
+  expect(rateCommodity("P 2026-01-01 USD EUR 0,8")).toBe("EUR");
+  expect(rateCommodity("P 2026-01-01 USD -3 EUR")).toBe("EUR");
+  expect(rateCommodity('P 2026-01-05 "ACME INC" 12.5 "Big Bank Ltd"')).toBe('"Big Bank Ltd"');
+  expect(rateCommodity("P 2026-01-17  3 EUR")).toBe("EUR");
+  expect(rateCommodity("P 2026-01-08 USD 3")).toBe("");
+  expect(rateCommodity("P 2026-01-08 USD 1.234,5")).toBe("");
+});
+
+test("decodePrices reads quoted names, an empty first commodity, a bare rate and a negative rate", () => {
+  const text = [
+    'P 2026-01-05 "ACME INC" 12.5 "Big Bank Ltd"',
+    "P 2026-01-17  3 EUR",
+    "P 2026-01-08 USD 3",
+    "P 2026-01-19 USD -3 EUR",
+    "P 2026-01-01 USD 0.123456789012345678901234 €",
+    "",
+  ].join("\n");
+  expect(decodePrices(text)).toEqual([
+    { date: "2026-01-05", commodity: "ACME INC", rate: { commodity: "Big Bank Ltd", quantity: "12.5" } },
+    { date: "2026-01-17", commodity: "", rate: { commodity: "EUR", quantity: "3" } },
+    { date: "2026-01-08", commodity: "USD", rate: { commodity: "", quantity: "3" } },
+    { date: "2026-01-19", commodity: "USD", rate: { commodity: "EUR", quantity: "-3" } },
+    { date: "2026-01-01", commodity: "USD", rate: { commodity: "€", quantity: "0.123456789012345678901234" } },
+  ]);
+  expect(() => decodePrices("not a row")).toThrow("not a P row");
+});
+
+test("diffPrices compares the rate text exactly, in order, and checks that the file is ours and the line holds a P", () => {
+  const theirs = decodePrices("P 2026-01-01 USD 0.80 EUR\nP 2026-01-02 USD 7 EUR\n");
+  const texts = ["P 2026-01-01 USD 0.80 EUR\n\nP 2026-01-02 USD 7 EUR\n"];
+  const mine = (over: Record<string, unknown> = {}) => [
+    { date: "2026-01-01", commodity: "USD", rate: { commodity: "EUR", quantity: "0.80" }, file: "/w/a.journal", line: 1 },
+    { date: "2026-01-02", commodity: "USD", rate: { commodity: "EUR", quantity: "7" }, file: "/w/a.journal", line: 3, ...over },
+  ];
+  expect(diffPrices(theirs, mine(), ["/w/a.journal"], texts)).toBeNull();
+  expect(diffPrices(theirs, [{ ...mine()[0], rate: { commodity: "EUR", quantity: "0.8" } } as never, mine()[1] as never], ["/w/a.journal"], texts)).toBe(
+    '[0].rate.quantity: hledger="0.80" ours="0.8"',
+  );
+  expect(diffPrices(theirs, mine({ commodity: "GBP" }) as never, ["/w/a.journal"], texts)).toContain("[1].commodity");
+  expect(diffPrices(theirs, mine({ line: 2 }) as never, ["/w/a.journal"], texts)).toBe("[1].line: line 2 of a.journal is not a P line");
+  expect(diffPrices(theirs, mine({ file: "/w/zzz" }) as never, ["/w/a.journal"], texts)).toBe("[1].file: /w/zzz is none of the files given");
+  expect(diffPrices(theirs, mine().slice(0, 1) as never, ["/w/a.journal"], texts)).toBe("length hledger=2 ours=1");
+});
+
+test("compareAll lists postings and prices on probes, and leaves them out of a case that is not compared", async () => {
+  for (const name of ["post-basic", "post-elided", "post-elided-places", "post-virtual-nested", "post-default-commodity", "prices-order-a", "prices-rate-forms", "prices-names"]) {
+    const c = await compareAll([probe(name)]);
+    expect([name, c.raw.status, c.postings, c.prices]).toEqual([name, "PASS", pass, pass]);
+  }
+  const pair = await compareAll([probe("post-files-b"), probe("post-files-a"), probe("post-files-b")]);
+  expect([pair.postings, pair.prices]).toEqual([pass, pass]);
+  // ledgermill refuses a rate with a price: SKIP, and nothing else is asked
+  const refused = await compareAll([join(import.meta.dir, "../spec/hledger/probes/refused/prices-rate-annotations.journal")]);
+  expect(refused.raw.status).toBe("SKIP");
+  expect([refused.postings, refused.prices]).toEqual([null, null]);
+}, 60_000);

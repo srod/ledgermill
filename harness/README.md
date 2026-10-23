@@ -52,8 +52,8 @@ Each case ends in one verdict:
   we report no error, or that we report `unbalanced-transaction` while hledger accepts. A FAIL is a
   bug in the engine or in the harness; the exit code is 1.
 
-The last line is `N pass, N fail, N skip`, over everything compared (raw, `--cost` and `--value`; the lines before it
-count each of them: see "Cost and value").
+The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, `--cost` and `--value`; the lines
+before it count each of them: see "Postings and prices" and "Cost and value").
 
 When hledger rejects a journal (exits non-zero), the harness takes the file and line of the **first error**
 from the first line of its stderr and compares them with our **first error-severity finding**
@@ -86,6 +86,29 @@ trimmed and amounts, each with its price and lot). Quantities are exact decimal 
 with `BigInt` from hledger's `decimalMantissa` and `decimalPlaces`, so places and big numbers
 survive (very large mantissas come in floating notation and are read back exactly).
 `source.file` is compared by basename.
+
+### Postings and prices
+
+Every hledger case that hledger accepts and that passes the comparison above is also compared on `postings()` and
+`prices()` (`spec/hledger/postings-flat.md` and `prices-list.md`):
+
+- **postings**: `hledger print --location -O csv` against `ledger.postings()`, row by row. The CSV is decoded with
+  `decodeCsv` (fields with newlines are quoted); the file and the header lines are those of the **last line** of the
+  `comment` field (`location: FILE:FIRST-LAST`), and the file is matched to the name we were given (the same string when
+  absolute, else the one the resolved path ends with). Compared exactly: date, status ↔ `flag`, description ↔ `narration`,
+  account (one pair of brackets stripped, the kind read from them), `amount` ↔ `number` (a comma of a decimal-comma style is
+  read as the point) and its places, commodity ↔ `currency`, file, and no payee. hledger gives no line for a posting: it must
+  lie inside `FIRST+1..=LAST` of its transaction and must not go back inside one (rows share a `txnidx`);
+- **prices**: `hledger prices` run twice, the second time with `-c "1.000000000000000000 COMM"` for every commodity of the
+  rate column of the first (as `spec/hledger/show-prices.sh` does), decoded as `P DATE FROM RATE TO` (quoted names, a rate with
+  no commodity), against `ledger.prices()` in order: date, commodity, rate commodity and the rate text, **places included**
+  (the second run keeps the places written, and pads a bare rate to `D`'s). The file must be one we were given and the line
+  must hold a `P`.
+
+A case is not asked these when hledger rejects it, when it fails the first comparison or when we refuse it (a `P` line
+with a price, a lot or a label is refused, so the journals that have one live in `spec/hledger/probes/refused/`). A
+difference is a FAIL: `postings: [3].number: hledger="1.50" ours="1.5"`, `prices: [0].rate.quantity: ...`. The summary
+has a line each (`hledger postings: ...`, `hledger prices: ...`), and the fuzzer asks both of every valid journal.
 
 ### Cost and value
 
@@ -167,7 +190,7 @@ The fuzzer (`fuzz.ts`) writes random, mostly valid journals covering number form
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
 and big numbers, and for hledger `=` and `~` rules, about a third of them invalid on purpose (they must
 fail in both), and `P` lines (about 45%: dates, times of day, zero and negative prices). Each hledger
-journal is compared raw, under `--cost`, and under one or two random `--value=DATE,COMM` (dates around the
+journal is compared raw, for its postings and prices, under `--cost`, and under one or two random `--value=DATE,COMM` (dates around the
 `P` lines, the fuzzer's commodities). Same seed, same journals; a FAIL prints the journal.
 
 `bun harness/fuzz.ts --graph N SEED` writes dense networks of prices instead: 9 to 11 commodities out of

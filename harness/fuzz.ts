@@ -11,7 +11,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Comparison, compareAll, type Query, summarize, tally } from "./lib.ts";
+import { type Comparison, compareAll, type Query, summarize, tally, tallies } from "./lib.ts";
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const count = Number(args[0] ?? 500);
@@ -429,8 +429,7 @@ function graphJournal(): { text: string; used: string[] } {
 // ───────────── run ─────────────
 const dir = mkdtempSync(join(tmpdir(), "ledgermill-fuzz-"));
 const raw = { PASS: 0, FAIL: 0, SKIP: 0 };
-const cost = { PASS: 0, FAIL: 0, SKIP: 0 };
-const value = { PASS: 0, FAIL: 0, SKIP: 0 };
+const t = tallies();
 let valid = 0;
 for (let k = 0; k < count; k++) {
   const j = graph ? graphJournal() : journal();
@@ -445,7 +444,7 @@ for (let k = 0; k < count; k++) {
   const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(commodities));
   const c: Comparison = await compareAll(paths, false, queries);
   raw[c.raw.status]++;
-  tally(c, cost, value);
+  tally(c, t);
   if (c.raw.status === "PASS" && c.raw.note === "") valid++;
   const v = summarize(c);
   if (v.status === "FAIL") {
@@ -455,7 +454,7 @@ for (let k = 0; k < count; k++) {
 }
 const counts = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
 console.log(`fuzz${graph ? " --graph" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${raw.FAIL} fail, ${raw.SKIP} skip`);
-console.log(`  --cost: ${counts(cost)}\n  --value: ${counts(value)}`);
+console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}`);
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
-if (raw.FAIL + cost.FAIL + value.FAIL > 0) process.exitCode = 1;
+if (raw.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL > 0) process.exitCode = 1;
