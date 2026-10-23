@@ -1,0 +1,66 @@
+; What the holdings and units queries sum: zeros, places, several cost currencies, the date filter.
+2026-01-01 open Assets:Reset
+2026-01-01 open Assets:Finer
+2026-01-01 open Assets:Zeros
+2026-01-01 open Assets:Short "NONE"
+2026-01-01 open Assets:Mixed
+2026-01-01 open Assets:Padded
+2026-01-01 open Assets:Pending
+2026-01-01 open Equity:Other
+2026-01-01 open Equity:Opening
+
+2026-01-02 pad Assets:Padded Equity:Opening
+2026-01-05 balance Assets:Padded 100 EUR
+
+2026-02-01 price USD 2 EUR
+2026-02-01 price CHF 4 EUR
+2026-02-01 price MMM 7 USD
+
+; a sum that reaches zero is dropped: what comes after it starts again, with its own places
+2026-01-02 * "plus"
+  Assets:Reset  1.50 EUR
+  Equity:Other
+2026-01-03 * "minus"
+  Assets:Reset  -1.50 EUR
+  Equity:Other
+2026-01-04 * "plus again"
+  Assets:Reset  3 EUR
+  Equity:Other
+
+; the finer places win
+2026-01-05 * "one and a half"
+  Assets:Finer  1.5 EUR
+  Equity:Other
+2026-01-06 * "two and a quarter"
+  Assets:Finer  2.25 EUR
+  Equity:Other
+
+; a zero added to a sum that is held changes its places; added to nothing it is nothing
+2026-01-07 * "zeros"
+  Assets:Zeros  5 EUR
+  Assets:Zeros  0.00 EUR
+  Assets:Zeros  0.000 USD
+  Assets:Zeros  7 USD
+  Equity:Other
+
+; no matching of lots: a sale at another cost is another lot, units cancel and costs do not
+2026-01-08 * "buy"
+  Assets:Short  10 XXX {2 EUR}
+  Equity:Other
+2026-01-09 * "sell at another cost"
+  Assets:Short  -10 XXX {3 EUR}
+  Equity:Other
+
+; lots in several cost currencies, and units without a cost
+2026-01-10 * "lots"
+  Assets:Mixed  10 MMM {3 USD}
+  Assets:Mixed  5 MMM {4 EUR}
+  Assets:Mixed  2 MMM
+  Assets:Mixed  3 MMM {1 CHF}
+  Assets:Mixed  1 MMM {5 USD}
+  Equity:Other
+
+; every transaction counts, pending or not
+2026-01-11 ! "pending"
+  Assets:Pending  4 EUR
+  Equity:Other
