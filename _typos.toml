@@ -10,3 +10,5 @@ extend-ignore-re = ["(?m)^[0-9a-f]{6},"]
 [default.extend-words]
 # The ordinal ending of `2nd` in period expressions.
 nd = "nd"
+# `P1 ... Pn`: the account patterns of a query in spec/hledger/holdings.md.
+Pn = "Pn"
