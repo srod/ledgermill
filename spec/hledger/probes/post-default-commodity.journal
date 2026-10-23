@@ -1,0 +1,22 @@
+; An amount written without a commodity takes the commodity of D and is listed with at least the places of D's sample.
+D 1,000.00 EUR
+
+2026-01-01 bare amount
+    a  5
+    b
+
+2026-01-02 bare amount with more places
+    a  5.123
+    b
+
+2026-01-03 named amount
+    a  5 EUR
+    b
+
+2026-01-04 bare amount, group mark
+    a  1,000
+    b
+
+2026-01-05 bare amount in a cost
+    a  3 X @ 2
+    b

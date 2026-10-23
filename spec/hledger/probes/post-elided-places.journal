@@ -21,7 +21,7 @@
     b  2 Q @ 1.50 R
     c
 
-2026-01-05 totals, the most places
+2026-01-05 totals, the first gives the places
     a  1 X @@ 1.50 Y
     b  1 X @@ 1.5 Y
     c
@@ -45,3 +45,8 @@
 2026-01-10 total assignment
     n2  == 0.00
     b
+
+2026-01-11 totals, the first gives the places (not the most)
+    a  3 X @@ 1.0 EUR
+    b  1 X @@ 1.00 EUR
+    c

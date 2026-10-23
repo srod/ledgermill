@@ -426,12 +426,12 @@ reads as plain (`5 EUR @`, `5 EUR {}`), which is the safe side.
 
 ### Probe
 
-`probes/prices-rate-annotations.journal`, `probes/prices-error-annotation.journal`
+`probes/refused/prices-rate-annotations.journal`, `probes/refused/prices-error-annotation.journal` (apart from the rest: ledgermill refuses them)
 
 ### Command and output
 
 ```text
-$ spec/hledger/show-prices.sh spec/hledger/probes/prices-rate-annotations.journal
+$ spec/hledger/show-prices.sh spec/hledger/probes/refused/prices-rate-annotations.journal
 P 2026-01-01 USD 5 EUR @ 3 X
 P 2026-01-02 USD 5 EUR @@ 3 X
 P 2026-01-03 USD 5 EUR @ 3 X
@@ -450,7 +450,7 @@ P 2026-01-15 USD 5 EUR
 P 2026-01-16 USD 5 EUR
 P 2026-01-17 USD 5 EUR
 P 2026-01-18 USD 5 EUR
-$ hledger --no-conf -f spec/hledger/probes/prices-error-annotation.journal prices --color=n
+$ hledger --no-conf -f spec/hledger/probes/refused/prices-error-annotation.journal prices --color=n
 prices-error-annotation.journal:1:25: (an error at the `[`)
 ```
 
@@ -476,7 +476,6 @@ P 2026-01-09 USD 5 E
 P 2026-01-10 USD 1 EUR
 P 2026-01-11 USD 1 EUR
 P 2026-01-12 USD 1 EUR
-P 2026-01-15 USD 5 EUR @ 3 X
 ```
 
 (The 2026-01-13 line is inside a `comment` block and the 2026-01-14 line is behind a `;`: neither is listed.)
