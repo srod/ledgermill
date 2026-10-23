@@ -178,8 +178,13 @@ the `[conversion]` postings it produces:
    such posting **repeats** the anchor. For this each posting is a number: its written quantity (the commodity does not
    matter, the sign does), and for a posting with no amount it is zero with no places. Two postings repeat each other when
    their numbers differ by at most half a unit at **the anchor's** places (at 0 places, 3 and 3.5 repeat, 3 and 3.6 do not; at 1
-   place, 3.0 and 3.05 repeat, 3.0 and 3.06 do not). Priced postings, conversion postings, and postings of other transactions
-   are not looked at.
+   place, 3.0 and 3.05 repeat, 3.0 and 3.06 do not). Conversion postings and postings of other transactions are not looked at,
+   and **priced postings are not** either, with one exception: a priced posting that is preceded, right before it, by an odd
+   number of conversion postings that do **not** open the transaction (rule 2 covers the ones that do) is one more number
+   that can repeat the anchor, its written quantity compared at the anchor's places like any other. So a lone `equity:conversion`
+   posting right before the priced one, behind a regular posting, keeps every pair when the priced quantity is the anchor's
+   (`-11.85 USD` and `-11.85 AB @ 0.3 EUR`), and the amount of that conversion posting plays no part. A conversion posting
+   anywhere else (after the priced posting, or with another posting between) leaves the priced posting out as before.
 
 Then every pair posting is tagged, and `--cost` drops it. So a conversion pair is kept when the transaction
 has nothing but conversion postings, when its only other posting is priced and balances by cost, and when the
@@ -193,7 +198,8 @@ no difference); 992 and about 2,100 shapes with one priced posting and conversio
 
 #### Probe
 
-`probes/cost-drop-pairs.journal`, `probes/cost-drop-anchor.journal`, `probes/cost-drop-priced.journal`; and the
+`probes/cost-drop-pairs.journal`, `probes/cost-drop-anchor.journal`, `probes/cost-drop-priced.journal`,
+`probes/cost-pair-odd-run.journal`; and the
 probes of [conversion](conversion.md), `conversion.journal` and `conversion-leading-run.journal`.
 
 #### Command and output
@@ -298,6 +304,47 @@ $ spec/hledger/show-tags.sh spec/hledger/probes/cost-drop-priced.journal
 2026-01-05  equity:conversion -3 X | a 3 X @ 2 EUR | equity:conversion 1 EUR | equity:conversion 1 EUR | b -8 EUR | c 3 X
 2026-01-06  equity:conversion 1 EUR | equity:conversion 1 EUR | equity:conversion -3 X | a 3 X @ 2 EUR | b -8 EUR | c 3 X
 2026-01-07  b -12 EUR [cost] | equity:conversion -3 X | a 3 X @@ 6 EUR | equity:conversion -3 X [conversion] | equity:conversion 6 EUR [conversion] | c 6 X
+```
+
+A priced posting behind an odd run that does not open the transaction (`probes/cost-pair-odd-run.journal`; `z` is elided, and
+every transaction has a conversion posting `-3 EUR` right before `p`, and the pair `-1989 EUR`, `359 AB` after it). 01-01: `p`
+repeats the anchor `a`, nothing is tagged. 01-02, 01-03: another quantity, the opposite sign: the pair goes. 01-04: `-11.845`
+is within half a unit of `-11.85` at the anchor's two places, nothing is tagged; 01-05: `-11.8` is not, the pair goes; 01-06: the
+anchor `-11.8` has one place, `-11.85` is within half a unit of it, nothing is tagged. 01-07: a posting between the lone conversion
+posting and `p` and 01-12 (conversion posting after `p`): the usual rule, the pairs go. 01-08: a run of three is odd, nothing is
+tagged; 01-09: a run of two is even, the pairs go. 01-10: `p` repeats `c`, not the anchor: the pair goes. 01-11: no conversion
+posting before `p`: the pair goes. 01-13: a transaction of zero quantities (`0.00 AB` anchor, `0.00 "A B" @ 7 EUR`) behind one
+conversion posting: nothing is tagged.
+
+```text
+$ spec/hledger/show-tags.sh spec/hledger/probes/cost-pair-odd-run.journal
+2026-01-01  a -11.85 USD | equity:conversion -3 EUR | p -11.85 AB @ 0.3 EUR | equity:trade -1989 EUR | equity:conversion 359 AB | z -359 AB,1995.555 EUR,11.85 USD
+2026-01-02  a -11.85 USD [cost] | equity:conversion -3 EUR | p -7 AB @ 0.3 EUR | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB [conversion] | z -359 AB,1994.1 EUR,11.85 USD
+2026-01-03  a -11.85 USD [cost] | equity:conversion -3 EUR | p 11.85 AB @ 0.3 EUR | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB [conversion] | z -359 AB,1988.445 EUR,11.85 USD
+2026-01-04  a -11.85 USD | equity:conversion -3 EUR | p -11.845 AB @ 0.3 EUR | equity:trade -1989 EUR | equity:conversion 359 AB | z -359 AB,1995.5535 EUR,11.85 USD
+2026-01-05  a -11.85 USD [cost] | equity:conversion -3 EUR | p -11.8 AB @ 0.3 EUR | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB [conversion] | z -359 AB,1995.54 EUR,11.85 USD
+2026-01-06  a -11.8 USD | equity:conversion -3 EUR | p -11.85 AB @ 0.3 EUR | equity:trade -1989 EUR | equity:conversion 359 AB | z -359 AB,1995.555 EUR,11.8 USD
+2026-01-07  a -11.85 USD [cost] | equity:conversion -3 EUR | c 5 USD | p -11.85 AB @ 0.3 EUR | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB [conversion] | z -359 AB,1995.555 EUR,6.85 USD
+2026-01-08  a -11.85 USD | equity:conversion -3 EUR | equity:conversion -3 EUR | equity:conversion -3 EUR | p -11.85 AB @ 0.3 EUR | equity:trade -1989 EUR | equity:conversion 359 AB | z -359 AB,2001.555 EUR,11.85 USD
+2026-01-09  a -11.85 USD [cost] | equity:conversion -3 EUR [conversion] | equity:conversion -3 EUR [conversion] | p -11.85 AB @ 0.3 EUR | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB [conversion] | z -359 AB,1998.555 EUR,11.85 USD
+2026-01-10  a -7 USD [cost] | equity:conversion -3 EUR | p -11.85 AB @ 0.3 EUR | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB [conversion] | c -11.85 X | z -359 AB,1995.555 EUR,7 USD,11.85 X
+2026-01-11  a -11.85 USD [cost] | p -11.85 AB @ 0.3 EUR | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB [conversion] | z -359 AB,1992.555 EUR,11.85 USD
+2026-01-12  a -11.85 USD [cost] | p -11.85 AB @ 0.3 EUR | equity:conversion -3 EUR [conversion] | equity:trade -1989 EUR [conversion] | equity:conversion 359 AB | z -359 AB,1995.555 EUR,11.85 USD
+2026-01-13  c:d 0.00 AB | equity:trading:x 0.00 A B | a0 0.00 A B @ 7 EUR | equity:trade -1882 EUR | equity:trade 0.00 A B | equity:trade 0.002 EUR | b 1881.998 EUR
+$ spec/hledger/show-amounts.sh --cost spec/hledger/probes/cost-pair-odd-run.journal
+2026-01-01  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -3.555 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 1995.555, USD 11.85
+2026-01-02  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -2.1 | z: AB -359, EUR 1994.1, USD 11.85
+2026-01-03  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR 3.555 | z: AB -359, EUR 1988.445, USD 11.85
+2026-01-04  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -3.5535 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 1995.5535, USD 11.85
+2026-01-05  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -3.54 | z: AB -359, EUR 1995.54, USD 11.85
+2026-01-06  a: USD -11.8 | equity:conversion: EUR -3 | p: EUR -3.555 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 1995.555, USD 11.8
+2026-01-07  a: USD -11.85 | equity:conversion: EUR -3 | c: USD 5 | p: EUR -3.555 | z: AB -359, EUR 1995.555, USD 6.85
+2026-01-08  a: USD -11.85 | equity:conversion: EUR -3 | equity:conversion: EUR -3 | equity:conversion: EUR -3 | p: EUR -3.555 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 2001.555, USD 11.85
+2026-01-09  a: USD -11.85 | p: EUR -3.555 | z: AB -359, EUR 1998.555, USD 11.85
+2026-01-10  a: USD -7 | equity:conversion: EUR -3 | p: EUR -3.555 | c: X -11.85 | z: AB -359, EUR 1995.555, USD 7, X 11.85
+2026-01-11  a: USD -11.85 | p: EUR -3.555 | z: AB -359, EUR 1992.555, USD 11.85
+2026-01-12  a: USD -11.85 | p: EUR -3.555 | equity:conversion: AB 359 | z: AB -359, EUR 1995.555, USD 11.85
+2026-01-13  c:d: AB 0.00 | equity:trading:x: A B 0.00 | a0: EUR 0 | equity:trade: EUR -1882 | equity:trade: A B 0.00 | equity:trade: EUR 0.002 | b: EUR 1881.998
 ```
 
 The same with the probes of the conversion note:

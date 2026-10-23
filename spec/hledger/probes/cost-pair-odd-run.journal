@@ -1,0 +1,111 @@
+; --cost: a priced posting right behind an odd run of conversion postings that does not open
+; the transaction counts as a posting that can repeat the anchor (see cost.md). The pair
+; after the priced posting stays when it does; z is elided.
+2026-01-01 priced quantity repeats the anchor: nothing is tagged
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    p  -11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-02 another quantity: the pair goes
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    p  -7 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-03 the opposite sign is not a repeat: the pair goes
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    p  11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-04 within half a unit at the anchor's places (2): nothing is tagged
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    p  -11.845 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-05 0.05 away at the anchor's 2 places: the pair goes
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    p  -11.8 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-06 0.05 away at the anchor's 1 place: nothing is tagged
+    a  -11.8 USD
+    equity:conversion  -3 EUR
+    p  -11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-07 a posting between the conversion posting and the priced one: the pair goes
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    c  5 USD
+    p  -11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-08 a run of three right before it: nothing is tagged
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    equity:conversion  -3 EUR
+    equity:conversion  -3 EUR
+    p  -11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-09 a run of two: the pairs go
+    a  -11.85 USD
+    equity:conversion  -3 EUR
+    equity:conversion  -3 EUR
+    p  -11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-10 the priced quantity repeats a posting that is not the anchor: the pair goes
+    a  -7 USD
+    equity:conversion  -3 EUR
+    p  -11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    c  -11.85 X
+    z
+
+2026-01-11 no conversion posting before the priced one: the pair goes although it repeats the anchor
+    a  -11.85 USD
+    p  -11.85 AB @ 0.3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-12 the conversion posting after the priced one: the pairs go
+    a  -11.85 USD
+    p  -11.85 AB @ 0.3 EUR
+    equity:conversion  -3 EUR
+    equity:trade  -1989 EUR
+    equity:conversion  359 AB
+    z
+
+2026-01-13 zero quantities with places
+    c:d  0.00 AB
+    equity:trading:x  0.00 "A B"
+    a0  0.00 "A B" @ 7 EUR
+    equity:trade  -1882 EUR
+    equity:trade  0.00 "A B"
+    equity:trade  0.002 EUR
+    b  1881.998 EUR
