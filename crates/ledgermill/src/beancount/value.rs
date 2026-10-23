@@ -8,42 +8,71 @@
 use super::pydec::Num;
 use crate::model::{Amount, Holding, Posting, PriceDirective, Quantity, Transaction};
 use num_bigint::BigInt;
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap};
 
-/// The rates the `price` directives make: for each ordered pair, the entries in the order of the
-/// prices table (by date, the same date as written), the price itself and the inverse of the price
-/// the other way round.
+/// The rates the `price` directives make: for each ordered pair, its entries in the order of the
+/// prices table (spec/beancount/convert-rates.md, "A pair seen both ways").
+///
+/// Each pair starts with its own prices. Then, one pair after another, the inverses (`1 / price`,
+/// none for a price of zero) of what a pair holds *at that moment* are appended to the list of the
+/// opposite pair; so a pair whose opposite was handled first holds the inverses of inverses of its
+/// own prices as well, and for one date the entry appended last is the one that counts. The pairs
+/// are handled shortest list first, and the pair that appeared last first among equals.
 struct Rates {
-    pairs: HashMap<String, HashMap<String, Vec<(String, Num)>>>,
+    pairs: HashMap<String, HashMap<String, Entries>>,
 }
+
+/// The `(date, rate)` entries of one pair, `YYYY-MM-DD` dates.
+type Entries = Vec<(String, Num)>;
 
 impl Rates {
     fn new(prices: &[PriceDirective]) -> Rates {
         let one = Num::from_scaled(BigInt::from(1u8), 0);
-        let mut pairs: HashMap<String, HashMap<String, Vec<(String, Num)>>> = HashMap::new();
-        let mut add = |from: &str, to: &str, date: &str, rate: Num| {
-            pairs
-                .entry(from.to_string())
-                .or_default()
-                .entry(to.to_string())
-                .or_default()
-                .push((date.to_string(), rate));
+        let mut index: HashMap<(String, String), usize> = HashMap::new();
+        let mut lists: Vec<((String, String), Entries)> = Vec::new();
+        let mut at = |lists: &mut Vec<_>, key: (String, String)| -> usize {
+            *index.entry(key.clone()).or_insert_with(|| {
+                lists.push((key, Vec::new()));
+                lists.len() - 1
+            })
         };
         for p in prices {
             let Some(number) = Num::parse(&p.rate.quantity) else {
                 continue;
             };
-            // The inverse of a price of zero does not exist: it adds no entry.
-            if let Some(back) = one.div(&number) {
-                add(&p.rate.commodity, &p.commodity, &p.date, back);
+            let i = at(&mut lists, (p.commodity.clone(), p.rate.commodity.clone()));
+            if let Some((_, list)) = lists.get_mut(i) {
+                list.push((p.date.clone(), number));
             }
-            add(&p.commodity, &p.rate.commodity, &p.date, number);
+        }
+        let mut order: Vec<usize> = (0..lists.len()).collect();
+        order.sort_by_key(|&i| (lists.get(i).map_or(0, |l| l.1.len()), Reverse(i)));
+        for i in order {
+            let Some(((from, to), list)) = lists.get(i) else {
+                continue;
+            };
+            let (opposite, inverses): (_, Entries) = (
+                (to.clone(), from.clone()),
+                list.iter()
+                    .filter_map(|(date, rate)| one.div(rate).map(|back| (date.clone(), back)))
+                    .collect(),
+            );
+            let j = at(&mut lists, opposite);
+            if let Some((_, other)) = lists.get_mut(j) {
+                other.extend(inverses);
+            }
+        }
+        let mut pairs: HashMap<String, HashMap<String, Entries>> = HashMap::new();
+        for ((from, to), mut list) in lists {
+            list.sort_by(|a, b| a.0.cmp(&b.0));
+            pairs.entry(from).or_default().insert(to, list);
         }
         Rates { pairs }
     }
 
-    /// The rate from `from` to `to`: the latest entry dated on or before `on`, or the latest there
-    /// is. No chain of pairs.
+    /// The rate from `from` to `to`: the last entry dated on or before `on`, or the last there is.
+    /// No chain of pairs.
     fn rate(&self, from: &str, to: &str, on: Option<&str>) -> Option<&Num> {
         let entries = self.pairs.get(from)?.get(to)?;
         entries
