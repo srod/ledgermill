@@ -79,6 +79,7 @@ and `app/NAME` is in `../../harness/journals/app/`.
 | `D` | supported | `directive-default-commodity`, `directive-default-commodity-text` |
 | `payee`, `tag` | supported | `directive-ignored`, `directive-tag-two-words` |
 | `P` | supported | `directive-ignored`, `directive-price-invalid`, `directive-price-no-amount` |
+| `P` with a price, a lot or a label after the rate | unsupported | `refused/prices-rate-annotations`, `refused/prices-error-annotation` |
 | `Y`, `year`, `apply year`, `end apply year` | supported | `directive-year`, `directive-year-glued`, `directive-end-apply-year-text` |
 | `apply fixed`, `apply tag`, `assert`, `bucket`, `A`, `capture`, `check`, `define`, `eval`, `expr`, `value`, `N`, `C`, `tag`, and their `end` lines (read and ignored by hledger) | supported | `syntax-ledger-directives`, `directive-end-apply-fixed-text`, `directive-end-apply-tag-text`, `directive-bare-bucket`, `directive-bare-a`, `directive-bare-n`, `directive-n-number`, `directive-bare-c`, `directive-c-one-amount`, `directive-c-no-number` |
 | `python` with its indented code, and lines that start with `--` | supported | `directive-python-block`, `directive-flag-line` |

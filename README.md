@@ -13,12 +13,21 @@ journal.
 ```text
 load(files) → ledger
 ledger.transactions()   booked transactions with their file and line (Beancount: padding included)
-ledger.postings()       one row per posting (Beancount for now; empty for hledger)
+ledger.postings()       one row per posting and commodity, with its transaction's header fields
+ledger.prices()         hledger: the `P` directives, as `hledger prices` lists them (Beancount: empty for now)
 ledger.check()          problems found, as structured findings
 ledger.atCost()         hledger: the transactions as `print --cost` gives them
 ledger.value(date, commodity)   hledger: the transactions as `print --value=DATE,COMMODITY` gives them
 ledger.free()
 ```
+
+`postings()` gives, for hledger, what `print --location -O csv` lists: one row per posting and commodity (an elided
+posting gets a row for each commodity it was given), by date, with `flag` the transaction's status (`""`, `"*"` or
+`"!"`), `account` without the `()` or `[]` of a virtual posting and its `kind`, `number` the exact quantity (never rounded, with a
+point as decimal mark) and `line` the line the posting itself is written on, which hledger does not give. `prices()` gives
+each `P` directive with its date, commodity, rate (the commodity and the exact quantity, with the places written), file and line,
+sorted by date. A `P` line whose rate is followed by a price, a lot or a label is refused with an `unsupported-syntax` finding
+(`price-annotation`).
 
 In Rust these are `Ledger::at_cost()` and `Ledger::value(date, commodity)`; both return `Result<Vec<Transaction>, Finding>`.
 `at_cost` replaces every cost by an amount in the cost's commodity and drops the conversion postings; `value` converts
@@ -45,7 +54,7 @@ constraints, duplicates, unbalanced transactions and more (`spec/README.md` list
 Beancount `pad` is read and its padding transactions are built; `include`, `plugin`, unusual options
 and AVERAGE booking are refused with a finding.
 
-More questions follow: holdings, prices, Beancount valuation, and a
+More questions follow: holdings, Beancount prices and valuation, and a
 formatter that only realigns whitespace. See the issue tracker for the plan.
 
 ledgermill is not a command-line clone of hledger or Beancount. It does not print their

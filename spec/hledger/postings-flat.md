@@ -2,7 +2,7 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-23.
 
-Status: spec only; the engine call is not built (`Ledger::postings()` is empty for hledger).
+Status: built as `Ledger::postings()` (hledger); the harness compares it with `print --location -O csv`.
 
 `postings()` for hledger answers what `hledger -f F1 -f F2 ... print --location -O csv` lists: one row
 per posting **and commodity**. Each row becomes a `FlatPosting`. This note says what the CSV gives, how
@@ -565,8 +565,7 @@ $ hledger --no-conf -f spec/hledger/probes/post-assertion-line.journal print -O 
   position, as above.
 - The CSV's `amount` for numbers of more than 255 places or exponents beyond a few hundred digits was not probed
   (the exact value comes out for 30 places and 30 integer digits).
-- `flag` for an unmarked transaction is empty in hledger; `FlatPosting.flag` is "one character", so the owner must say
-  what to put (empty string is the CSV's).
+- `flag` for an unmarked transaction is the empty string, as in the CSV (owner's decision); `!` and `*` otherwise.
 - Included files (`include`) are refused by ledgermill; the CSV's file name would be the included file's.
 - The `comment` field (`description` with a `;` in it, tags) and `posting-comment`, `date2`, `code` are not part of
   `FlatPosting` and were looked at only in passing.

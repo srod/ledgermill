@@ -2,7 +2,7 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-23.
 
-Status: spec only; the engine call is not built (`Ledger::prices()` does not exist yet).
+Status: built as `Ledger::prices()`; the harness compares it with the second run described above.
 
 `prices()` answers what two runs of hledger list:
 
@@ -569,7 +569,8 @@ that, and the rules above do not depend on it.)
 - **File and line.** `prices` gives neither. The engine fills them: the path as given for the `P` directive's file
   and the line of the `P` (1-based, as [source-lines](source-lines.md) numbers lines), not read from hledger.
 - **Year-less dates** with no `Y` take the current year; the engine needs a year from its caller or must refuse.
-- **A bare rate under `D`** shows D's places (`7.00`); whether the quantity has them is not observable.
+- **A bare rate under `D`** shows D's places (`7.00`); whether the quantity has them is not observable. `prices()` lists
+  the padded text (`7.00`), and `value()` goes on using the written digits, which gives the same values.
 - **A rate with a price, a lot or a label**: refused by the engine (see "the line"); what hledger lists for them is not
   specified further.
 - `prices` with a query, a period, `-b`/`-e`, `--forecast`, `--auto`, aliases: not probed (not used by Plainledger).

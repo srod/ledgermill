@@ -118,7 +118,8 @@ to.
 
 `unsupported-syntax` (error): the line uses something ledgermill does not read yet.
 `details.construct` names it: `include`, `date-without-year`, `control-character`,
-`number-too-large`, `conversion-postings`, `period-expression` (a period expression in a `~` rule
+`number-too-large`, `conversion-postings`, `price-annotation` (a `P` line whose rate is followed by a price, a
+lot or a label), `period-expression` (a period expression in a `~` rule
 that the notes cannot settle), and `timeclock`, `timedot`, `csv` (a file of that kind, by its
 extension, on line 1). A transaction with a refused line is not returned. `!include` is a
 `parse-error`, as in hledger. [hledger/syntax.md](hledger/syntax.md) is the published list of
