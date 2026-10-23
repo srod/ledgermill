@@ -451,3 +451,61 @@ fn an_amount_without_a_commodity_is_listed_with_the_places_of_d() {
         ]
     );
 }
+
+/// The rows of the last transaction of each case: an exclusive assignment (or `==`) in X, the
+/// only ones with a posting on `:b`, `d` or `e:b` after the setup, and not the balancing `z`.
+fn x_rows(probe: (&str, &str), marks: &[&str]) -> Vec<String> {
+    post_lines(&[probe])
+        .into_iter()
+        .filter(|l| marks.iter().any(|m| l.contains(m)) && !l.contains("| z |"))
+        .collect()
+}
+
+#[test]
+fn an_inclusive_assignment_makes_the_balance_in_another_commodity_as_precise_as_the_sub_accounts() {
+    // post-assign-inclusive-places: `a:b  =* -2 USD` takes nothing of the 0.0 X of `a:b:c`, yet the
+    // later `a:b  = 3 X` is worked out with one place.
+    assert_eq!(
+        x_rows(
+            probe!("post-assign-inclusive-places"),
+            &[
+                "a: exclusive assignment in X",
+                "b: exclusive assignment in X",
+                "c: exclusive assignment in X",
+                "d: ==*",
+                "d: the account holds 0.0 X",
+                "e: places",
+                "f: a total",
+            ]
+        ),
+        [
+            "2026-01-03 | a: exclusive assignment in X | a:b | -1.0 X | post-assign-inclusive-places.journal:16",
+            "2026-02-03 | b: exclusive assignment in X | b:b | -1.00 X | post-assign-inclusive-places.journal:31",
+            "2026-03-03 | c: exclusive assignment in X | c:b | 3.0 X | post-assign-inclusive-places.journal:44",
+            "2026-04-02 | d: ==* takes 4.0 X off the subtree | d:b | -4.0 X | post-assign-inclusive-places.journal:54",
+            "2026-04-03 | d: the account holds 0.0 X | d:b | 3.0 X | post-assign-inclusive-places.journal:58",
+            "2026-05-03 | e: places 1 | e:b | -1.0 X | post-assign-inclusive-places.journal:72",
+            "2026-05-05 | e: places still 1 | e:b | 1 X | post-assign-inclusive-places.journal:80",
+            "2026-05-07 | e: places 3 | e:b | 1.000 X | post-assign-inclusive-places.journal:88",
+            "2026-06-03 | f: a total exclusive assignment lists X with the places | f:b | -4.0 X | post-assign-inclusive-places.journal:102",
+        ]
+    );
+}
+
+#[test]
+fn other_assignments_and_assertions_leave_the_places_of_the_balance_alone() {
+    // post-assign-inclusive-places-none: the same setups, but `=`, an assertion with an amount, a
+    // sub-account that comes later, an assignment on the parent, a sub-account in Y, and `==*` with
+    // no sub-account in X: one `= 3 X` each, with no place.
+    assert_eq!(
+        x_rows(probe!("post-assign-inclusive-places-none"), &["places 0"]),
+        [
+            "2026-01-03 | a: places 0 | a:b | -1 X | post-assign-inclusive-places-none.journal:15",
+            "2026-02-03 | b: places 0 | b:b | -1 X | post-assign-inclusive-places-none.journal:29",
+            "2026-03-04 | c: places 0 | c:b | -1 X | post-assign-inclusive-places-none.journal:46",
+            "2026-04-03 | d: places 0 for d:b | d:b | -1 X | post-assign-inclusive-places-none.journal:60",
+            "2026-05-03 | e: places 0 | e:b | -1 X | post-assign-inclusive-places-none.journal:74",
+            "2026-06-03 | f: places 0 | f:b | 3 X | post-assign-inclusive-places-none.journal:87",
+        ]
+    );
+}

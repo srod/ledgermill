@@ -417,19 +417,17 @@ impl Balances {
             } else {
                 None
             };
+            // Zero pieces are not listed on the posting, but they still carry their places into
+            // the balance (assignments.md, "Places of the balance after a star").
             let pieces: Vec<Piece> = match &after_subs {
                 Some(left) => difference(Some(left), &own_groups),
                 None => difference(target, &held),
-            }
-            .into_iter()
-            .filter(|p| !p.is_zero())
-            .collect();
+            };
             let left: Vec<Entry> = if total || is_asserted {
                 // What the account itself holds afterwards: the asserted amount less what the
                 // sub-accounts hold (all of it, for `=` and `==`, which look at no sub-account).
                 difference(target, &groups(&below))
                     .into_iter()
-                    .filter(|p| target.is_some() || !p.is_zero())
                     .map(|p| Entry {
                         quantity: p.quantity,
                         shown: p.shown,
@@ -464,7 +462,7 @@ impl Balances {
                 left.sort_by(|a, b| cmp_group(&a.price, &b.price));
                 left
             };
-            for piece in pieces {
+            for piece in pieces.into_iter().filter(|p| !p.is_zero()) {
                 amounts.push(WrittenAmount {
                     commodity: commodity.clone(),
                     display_places: piece.quantity.places().max(piece.shown),
