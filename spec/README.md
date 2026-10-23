@@ -269,4 +269,4 @@ them: the parser we build on gives up on the whole file. Any `unsupported-syntax
 [convert-positions](beancount/convert-positions.md), [cost-of-position](beancount/cost-of-position.md) and
 [holdings](beancount/holdings.md). A Beancount file with an `unsupported-syntax` finding lists no transaction and no
 price, and these reads then return that finding as their error instead of an empty answer. `invalid-argument`
-(`details.argument`: `date`, `end` or `today`) and `value-without-commodity` are as for hledger.
+(`details.argument`: `date`, `end` or `today`) and `value-without-commodity` are as for hledger. `price-both-ways` (`unsupported-syntax`): `value()` or `holdings()` of a Beancount ledger with a price of zero in a pair priced both ways (convert-rates.md).

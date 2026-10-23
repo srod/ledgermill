@@ -36,6 +36,11 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
   day): the pair with the shortest list of its own prices first, and among equals the pair that appears last in
   the prices table first. With one price each way that doubles the pair that appears second in the table; the
   earlier probes of this note use inverses that are exact (`4` and `0.25`), which hides it.
+- **A zero price in a pair that is priced both ways is not settled.** With `CCC 4 EUR` on 01-01 and `EUR 0 CCC`
+  on 01-02, the reference still values euros in `CCC` at 0.25 on 01-03 (probes/refused/price-both-ways-zero.beancount,
+  below), where the rules above give zero; random journals with such a pair also disagree in other ways. ledgermill
+  refuses `value()` and `holdings()` for a ledger that has one: `unsupported-syntax`, construct `price-both-ways`, on the
+  line of the zero price. A zero price in a pair priced one way only is the rate of zero described above.
 - **No chain.** Only a direct or an inverse entry is a rate; going from `CAD` to `EUR` through `USD` is not
   done, although both prices exist. (A cost's currency is the one bridge: convert-positions.md.)
 - An amount that is already in `V` stays as it is; so does one with no rate. The product is rounded to 28
@@ -45,7 +50,7 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
 
 ## Probe
 
-`probes/convert-rate-dates.beancount`, `probes/convert-rate-inverse.beancount`, `probes/convert-rate-both-ways.beancount`
+`probes/convert-rate-dates.beancount`, `probes/convert-rate-inverse.beancount`, `probes/convert-rate-both-ways.beancount`, `probes/refused/price-both-ways-zero.beancount`
 
 Command:
 
@@ -233,4 +238,12 @@ A4>B4:  3  0.1428571428571428571428571429  11  0.07692307692307692307692307692  
 B4>A4:  0.3333333333333333333333333333  6.999999999999999999999999998  0.09090909090909090909090909091  13.00000000000000000000000000  13.00000000000000000000000000  13.00000000000000000000000000
 B5>C5:  1000.500000000000000000000000  1000.500000000000000000000000  1000.500000000000000000000000  3.333333333333333333333333333  2  2
 C5>B5:  0.0009995002498750624687656171914  0.0009995002498750624687656171914  0.0009995002498750624687656171914  0.3  0.5  0.5
+```
+
+price-both-ways-zero (ten euros valued in `CCC`; `CCC 4 EUR` on 01-01, `EUR 0 CCC` on 01-02):
+
+```text
+on 2026-01-01: Assets:A,10,EUR,2.50,CCC,10
+on 2026-01-02: Assets:A,10,EUR,2.50,CCC,10
+on 2026-01-03: Assets:A,10,EUR,2.50,CCC,10
 ```

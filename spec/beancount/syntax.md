@@ -50,6 +50,7 @@ Three classes.
 | any other `option` | unsupported | `option-tolerance`, `option-unknown` |
 | `plugin` | unsupported | `plugin` |
 | `include` | unsupported | `include` |
+| a `price` of zero in a pair priced both ways (valuation only) | unsupported | `price-both-ways-zero` |
 | arithmetic in a number, in a transaction or a `price` | unsupported | `number-expression`, `price-expression` |
 | partial costs `{2 # EUR}`, `{# 1 EUR}` | unsupported | `cost-partial-per-unit`, `cost-partial-total` |
 | cost merge `{..., *}` | unsupported | `cost-merge` |

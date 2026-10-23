@@ -1,0 +1,11 @@
+; A pair priced both ways with a price of zero: the latest entry on 2026-01-03 is the zero one by the
+; rules of convert-rates.md, and bean-query takes the older inverse of the other direction instead.
+2026-01-01 open Assets:A
+2026-01-01 open Equity:O
+
+2026-01-01 price CCC 4 EUR
+2026-01-02 price EUR 0 CCC
+
+2026-01-01 * "ten euros"
+  Assets:A  10 EUR
+  Equity:O  -10 EUR
