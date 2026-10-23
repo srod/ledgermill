@@ -206,3 +206,36 @@ pub fn price_lines(files: &[(&str, &str)]) -> Vec<String> {
         })
         .collect()
 }
+
+/// `load(files).postings()` as one line each: `DATE[ FLAG] | NARRATION | ACCOUNT | NUMBER[ CURRENCY]
+/// | FILE:LINE`, the account with the brackets of its kind (as the CSV of `print --location` has
+/// them). Panics on a payee: hledger has none.
+pub fn post_lines(files: &[(&str, &str)]) -> Vec<String> {
+    let files: Vec<SourceFile> = files.iter().map(|(n, c)| file(n, c)).collect();
+    load(&files)
+        .postings()
+        .iter()
+        .map(|p| {
+            assert_eq!(p.payee, None);
+            let account = match p.kind {
+                ledgermill::PostingKind::Regular => p.account.clone(),
+                ledgermill::PostingKind::Virtual => format!("({})", p.account),
+                ledgermill::PostingKind::BalancedVirtual => format!("[{}]", p.account),
+            };
+            let flag = if p.flag.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", p.flag)
+            };
+            let amount = format!("{} {}", p.number, p.currency);
+            format!(
+                "{}{flag} | {} | {account} | {} | {}:{}",
+                p.date,
+                p.narration,
+                amount.trim_end(),
+                p.file,
+                p.line
+            )
+        })
+        .collect()
+}

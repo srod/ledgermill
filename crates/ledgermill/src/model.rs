@@ -141,29 +141,39 @@ pub struct Transaction {
 
 /// One row of the flat posting list: a booked posting with the header fields of its transaction.
 ///
-/// A posting booked against several lots gives one row per lot, all with the same `line`, in the
-/// order the lots were consumed. Rows are ordered by date, then by file and line (spec note
-/// `spec/beancount/postings.md`).
+/// Beancount: a posting booked against several lots gives one row per lot, all with the same
+/// `line`, in the order the lots were consumed. Rows are ordered by date, then by file and line
+/// (spec note `spec/beancount/postings.md`).
+///
+/// hledger: one row per posting and commodity (an elided posting gives one per commodity it was
+/// given). Rows are ordered by the transaction's date, ties in the order the files were read; the
+/// postings of a transaction in the order written; the commodities of a posting in code point
+/// order, the empty one first (spec note `spec/hledger/postings-flat.md`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FlatPosting {
     /// The transaction's date, `YYYY-MM-DD`.
     pub date: String,
-    /// The transaction's flag, one character (`txn` reads as `*`); not the posting's own flag.
+    /// The transaction's flag, not the posting's own. Beancount: one character (`txn` reads as
+    /// `*`). hledger: the status, `""` (unmarked), `"*"` or `"!"`.
     pub flag: String,
     /// The payee when the transaction header has two strings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payee: Option<String>,
     /// The narration; empty when the header has none.
     pub narration: String,
-    /// The posting's account.
+    /// The posting's account; for a virtual posting without its `()` or `[]` (see `kind`).
     pub account: String,
-    /// The units as an exact decimal string, places as printed or worked out, e.g. `"-2.50"`.
+    /// The kind of posting: always `Regular` for Beancount.
+    pub kind: PostingKind,
+    /// The units as an exact decimal string with a point as decimal mark, places as written or
+    /// worked out, e.g. `"-2.50"`; hledger: never rounded, and a zero is `"0"`.
     pub number: String,
     /// The units' commodity.
     pub currency: String,
     /// The file the transaction was read from, as given to `load`.
     pub file: String,
-    /// The line of the posting itself.
+    /// The line of the posting itself, from 1. hledger gives no line for a posting: this is the line
+    /// it is written on, shared by its rows.
     pub line: u32,
 }
 

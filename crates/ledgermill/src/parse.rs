@@ -12,9 +12,10 @@ use crate::cost;
 use crate::cursor::Cursor;
 use crate::date::{Date, YearSource, parse_date};
 use crate::exact::{Exact, ExactPosting};
+use crate::flat;
 use crate::model::{
-    Amount, Cost, Finding, Lot, Posting, PostingKind, Quantity, Severity, Source, SourceFile,
-    Status, Transaction,
+    Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, Quantity, Severity, Source,
+    SourceFile, Status, Transaction,
 };
 use crate::number::Mark;
 use crate::period::{self, Verdict};
@@ -28,8 +29,9 @@ use serde_json::json;
 use std::sync::OnceLock;
 
 pub(crate) struct Output {
-    /// `(transaction, what `at_cost` and `value` need of it, date)`; sorted by the caller.
-    pub transactions: Vec<(Transaction, Exact, Date)>,
+    /// `(transaction, what `at_cost` and `value` need of it, its flat posting rows, date)`; sorted
+    /// by the caller.
+    pub transactions: Vec<(Transaction, Exact, Vec<FlatPosting>, Date)>,
     /// Every `P` line, in parse order: the files as given, each from top to bottom.
     pub prices: Vec<Price>,
     /// `(index of the file in load order, finding)`; sorted by the caller.
@@ -1108,6 +1110,7 @@ impl FileParser<'_> {
                     .collect(),
                 cost_refused: plan.refused,
             };
+            let lines: Vec<u32> = tx.postings.iter().map(|p| p.line).collect();
             let postings = tx
                 .postings
                 .into_iter()
@@ -1126,23 +1129,23 @@ impl FileParser<'_> {
                     line: None,
                 })
                 .collect();
-            self.out.transactions.push((
-                Transaction {
-                    date: tx.date.to_string(),
-                    status: tx.status,
-                    flag: None,
-                    payee: None,
-                    description: tx.description,
-                    comment: join_comment(&tx.comment_lines),
-                    source: Source {
-                        file: self.file.name.clone(),
-                        line: tx.line,
-                    },
-                    postings,
+            let transaction = Transaction {
+                date: tx.date.to_string(),
+                status: tx.status,
+                flag: None,
+                payee: None,
+                description: tx.description,
+                comment: join_comment(&tx.comment_lines),
+                source: Source {
+                    file: self.file.name.clone(),
+                    line: tx.line,
                 },
-                exact,
-                tx.date,
-            ));
+                postings,
+            };
+            let rows = flat::rows(&transaction, &exact, &lines);
+            self.out
+                .transactions
+                .push((transaction, exact, rows, tx.date));
         }
     }
 

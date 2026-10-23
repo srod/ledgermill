@@ -206,6 +206,7 @@ pub(crate) fn flatten(transactions: &[Transaction]) -> Vec<FlatPosting> {
                     payee: t.payee.clone(),
                     narration: t.description.clone(),
                     account: p.account.clone(),
+                    kind: PostingKind::Regular,
                     number: a.quantity.clone(),
                     currency: a.commodity.clone(),
                     file: t.source.file.clone(),

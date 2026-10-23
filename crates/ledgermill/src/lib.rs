@@ -13,6 +13,7 @@ mod cursor;
 mod date;
 mod decimal;
 mod exact;
+mod flat;
 mod model;
 mod number;
 mod parse;
@@ -52,9 +53,12 @@ impl Ledger {
         &self.transactions
     }
 
-    /// One row per booked posting, by date, then file and line (Beancount only).
+    /// One row per posting and commodity, with the header fields of its transaction.
     ///
-    /// Empty for hledger: its flat postings are not built yet (planned separately).
+    /// Beancount: booked postings, by date, then file and line. hledger: by date, then the order
+    /// the files were read; the postings of a transaction as written; the commodities of a
+    /// posting in code point order (spec/hledger/postings-flat.md). A transaction with a line that
+    /// was refused, or that was dropped, gives no rows, as in `transactions()`.
     pub fn postings(&self) -> &[FlatPosting] {
         &self.postings
     }
@@ -151,8 +155,15 @@ pub fn load(files: &[SourceFile]) -> Ledger {
     // The sort is stable: same date keeps file order, then line order. Findings stay in the order
     // they were made in, which is hledger's: file by file; in each file what the lines gave, the
     // problems of plain transactions, then the walk's.
-    out.transactions.sort_by_key(|(_, _, date)| *date);
-    let (transactions, exact) = out.transactions.into_iter().map(|(t, e, _)| (t, e)).unzip();
+    out.transactions.sort_by_key(|(_, _, _, date)| *date);
+    let mut transactions = Vec::new();
+    let mut exact = Vec::new();
+    let mut postings = Vec::new();
+    for (transaction, kept, rows, _) in out.transactions {
+        transactions.push(transaction);
+        exact.push(kept);
+        postings.extend(rows);
+    }
     let mut listed: Vec<&prices::Price> = out.prices.iter().collect();
     listed.sort_by_key(|p| p.date);
     let price_list = listed
@@ -170,6 +181,7 @@ pub fn load(files: &[SourceFile]) -> Ledger {
         .collect();
     Ledger {
         transactions,
+        postings,
         exact,
         prices: out.prices,
         price_list,

@@ -116,6 +116,7 @@ pub(crate) fn merge<'a>(terms: impl IntoIterator<Item = Term<'a>>) -> Vec<Amount
             Some(a) if m.count == 1 => report_amount(a),
             _ => report_amount(&WrittenAmount {
                 commodity: m.commodity.to_string(),
+                display_places: m.sum.places(),
                 quantity: m.sum,
                 cost: m.cost,
                 lot: None,

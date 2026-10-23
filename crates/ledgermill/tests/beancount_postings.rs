@@ -135,10 +135,22 @@ fn rows_of_a_transaction_follow_the_lines_not_the_currency_groups() {
 }
 
 #[test]
-fn hledger_gives_no_postings_yet() {
-    let ledger = load(&[file("a.journal", "2026-01-01 x\n  a  1\n  b\n")]);
-    assert_eq!(ledger.transactions().len(), 1);
-    assert!(ledger.postings().is_empty());
+fn every_row_is_a_regular_posting_and_no_price_is_listed() {
+    let ledger = load(&[file(
+        "b.beancount",
+        "2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n\
+         2026-01-02 price USD 0.9 EUR\n2026-01-03 * \"x\"\n  Assets:A  1 USD\n  Assets:B\n",
+    )]);
+    assert_eq!(ledger.check().len(), 0);
+    assert_eq!(ledger.postings().len(), 2);
+    assert!(
+        ledger
+            .postings()
+            .iter()
+            .all(|p| p.kind == ledgermill::PostingKind::Regular)
+    );
+    // Beancount prices are separate work: `prices()` is empty for now.
+    assert!(ledger.prices().is_empty());
 }
 
 #[test]

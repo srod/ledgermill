@@ -21,6 +21,8 @@ pub(crate) struct WrittenCost {
     pub kind: CostKind,
     pub commodity: String,
     pub value: Decimal,
+    /// The places the price was written with: `value` of a total has lost its trailing zeros.
+    pub display_places: u32,
     /// Inferred unit prices are reported without trailing zeros; written prices as written.
     pub inferred_unit: bool,
 }
@@ -42,6 +44,10 @@ pub(crate) struct WrittenLot {
 pub(crate) struct WrittenAmount {
     pub commodity: String,
     pub quantity: Decimal,
+    /// The places the quantity is listed with in the flat postings (`postings-flat.md`): at least
+    /// its own. An elided amount can have more: it takes the display precision of the amounts it
+    /// was summed from.
+    pub display_places: u32,
     pub cost: Option<WrittenCost>,
     pub lot: Option<WrittenLot>,
 }
@@ -152,7 +158,7 @@ pub(crate) fn parse_posting(
     let account = match kind {
         PostingKind::Regular => account_name(name),
         // Inside brackets the name keeps its spaces as written (`( a )` is ` a `).
-        _ => name
+        _ => unwrap_pairs(name)
             .chars()
             .map(|c| if is_blank(c) { ' ' } else { c })
             .collect(),
@@ -237,6 +243,21 @@ fn parse_assertion(
         amount,
         offset,
     })
+}
+
+/// The name of a virtual posting, minus every further pair of matching brackets around it
+/// (`((f))` is `f`, `([h])` is `h`, `([a))` is `[a)`): spec/hledger/postings-flat.md.
+fn unwrap_pairs(mut name: &str) -> &str {
+    loop {
+        let inner = name
+            .strip_prefix('(')
+            .and_then(|n| n.strip_suffix(')'))
+            .or_else(|| name.strip_prefix('[').and_then(|n| n.strip_suffix(']')));
+        match inner {
+            Some(inner) => name = inner,
+            None => return name,
+        }
+    }
 }
 
 /// `(@)` or `(@@)` at the cursor: the kind of price it stands for and its length.
@@ -407,6 +428,7 @@ fn parse_amount_tail(
     let cost = cost.map(|(kind, price)| WrittenCost {
         kind,
         commodity: price.commodity,
+        display_places: price.quantity.places(),
         value: match kind {
             CostKind::Unit => price.quantity,
             // A total takes the sign of the quantity it prices; a zero quantity counts as
@@ -418,6 +440,7 @@ fn parse_amount_tail(
     });
     Ok(WrittenAmount {
         commodity,
+        display_places: quantity.places(),
         quantity,
         cost,
         lot,

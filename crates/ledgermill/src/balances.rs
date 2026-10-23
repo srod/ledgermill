@@ -34,6 +34,7 @@ impl Price {
         WrittenCost {
             kind: self.kind,
             commodity: self.commodity.clone(),
+            display_places: self.value.places(),
             value: self.value.clone(),
             inferred_unit: false,
         }
@@ -393,6 +394,7 @@ impl Balances {
                 match difference(target, &below_groups).as_slice() {
                     [only] => Some(WrittenAmount {
                         commodity: commodity.clone(),
+                        display_places: only.quantity.places(),
                         quantity: only.quantity.clone(),
                         cost: None,
                         lot: None,
@@ -449,6 +451,7 @@ impl Balances {
             for piece in pieces {
                 amounts.push(WrittenAmount {
                     commodity: commodity.clone(),
+                    display_places: piece.quantity.places(),
                     quantity: piece.quantity,
                     cost: piece.price.as_ref().map(Price::written),
                     lot: if is_asserted { None } else { piece.lot },

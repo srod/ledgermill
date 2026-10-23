@@ -205,6 +205,7 @@ pub(crate) fn balance(postings: &mut [Draft]) -> Result<(), Unbalanced> {
         if p.kind == PostingKind::Virtual && p.amounts.is_none() {
             p.amounts = Some(vec![WrittenAmount {
                 commodity: String::new(),
+                display_places: 0,
                 quantity: Decimal::zero(),
                 cost: None,
                 lot: None,
@@ -327,6 +328,9 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
     type Key = (bool, String, u8, String, Decimal);
     struct Group {
         quantity: Decimal,
+        /// The places the group's result is listed with: the most among the amounts (the
+        /// totals) it was made from; for unit prices those of the first price.
+        shown: u32,
         total: Option<Decimal>,
         lots: Vec<Option<WrittenLot>>,
     }
@@ -360,8 +364,12 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
             let total = cost
                 .filter(|c| c.kind == CostKind::Total)
                 .map(|c| c.value.clone());
+            let shown = cost.map_or(a.display_places, |c| c.display_places);
             match groups.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, g)) => {
+                    if key.2 != 2 {
+                        g.shown = g.shown.max(shown);
+                    }
                     g.quantity = g.quantity.combine(&a.quantity, ZeroTie::KeepLater);
                     if let Some(t) = total {
                         g.total = Some(match &g.total {
@@ -375,6 +383,7 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
                     key,
                     Group {
                         quantity: a.quantity.clone(),
+                        shown,
                         total,
                         lots: vec![a.lot.clone()],
                     },
@@ -387,7 +396,7 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
             .cmp(&(b.0, &b.1, b.2, &b.3))
             .then_with(|| a.4.cmp_value(&b.4))
     });
-    let mut result: BTreeMap<String, (Decimal, Vec<Option<WrittenLot>>)> = BTreeMap::new();
+    let mut result: BTreeMap<String, (Decimal, u32, Vec<Option<WrittenLot>>)> = BTreeMap::new();
     for ((costed, commodity, kind, cost_commodity, unit), g) in groups {
         let (target, value, lots) = match (costed, kind, g.total) {
             (true, 1, Some(total)) => (cost_commodity, total, vec![None, None]),
@@ -399,19 +408,21 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
             _ => (commodity, g.quantity, g.lots),
         };
         match result.get_mut(&target) {
-            Some((sum, all)) => {
+            Some((sum, shown, all)) => {
                 *sum = sum.combine(&value, ZeroTie::KeepEarlier);
+                *shown = (*shown).max(g.shown);
                 all.extend(lots);
             }
             None => {
-                result.insert(target, (value, lots));
+                result.insert(target, (value, g.shown, lots));
             }
         }
     }
     result
         .into_iter()
-        .map(|(commodity, (sum, lots))| WrittenAmount {
+        .map(|(commodity, (sum, shown, lots))| WrittenAmount {
             commodity,
+            display_places: sum.places().max(shown),
             quantity: sum.negated(),
             cost: None,
             // A lot survives only when exactly one amount contributed.
@@ -487,6 +498,7 @@ fn infer_prices(postings: &mut [Draft], members: &[usize]) {
         WrittenCost {
             kind: CostKind::Total,
             commodity: other.clone(),
+            display_places: price_total.places(),
             value: price_total,
             inferred_unit: false,
         }
@@ -497,6 +509,7 @@ fn infer_prices(postings: &mut [Draft], members: &[usize]) {
         WrittenCost {
             kind: CostKind::Unit,
             commodity: other.clone(),
+            display_places: unit.places(),
             value: unit,
             inferred_unit: true,
         }
