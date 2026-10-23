@@ -1,0 +1,132 @@
+; The name a bracketed account gets: one matching pair gives the kind, then every further matching pair is stripped.
+; Each transaction is one case; `zr` and `[zb]` are elided so that it balances whatever the kind.
+
+2026-01-01 t
+    (a])    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ([a)    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ((a)    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (a))    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    [a)]    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    [[a]    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    [a]]    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (([a]))    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ([(a)])    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ([a))    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (([a)    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (]a[)    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ([a])x)    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    [(a])    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    [(a)    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (a)]    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    [[(a)]]    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ([(]))    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ( (a) )    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ([ a ])    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (() )    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ([])    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (())    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    (()    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    ())    1 X
+    zr
+    [zb]
+
+2026-01-01 t
+    [)(]    1 X
+    zr
+    [zb]

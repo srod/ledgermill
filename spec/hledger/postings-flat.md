@@ -291,8 +291,8 @@ $ spec/hledger/show-postings.sh spec/hledger/probes/post-costs.journal
   [postings](postings.md).
 - A name that starts with a bracket but does not end with one is regular (`(a) b`, `[c] d`), and so is one that
   ends with one but does not start with one (`a (b)`, `x[y]`). `(a) (b)` is virtual, named `a) (b`.
-- Nested brackets are all stripped from the name, the outer pair gives the kind: `(((g)))` → `(g)`, `([h])` → `(h)`,
-  `[(i)]` → `[i]`, `()` → `()` (the name is empty).
+- Nested brackets are stripped from the name, the outer pair gives the kind: `(((g)))` → `(g)`, `([h])` → `(h)`,
+  `[(i)]` → `[i]`, `()` → `()` (the name is empty). The exact rule is in the next section.
 - Virtual postings are rows like the others, in written order, with the same amount rules (a virtual posting with no amount
   is an elided `0`: `(nothing) 0`, `[bnothing] 0 Y` takes `Y`, the commodity of its group).
 - `status` is the transaction's; the posting's own mark is in `posting-status`. They are independent (`! pending`
@@ -329,6 +329,40 @@ $ spec/hledger/show-postings.sh spec/hledger/probes/post-virtual.journal
 4 2026-01-04 | "nested brackets are all stripped, the outer pair gives the kind" | post-virtual.journal:23-27 | (h) | 1 X
 4 2026-01-04 | "nested brackets are all stripped, the outer pair gives the kind" | post-virtual.journal:23-27 | [i] | 2 X
 4 2026-01-04 | "nested brackets are all stripped, the outer pair gives the kind" | post-virtual.journal:23-27 | [j] | -2 X
+```
+
+## Rule: the name inside the brackets
+
+The kind comes from the outer pair, which must **match**: `(`…`)` or `[`…`]`. The name is what is inside, and then,
+**as long as** the name is itself wrapped in a matching pair (`(`…`)` or `[`…`]`, whichever kind), that pair is stripped
+too. Only the match of the two ends counts: nothing is looked for inside the name, and a name starting with a blank is
+not wrapped (the blank is kept).
+
+- `(a])` → `a]`, `([a)` → `[a`, `((a)` → `(a`, `(a))` → `a)`: one pair stripped, the rest is not a matching pair;
+- `((f))`, `(([a]))`, `([(a)])` → `f`, `a`, `a` and `[[(a)]]` → `a` (balanced): every level goes;
+- `([a))` → `[a)`, `([(]))` → `[(])`, `(]a[)` → `]a[`: the inside is not a matching pair (`[`…`)`), so it stays;
+- `( (a) )` → ` (a) `, `([ a ])` → ` a `: blanks inside are kept and stop the stripping;
+- `([])`, `(())` → the empty name; `(()` → `(`; `())` → `)`; `[)(]` → `)(`;
+- `[(a])`, `[(a)`, `(a)]` are regular (the ends do not match) and keep their text.
+
+A virtual account's CSV text is `(` + name + `)`, so `(((g)))` shows as `(g)`, as above.
+
+### Probe
+
+`probes/post-virtual-nested.journal` (26 transactions, one case each; `zr` and `[zb]` are elided so they balance)
+
+### Command and output
+
+```text
+$ hledger --no-conf -f spec/hledger/probes/post-virtual-nested.journal print -O json | jq -r '.[] | "\(.tpostings[0].ptype) \(.tpostings[0].paccount)"'
+```
+
+in the order of the file (`ptype` shortened to V virtual, B balanced virtual, R regular; the name between `|`):
+
+```text
+V |a]|   V |[a|   V |(a|   V |a)|   B |a)|   B |[a|   B |a]|   V |a|     V |a|
+V |[a)|  V |([a|  V |]a[|  V |[a])x|  R |[(a])|  R |[(a)|  R |(a)]|  B |a|
+V |[(])| V | (a) | V | a |  V |() | V ||     V ||     V |(|     V |)|     B |)(|
 ```
 
 ## Rule: the quantity and the style
@@ -448,7 +482,6 @@ $ hledger --no-conf -f spec/hledger/probes/post-assertion-line.journal print -O 
 
 - The posting's line cannot be read from hledger except through an assertion; the check is by range and
   position, as above.
-- Nesting of brackets beyond the cases probed (`((a) (b))`, unbalanced `(a]`) was not probed.
 - The CSV's `amount` for numbers of more than 255 places or exponents beyond a few hundred digits was not probed
   (the exact value comes out for 30 places and 30 integer digits).
 - `flag` for an unmarked transaction is empty in hledger; `FlatPosting.flag` is "one character", so the owner must say
