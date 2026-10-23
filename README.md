@@ -18,6 +18,7 @@ ledger.prices()         hledger: the `P` directives, as `hledger prices` lists t
 ledger.check()          problems found, as structured findings
 ledger.atCost()         hledger: the transactions as `print --cost` gives them
 ledger.value(date, commodity)   hledger: the transactions as `print --value=DATE,COMMODITY` gives them
+ledger.holdings(query)  hledger: per account and commodity, the units, cost, value and cost value (real postings only)
 ledger.free()
 ```
 
@@ -38,6 +39,13 @@ postings or a balance assignment, a `value` in no commodity, and both on a Beanc
 that is not `YYYY-MM-DD` is an `invalid-argument` finding. In the wasm binding the `Err` is thrown as an `Error` whose message is
 the finding as JSON.
 
+`holdings(query)` takes `{ commodity, end, today }` (JSON in the wasm binding, `HoldingsQuery` in Rust): the commodity V to value
+in, `end` an optional exclusive `YYYY-MM-DD` like `-e`, and `today` the date today, because the core has no clock. It gives one
+`Holding` per account and commodity held, ordered by account name then commodity: `units` and the lists `cost`, `value` and
+`costValue` (`cost_value` in Rust), exact, every sum rounded to ten places once. Only real postings count; no account-prefix
+filter and no symbol aliases (callers do those). It refuses like `at_cost` and `value` (`unsupported-syntax`) and answers an
+`invalid-argument` finding for an `end` or `today` that is not a date; see `spec/hledger/holdings.md`.
+
 For hledger, balance assertions (`=`, `==`, `=*`, `==*`) and assignments are read: `check()` reports a failed
 assertion (`assertion-failed`, with the account, commodity and the exact expected and actual amounts) and the
 transactions come with the amounts the assignments filled in. Its first error is the one hledger prints first
@@ -54,7 +62,7 @@ constraints, duplicates, unbalanced transactions and more (`spec/README.md` list
 Beancount `pad` is read and its padding transactions are built; `include`, `plugin`, unusual options
 and AVERAGE booking are refused with a finding.
 
-More questions follow: holdings, Beancount prices and valuation, and a
+More questions follow: Beancount prices and valuation, and a
 formatter that only realigns whitespace. See the issue tracker for the plan.
 
 ledgermill is not a command-line clone of hledger or Beancount. It does not print their
