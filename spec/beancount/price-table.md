@@ -16,7 +16,7 @@ The table lists the `price` directives of the file and nothing else:
   last-one-wins). A directive written below a later date comes first.
 - The number is the number as parsed, printed as numbers-and-interpolation.md says: the places as written
   (`1.50`, `1.000`), no digit-group commas (`1,234.50` is `1234.50`), no `+` and no trailing dot, `-0` is
-  `0`, and a number smaller than 0.000001 has an exponent (`1E-7`). Twenty digits stay whole. A price of zero,
+  `0`, and a number smaller than 0.000001 has an exponent (`1E-7`). Twenty digits stay whole (ledgermill refuses a number of more than 22 characters, refused.md). A price of zero,
   a negative one, and one of a commodity in itself are listed like any other.
 - A price written as an expression is listed with its value (`(1 + 2)` is `3`). ledgermill refuses
   arithmetic in numbers (refused.md), here too: `unsupported-syntax`, `number-expression`.
@@ -28,13 +28,13 @@ the rate as `number(amount)` prints it, with the commodity of the amount, and th
 
 ## Probe
 
-`probes/price-table.beancount`, `probes/price-table-expression.beancount`
+`probes/price-table.beancount`, `probes/refused/price-expression.beancount`
 
 Command:
 
 ```sh
 spec/beancount/show-prices.sh spec/beancount/probes/price-table.beancount
-spec/beancount/show-prices.sh spec/beancount/probes/price-table-expression.beancount
+spec/beancount/show-prices.sh spec/beancount/probes/refused/price-expression.beancount
 ```
 
 `show-prices.sh` runs the prices query and then a second query on the entries to get the line of each
@@ -54,7 +54,7 @@ no output (exit 0) for both journals.
 2026-02-01,FFF,0,EUR
 2026-02-01,GGG,-2,EUR
 2026-02-01,EUR,1,EUR
-2026-02-01,HHH,1.123456789012345678901234,EUR
+2026-02-01,HHH,1.123456789012345678,EUR
 2026-02-01,JJJ,0,EUR
 2026-02-01,KKK,1.000,EUR
 2026-02-01,LLL,12345678901234567890,EUR
@@ -76,12 +76,12 @@ no output (exit 0) for both journals.
 2026-03-01,7,price-table.beancount
 2026-03-01,9,price-table.beancount
 2026-03-01,10,price-table.beancount
-== price-table-expression.beancount
+== price-expression.beancount
 -- bean-check
 -- prices: date,currency,number(amount),currency(amount)
 2026-01-02,AAA,3,EUR
 2026-01-02,BBB,6,EUR
 -- price entries: date,lineno,filename
-2026-01-02,3,price-table-expression.beancount
-2026-01-02,4,price-table-expression.beancount
+2026-01-02,3,price-expression.beancount
+2026-01-02,4,price-expression.beancount
 ```
