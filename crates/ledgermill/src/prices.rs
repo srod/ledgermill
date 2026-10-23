@@ -12,6 +12,11 @@ pub(crate) struct Price {
     pub from: String,
     pub to: String,
     pub rate: Decimal,
+    /// The rate as `prices` lists it: the places written, and `D`'s places for a rate with no
+    /// commodity. `rate` is the same value without that padding, which valuation keeps.
+    pub listed: Decimal,
+    pub file: String,
+    pub line: u32,
 }
 
 /// `commodity -> neighbour -> rate`; the neighbours come out sorted by name (code point order).

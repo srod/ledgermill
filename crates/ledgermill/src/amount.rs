@@ -16,6 +16,9 @@ pub(crate) struct Styles {
     pub commodity_marks: HashMap<String, Mark>,
     /// `D`: the commodity of amounts written without one, and the mark of its sample amount.
     pub default_commodity: Option<(String, Option<Mark>)>,
+    /// The decimal places of `D`'s sample amount: a `P` rate with no commodity is listed with at
+    /// least as many.
+    pub default_places: u32,
     /// Nobody reads the values read with these styles (a rule's amounts): only their shape is
     /// checked.
     pub shape_only: bool,
@@ -37,6 +40,8 @@ pub(crate) struct ReadAmount {
     pub commodity: String,
     pub quantity: Decimal,
     pub mark: Option<Mark>,
+    /// A commodity symbol was written (not taken from `D`, nor empty).
+    pub named: bool,
 }
 
 /// Whether to give a commodity-less amount the `D` commodity.
@@ -104,6 +109,7 @@ pub(crate) fn read_amount(
             }
         }
     };
+    let named = symbol.is_some();
     let commodity = match (symbol, &styles.default_commodity, default) {
         (Some(symbol), _, _) => symbol,
         (None, Some((symbol, _)), Default::Apply) => symbol.clone(),
@@ -117,5 +123,6 @@ pub(crate) fn read_amount(
         commodity,
         quantity,
         mark: number.mark,
+        named,
     })
 }

@@ -108,6 +108,12 @@ impl Decimal {
         }
     }
 
+    /// The same value with at least `places` places (zeros added; more places are kept).
+    pub(crate) fn padded_to(&self, places: u32) -> Decimal {
+        let places = places.max(self.places);
+        Decimal::new(self.scaled_to(places), places)
+    }
+
     /// The same value without trailing zeros in the decimal part; zero has no places.
     pub(crate) fn normalized(&self) -> Decimal {
         if self.is_zero() {

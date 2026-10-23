@@ -44,6 +44,27 @@ pub struct Quantity {
     pub quantity: String,
 }
 
+/// One `P` directive of a journal: on `date`, one unit of `commodity` was worth `rate`.
+///
+/// What `Ledger::prices` lists. `rate.quantity` is the exact number the line gave, with the
+/// places it was written with (`0.80` stays `0.80`, an exponent is expanded), read under the number
+/// marks in force at that line. A rate with no commodity of its own is listed with at least the
+/// places of the `D` sample, as `hledger prices` prints it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PriceDirective {
+    /// `YYYY-MM-DD`; a time of day on the line is dropped.
+    pub date: String,
+    /// The commodity being priced (its name without quotes).
+    pub commodity: String,
+    /// What one unit of `commodity` was worth: the commodity of the rate and an exact decimal
+    /// string.
+    pub rate: Quantity,
+    /// The file the line is in, as given to `load`.
+    pub file: String,
+    /// The line of the `P` directive, from 1.
+    pub line: u32,
+}
+
 /// The price written (or inferred) for an amount: `@` gives a unit price, `@@` a total.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]

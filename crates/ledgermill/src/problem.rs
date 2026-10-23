@@ -20,6 +20,8 @@ pub(crate) enum Unsupported {
     Timedot,
     /// A CSV file, read by the reference tool by its extension (with rules of its own).
     Csv,
+    /// A `P` line whose rate is followed by a price, a lot or a label.
+    PriceAnnotation,
 }
 
 impl Unsupported {
@@ -34,6 +36,7 @@ impl Unsupported {
             Unsupported::Timeclock => "timeclock",
             Unsupported::Timedot => "timedot",
             Unsupported::Csv => "csv",
+            Unsupported::PriceAnnotation => "price-annotation",
         }
     }
 
@@ -54,6 +57,9 @@ impl Unsupported {
             Unsupported::Timeclock => "Timeclock files are not supported.",
             Unsupported::Timedot => "Timedot files are not supported.",
             Unsupported::Csv => "CSV files are not supported.",
+            Unsupported::PriceAnnotation => {
+                "A price, a lot or a label after the rate of a P line is not supported."
+            }
         }
     }
 }

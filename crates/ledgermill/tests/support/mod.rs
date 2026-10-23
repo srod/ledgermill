@@ -188,3 +188,21 @@ pub fn at_cost(files: &[(&str, &str)]) -> Vec<String> {
     let files: Vec<SourceFile> = files.iter().map(|(n, c)| file(n, c)).collect();
     short_lines(&load(&files).at_cost().unwrap())
 }
+
+/// `load(files).prices()` as one line each: `DATE FROM RATE TO` (the rate's commodity last, as in
+/// the run 2 of `spec/hledger/show-prices.sh`, but with no quotes around names).
+pub fn price_lines(files: &[(&str, &str)]) -> Vec<String> {
+    let files: Vec<SourceFile> = files.iter().map(|(n, c)| file(n, c)).collect();
+    load(&files)
+        .prices()
+        .iter()
+        .map(|p| {
+            format!(
+                "{} {} {} {}",
+                p.date, p.commodity, p.rate.quantity, p.rate.commodity
+            )
+            .trim_end()
+            .to_string()
+        })
+        .collect()
+}

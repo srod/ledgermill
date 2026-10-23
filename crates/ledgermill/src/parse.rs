@@ -479,9 +479,9 @@ impl FileParser<'_> {
             "comment" if arg.is_empty() => Ok(None),
             "include" => Err(Problem::Unsupported(Unsupported::Include)),
             "!include" => invalid("!include is not a directive; the reference tool rejects it."),
-            "P" => self.price_line(rest),
+            "P" => self.price_line(line_no, rest),
             w if w.starts_with('P') && w[1..].starts_with(|c: char| c.is_ascii_digit()) => {
-                self.price_line(&line[1..])
+                self.price_line(line_no, &line[1..])
             }
             "D" => self
                 .default_commodity(rest)
@@ -690,14 +690,14 @@ impl FileParser<'_> {
     }
 
     /// A `P` line: kept for `value`; raw output does not show prices.
-    fn price_line(&mut self, rest: &str) -> Parsed<Option<DirectiveBody>> {
-        let price = self.price_directive(rest)?;
+    fn price_line(&mut self, line_no: u32, rest: &str) -> Parsed<Option<DirectiveBody>> {
+        let price = self.price_directive(line_no, rest)?;
         self.out.prices.push(price);
         Ok(Some(DirectiveBody::Plain))
     }
 
     /// `P DATE [TIME] COMMODITY AMOUNT`. The time of day is read and ignored.
-    fn price_directive(&self, rest: &str) -> Parsed<Price> {
+    fn price_directive(&self, line_no: u32, rest: &str) -> Parsed<Price> {
         let mut cur = Cursor::new(rest);
         cur.take_while(is_blank);
         let date = parse_date(&mut cur, self.st.year)?;
@@ -718,17 +718,30 @@ impl FileParser<'_> {
         }
         cur.take_while(is_blank);
         let price = read_amount(&mut cur, &self.st.styles, Default::Apply)?;
+        // The reference tool reads what follows as a price, a lot or a label and lists it.
+        cur.skip_blanks();
+        if matches!(cur.peek(), Some('@' | '{' | '[' | '(')) {
+            return Err(Problem::Unsupported(Unsupported::PriceAnnotation));
+        }
+        let places = if price.named {
+            price.quantity.places()
+        } else {
+            price.quantity.places().max(self.st.styles.default_places)
+        };
         Ok(Price {
             date,
             from: symbol,
             to: price.commodity,
+            listed: price.quantity.padded_to(places),
             rate: price.quantity,
+            file: self.file.name.clone(),
+            line: line_no,
         })
     }
 
     /// The sample amount of a `commodity` or `D` directive. It is read like any amount, so the
     /// marks already in force decide a lone `.`/`,`; it must end up with a decimal mark.
-    fn sample_mark(&self, text: &str, trailing_ok: bool) -> Parsed<(String, Option<Mark>)> {
+    fn sample_mark(&self, text: &str, trailing_ok: bool) -> Parsed<(String, Option<Mark>, u32)> {
         let mut cur = Cursor::new(text);
         cur.take_while(is_blank);
         let amount = read_amount(&mut cur, &self.st.styles, Default::Ignore)?;
@@ -739,14 +752,15 @@ impl FileParser<'_> {
         if !(trailing_ok || after.is_empty() || after.starts_with(';')) {
             return invalid("Unexpected text after the amount.");
         }
-        Ok((amount.commodity, amount.mark))
+        Ok((amount.commodity, amount.mark, amount.quantity.places()))
     }
 
     fn default_commodity(&mut self, rest: &str) -> Parsed<()> {
         let text = rest.split(';').next().unwrap_or("");
         // Text after the amount is not read.
-        let (commodity, mark) = self.sample_mark(text, true)?;
+        let (commodity, mark, places) = self.sample_mark(text, true)?;
         self.st.styles.default_commodity = Some((commodity, mark));
+        self.st.styles.default_places = places;
         Ok(())
     }
 
@@ -767,7 +781,7 @@ impl FileParser<'_> {
             }
         };
         if starts_number || quoted_then_number {
-            let (commodity, mark) = self.sample_mark(arg, false)?;
+            let (commodity, mark, _) = self.sample_mark(arg, false)?;
             if let Some(mark) = mark {
                 self.st.styles.commodity_marks.insert(commodity, mark);
             }
@@ -916,7 +930,7 @@ impl FileParser<'_> {
             (&body, content.strip_prefix("format"))
         {
             match self.sample_mark(format, false) {
-                Ok((commodity, Some(mark))) if &commodity == symbol => {
+                Ok((commodity, Some(mark), _)) if &commodity == symbol => {
                     self.st.styles.commodity_marks.insert(commodity, mark);
                 }
                 Ok(_) => self.report(

@@ -41,6 +41,8 @@ pub struct Ledger {
     exact: Vec<Exact>,
     /// Every `P` line, in parse order (hledger).
     prices: Vec<prices::Price>,
+    /// The same lines as `prices()` gives them: sorted by date.
+    price_list: Vec<PriceDirective>,
     beancount: bool,
 }
 
@@ -55,6 +57,18 @@ impl Ledger {
     /// Empty for hledger: its flat postings are not built yet (planned separately).
     pub fn postings(&self) -> &[FlatPosting] {
         &self.postings
+    }
+
+    /// The `P` directives of the files, as `hledger prices` lists them (hledger only).
+    ///
+    /// Sorted by date; directives with the same date stay in the order they were read, which is
+    /// the files as given, each from top to bottom (spec/hledger/prices-list.md). Prices are not
+    /// taken from the transactions. A directive whose rate is followed by a price, a lot or a label
+    /// is refused with an `unsupported-syntax` finding (`price-annotation`) and not listed.
+    ///
+    /// Beancount: always empty. Its `price` directives are separate work and are not listed yet.
+    pub fn prices(&self) -> &[PriceDirective] {
+        &self.price_list
     }
 
     /// Problems found while loading, in the order the reference tool meets them, which is not line
@@ -139,10 +153,26 @@ pub fn load(files: &[SourceFile]) -> Ledger {
     // problems of plain transactions, then the walk's.
     out.transactions.sort_by_key(|(_, _, date)| *date);
     let (transactions, exact) = out.transactions.into_iter().map(|(t, e, _)| (t, e)).unzip();
+    let mut listed: Vec<&prices::Price> = out.prices.iter().collect();
+    listed.sort_by_key(|p| p.date);
+    let price_list = listed
+        .into_iter()
+        .map(|p| PriceDirective {
+            date: p.date.to_string(),
+            commodity: p.from.clone(),
+            rate: Quantity {
+                commodity: p.to.clone(),
+                quantity: p.listed.to_string(),
+            },
+            file: p.file.clone(),
+            line: p.line,
+        })
+        .collect();
     Ledger {
         transactions,
         exact,
         prices: out.prices,
+        price_list,
         findings: out.findings.into_iter().map(|(_, f)| f).collect(),
         ..Ledger::default()
     }
