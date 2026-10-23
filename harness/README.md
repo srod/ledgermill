@@ -52,8 +52,8 @@ Each case ends in one verdict:
   we report no error, or that we report `unbalanced-transaction` while hledger accepts. A FAIL is a
   bug in the engine or in the harness; the exit code is 1.
 
-The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, `--cost` and `--value`; the lines
-before it count each of them: see "Postings and prices" and "Cost and value").
+The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, `--cost`, `--value`, holdings and
+Plainledger's reads; the lines before it count each of them: see "Postings and prices", "Cost and value" and "Holdings").
 
 When hledger rejects a journal (exits non-zero), the harness takes the file and line of the **first error**
 from the first line of its stderr and compares them with our **first error-severity finding**
@@ -132,8 +132,46 @@ fails or is skipped there. Verdicts:
   One corpus journal is skipped for that (`conversion-several.journal`);
 - any other error of ours, or hledger failing a question after accepting the journal, is a FAIL.
 
-The summary has a line per kind before the total: `hledger --cost: ...` and `hledger --value: ...` (one count per
-question asked). A case's line shows the worst of its comparisons.
+The summary has a line per kind before the total: `hledger --cost: ...`, `hledger --value: ...` and `hledger holdings: ...`
+(one count per question asked; see "Holdings"). A case's line shows the worst of its comparisons.
+
+### Holdings
+
+Every hledger case that passes the first comparison is also asked `ledger.holdings({ commodity: V, end, today })`
+(`spec/hledger/holdings.md`), compared with `hledger balance --layout=tidy -O json --real` (the exact values, not the CSV).
+The questions (`holdingQuestions`): `end` none and up to three end dates taken from the `--value` dates around the `P` lines
+(the first, the middle one, the last), each valued in `EUR`, `USD` and the first commodity priced; a journal with no `P`
+line: no `end` and the day after its middle transaction, in `EUR`. `today` is this machine's date (hledger's clock). For each
+question:
+
+- the units: one run with no query (never a `--` with no account pattern: that makes the run empty, see the note);
+- for each commodity C that we or the units run hold: `--cost`, `--value=end,V` and `--cost --value=end,V`, each with
+  `cur:^C$` (regex characters escaped, `currencyQuery`). The `--cost` runs do not depend on V and are kept per journal.
+
+The JSON is decoded with `decodeBalance`: each account's amounts added up per commodity whatever their costs, by value,
+zero sums left out. The rows are compared per (account, C): the units, and the cost, the value and the cost value as lists
+of `COMMODITY QUANTITY` (as sets of exact quantities, places ignored). A holding hledger has no row for counts as zero, so
+`holdings()` may list a zero one. The order of `holdings()` is checked too (account names by segment, commodity by code point).
+
+`cur:` is a case-insensitive regex, so `cur:^X$` also finds `x`; such a C cannot be asked alone. Its rows are left out on both
+sides, the others are compared, and the verdict is a **SKIP** if they agree (`cur: cannot tell x, X from another commodity`;
+seven corpus journals). A refusal of ours (`unsupported-syntax`) is a SKIP, any other error a FAIL, as for `--cost`.
+
+**Plainledger's reads.** The journals of `harness/journals/app` are Plainledger's own test journals. Each of them (and its
+pairs) is also checked against the commands Plainledger runs today (`packages/ledger-domain/src/holdings/hledgerHoldings.ts`):
+prefixes `assets` and `liabilities`, V = EUR, no end; the units run (`--real`, no query); for each held C that is not EUR or `€`,
+the three runs `balance --layout=tidy -O csv [--real] --cost|--value=end,EUR|both -- assets liabilities cur:C`. From the CSV,
+the cost basis and market value in EUR of each (account, C) are compared with ours from `holdings()` filtered the same way
+(case-insensitive prefix, C not an alias of V, the missing-cost rule: a C left in `--cost` makes the cost basis null), within the CSV's
+rounding. First with `--real` on the three runs (the owner's choice, "real postings everywhere"): any difference is a FAIL
+(`plainledger: ...`). Then without `--real` there, as Plainledger runs them: the journals where the figures differ are
+listed under the summary (`Plainledger's figures that change with real postings only`). That is a virtual posting on a tracked
+account, and none of the app journals has one, so the list is empty. Accounts with a space in their name are left out of both
+sides: Plainledger looks them up by their first word. The summary line is `Plainledger's reads: ...`.
+
+The fuzzer does not ask `holdings()` yet. Asked of 100 random journals it found two where hledger drops an amount that looks zero at
+its own display precision (an inferred amount below the precision of its style) from a run with a `cur:` query, or from the units run,
+and ledgermill keeps it (see the Gaps of `spec/hledger/holdings.md`); that rule is to be probed first.
 
 ### Beancount
 

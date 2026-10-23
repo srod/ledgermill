@@ -76,12 +76,22 @@ const specPairs: [string, string][] = [
   ["rule-file-c", "rule-file-a"],
 ];
 
-const cases: { name: string; paths: string[]; ignorePlaces?: boolean }[] = [];
+// The journals of `app` are Plainledger's own test journals: its holdings reads are compared on them too.
+const cases: { name: string; paths: string[]; ignorePlaces?: boolean; plainledger?: boolean }[] = [];
 for (const [label, dir, extension] of DIRS)
   for (const f of readdirSync(dir).filter((f) => f.endsWith(extension)).sort())
-    cases.push({ name: `${label}/${f}`, paths: [join(dir, f)], ...(placesMayDiffer.has(f) ? { ignorePlaces: true } : {}) });
+    cases.push({
+      name: `${label}/${f}`,
+      paths: [join(dir, f)],
+      ...(placesMayDiffer.has(f) ? { ignorePlaces: true } : {}),
+      ...(dir === APP ? { plainledger: true } : {}),
+    });
 for (const [dir, list] of [[PROTOTYPE, pairs], [APP, fixturePairs], [SPEC, specPairs]] as const)
   for (const [a, b] of list)
-    cases.push({ name: `pair ${a}+${b}`, paths: [join(dir, `${a}.journal`), join(dir, `${b}.journal`)] });
+    cases.push({
+      name: `pair ${a}+${b}`,
+      paths: [join(dir, `${a}.journal`), join(dir, `${b}.journal`)],
+      ...(dir === APP ? { plainledger: true } : {}),
+    });
 
 await runCases(cases, process.argv.includes("--quiet"));

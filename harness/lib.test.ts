@@ -1,10 +1,22 @@
 // bun test harness/lib.test.ts (needs the wasm built into pkg/, like the harness itself)
 import { expect, test } from "bun:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type Comparison,
   compareAll,
   compareCost,
+  compareHoldings,
+  comparePlainledger,
+  currencyQuery,
+  decimalSum,
+  decodeBalance,
+  diffHoldingRows,
+  holdingQuestions,
+  holdingsInOrder,
+  localToday,
+  oursAsRows,
   compareFirstError,
   compareRejection,
   compareValue,
@@ -287,6 +299,8 @@ test("summarize shows the worst verdict and says whether it came from --cost or 
     values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: pass }],
     postings: pass,
     prices: pass,
+    holdings: [{ question: { end: null, commodity: "EUR" }, verdict: pass }],
+    plainledger: null,
   };
   expect(summarize(all)).toEqual(pass);
   const skipped: Comparison = { ...all, cost: { status: "SKIP", note: "unsupported: cost-conversion-postings" } };
@@ -296,7 +310,7 @@ test("summarize shows the worst verdict and says whether it came from --cost or 
     values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: { status: "FAIL", note: "[0].x: hledger=1 ours=2" } }],
   };
   expect(summarize(failed)).toEqual({ status: "FAIL", note: "value=2026-01-01,EUR: [0].x: hledger=1 ours=2" });
-  expect(summarize({ raw: { status: "FAIL", note: "raw difference" }, cost: null, values: [], postings: null, prices: null })).toEqual({
+  expect(summarize({ raw: { status: "FAIL", note: "raw difference" }, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null })).toEqual({
     status: "FAIL",
     note: "raw difference",
   });
@@ -308,6 +322,12 @@ test("summarize shows the worst verdict and says whether it came from --cost or 
     status: "FAIL",
     note: "prices: length hledger=2 ours=1",
   });
+  expect(
+    summarize({
+      ...all,
+      holdings: [{ question: { end: "2026-05-01", commodity: "USD" }, verdict: { status: "FAIL", note: "a [X] units: hledger=1 ours=2" } }],
+    }),
+  ).toEqual({ status: "FAIL", note: "holdings end=2026-05-01 in USD: a [X] units: hledger=1 ours=2" });
 });
 
 // These two run hledger (on PATH, like the rest of the harness) on probes of the spec.
@@ -436,4 +456,125 @@ test("compareAll lists postings and prices on probes, and leaves them out of a c
   const refused = await compareAll([join(import.meta.dir, "../spec/hledger/probes/refused/prices-rate-annotations.journal")]);
   expect(refused.raw.status).toBe("SKIP");
   expect([refused.postings, refused.prices]).toEqual([null, null]);
+}, 60_000);
+
+// ───────────── holdings ─────────────
+const balanceJson = (rows: [string, [string, string, number][]][]) =>
+  JSON.stringify([
+    rows.map(([account, amounts]) => [
+      account,
+      account,
+      0,
+      amounts.map(([acommodity, mantissa, places]) => ({
+        acommodity,
+        acost: null,
+        aquantity: { decimalMantissa: mantissa, decimalPlaces: places, floatingPoint: 0 },
+      })),
+    ]),
+    [],
+  ]).replace(/"decimalMantissa":"(-?\d+)"/g, '"decimalMantissa":$1');
+
+test("decimalSum adds exactly, by value: no trailing zeros, no negative zero", () => {
+  const d = (m: bigint, p: number) => ({ m, p });
+  expect(decimalSum([d(1250n, 2), d(5n, 1)])).toBe("13");
+  expect(decimalSum([d(-5n, 1), d(5n, 1)])).toBe("0");
+  expect(decimalSum([d(-1n, 10)])).toBe("-0.0000000001");
+  expect(decimalSum([d(100n, 0)])).toBe("100");
+  expect(decimalSum([])).toBe("0");
+});
+
+test("decodeBalance adds the amounts of a commodity whatever their costs, drops zero sums and reads a big mantissa", () => {
+  const json = balanceJson([
+    ["a", [["X", "5", 0], ["X", "10", 0], ["EUR", "-250", 2]]],
+    ["b", [["X", "0", 0], ["Y", "100000000000000000001", 1]]],
+    ["c", [["X", "5", 0], ["X", "-5", 0]]],
+  ]);
+  const rows = decodeBalance(json);
+  expect([...rows.keys()]).toEqual(["a", "b"]);
+  expect(rows.get("a")).toEqual(new Map([["X", "15"], ["EUR", "-2.5"]]));
+  expect(rows.get("b")).toEqual(new Map([["Y", "10000000000000000000.1"]]));
+  expect([...decodeBalance("[[],[]]").keys()]).toEqual([]);
+});
+
+test("currencyQuery anchors the pattern and escapes what a regex would read", () => {
+  expect(currencyQuery("EUR")).toBe("cur:^EUR$");
+  expect(currencyQuery("A+B")).toBe("cur:^A\\+B$");
+  expect(currencyQuery("$")).toBe("cur:^\\$$");
+  expect(currencyQuery("A.B|(C)")).toBe("cur:^A\\.B\\|\\(C\\)$");
+  expect(currencyQuery("")).toBe("cur:^$");
+});
+
+test("diffHoldingRows compares units and the three lists by value, and a missing row is a zero one", () => {
+  const holding = (over: Record<string, unknown> = {}) => ({
+    account: "a",
+    commodity: "X",
+    units: "10.0",
+    cost: [{ commodity: "EUR", quantity: "20.00" }],
+    value: [{ commodity: "EUR", quantity: "30" }],
+    cost_value: [{ commodity: "EUR", quantity: "30" }],
+    ...over,
+  });
+  const theirs = oursAsRows([holding()]);
+  expect(diffHoldingRows(theirs, oursAsRows([holding({ units: "10" })]))).toBeNull();
+  expect(diffHoldingRows(theirs, oursAsRows([holding({ units: "11" })]))).toBe("a [X] units: hledger=10 ours=11");
+  expect(diffHoldingRows(theirs, oursAsRows([holding({ cost: [] })]))).toBe("a [X] cost: hledger=EUR 20 ours=-");
+  expect(diffHoldingRows(theirs, oursAsRows([holding({ value: [{ commodity: "USD", quantity: "30" }] })]))).toBe(
+    "a [X] value: hledger=EUR 30 ours=USD 30",
+  );
+  expect(diffHoldingRows(theirs, oursAsRows([]))).toBe("a [X] units: hledger=10 ours=0");
+  // exact zeros are the reference's missing rows; a zero that only rounds is a quantity, and the quantity is zero
+  const zero = holding({ units: "0", cost: [], value: [{ commodity: "EUR", quantity: "0.0000000000" }], cost_value: [] });
+  expect(diffHoldingRows(new Map(), oursAsRows([zero]))).toBeNull();
+});
+
+test("holdingsInOrder wants account names by segment and commodities by code point", () => {
+  const h = (account: string, commodity: string) => ({ account, commodity, units: "1", cost: [], value: [], cost_value: [] });
+  expect(holdingsInOrder([h("a:b", "X"), h("a b", ""), h("a-b", "X"), h("Émile", "X"), h("é", "X")])).toBeNull();
+  expect(holdingsInOrder([h("a b", "X"), h("a:b", "X")])).toContain("a b [X] comes before a:b [X]");
+  expect(holdingsInOrder([h("a", "x"), h("a", "X")])).toContain("a [x] comes before a [X]");
+  expect(holdingsInOrder([h("a", "$"), h("a", "")])).toContain("comes before");
+  expect(holdingsInOrder([h("a", ""), h("a", "$"), h("a", "€")])).toBeNull();
+});
+
+test("holdingQuestions asks no end and three ends around the P lines in EUR, USD and the first commodity priced", () => {
+  const questions = holdingQuestions(["P 2026-01-05 X 2 GBP\nP 2026-01-09 Y 3 EUR\n"]);
+  expect([...new Set(questions.map((q) => q.end))]).toEqual([null, "2026-01-04", "2026-01-09", "2026-02-08"]);
+  expect([...new Set(questions.map((q) => q.commodity))]).toEqual(["EUR", "USD", "X"]);
+  expect(questions).toHaveLength(12);
+});
+
+test("holdingQuestions without a P line asks no end and the day after the middle transaction, in EUR", () => {
+  const text = "2026-01-05 a\n    x  1\n    y\n\n2026-02-10 b\n    x  1\n    y\n\n2026-02-28 c\n    x  1\n    y\n";
+  expect(holdingQuestions([text])).toEqual([
+    { end: null, commodity: "EUR" },
+    { end: "2026-02-11", commodity: "EUR" },
+  ]);
+  expect(holdingQuestions(["; nothing"])).toEqual([{ end: null, commodity: "EUR" }]);
+});
+
+test("localToday is the local date, padded", () => {
+  expect(localToday(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
+  expect(localToday(new Date(2026, 11, 31, 0, 0))).toBe("2026-12-31");
+});
+
+test("compareHoldings passes on probes, skips what a cur: pattern cannot tell apart, and refuses with a SKIP", async () => {
+  const run = (name: string, end: string | null, commodity: string) => compareHoldings([probe(name)], { end, commodity }, new Map());
+  expect(await run("hold-cost", null, "EUR")).toEqual(pass);
+  expect(await run("hold-cost", null, "X")).toEqual(pass);
+  expect(await run("hold-e-tags", "2026-03-02", "EUR")).toEqual(pass);
+  expect(await run("hold-tidy-zero", null, "EUR")).toEqual(pass);
+  expect((await run("hold-cur-regex", null, "EUR")).status).toBe("SKIP");
+  expect(await run("conversion-several", null, "EUR")).toEqual({ status: "SKIP", note: "unsupported: cost-conversion-postings" });
+}, 60_000);
+
+test("comparePlainledger reproduces Plainledger's reads and reports a virtual posting on a tracked account as a change", async () => {
+  const app = (name: string) => join(import.meta.dir, "journals/app", `${name}.journal`);
+  expect(await comparePlainledger([app("proj002-price-total")], new Map())).toEqual({ verdict: pass, changes: null });
+  // (assets:bank) is ignored by holdings(): Plainledger's per-commodity runs, with no --real, add its 5 X
+  const dir = mkdtempSync(join(tmpdir(), "holdings-"));
+  const journal = join(dir, "virtual.journal");
+  writeFileSync(journal, "P 2026-01-01 X 2 EUR\n\n2026-01-05 t\n    assets:bank  10 X\n    equity\n    (assets:bank)  5 X\n");
+  const virtual = await comparePlainledger([journal], new Map());
+  expect(virtual.verdict).toEqual(pass);
+  expect(virtual.changes).toBe("assets:bank [X] marketValue: Plainledger=30 ours=20");
 }, 60_000);

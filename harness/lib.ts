@@ -182,18 +182,18 @@ function runOurs(paths: string[]): Ours {
 }
 
 /** What `atCost()` or `value()` of our wasm gave: transactions, a refusal (the finding the core returned) or a crash. */
-type Answer = { transactions: Transaction[] } | { refused: Finding } | { thrown: string };
+type Answer<T = Transaction[]> = { answer: T } | { refused: Finding } | { thrown: string };
 
 /**
  * Load `paths` and call one of the ledger's methods that returns transactions as JSON. The wasm throws an
  * `Error` whose message is the finding as JSON when the core refuses (see crates/ledgermill-wasm/src/lib.rs).
  */
-function runOursQuery(paths: string[], call: (ledger: ReturnType<typeof wasm.load>) => string): Answer {
+function runOursQuery<T = Transaction[]>(paths: string[], call: (ledger: ReturnType<typeof wasm.load>) => string): Answer<T> {
   const files = paths.map((name) => ({ name, content: readFileSync(name, "utf8") }));
   let ledger: ReturnType<typeof wasm.load> | undefined;
   try {
     ledger = wasm.load(JSON.stringify(files));
-    return { transactions: JSON.parse(call(ledger)) };
+    return { answer: JSON.parse(call(ledger)) };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     try {
@@ -767,7 +767,7 @@ async function compareDerived(
     if (code === "unsupported-syntax") return { status: "SKIP", note: `unsupported: ${details.construct ?? "?"}` };
     return { status: "FAIL", note: `ours returns ${code} (${message}), hledger accepts` };
   }
-  const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.transactions)];
+  const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.answer)];
   const diff = ignorePlaces ? firstDiff(valuesOnly(theirs), valuesOnly(mine)) : firstDiff(theirs, mine);
   return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
 }
@@ -819,6 +819,390 @@ export function valueQueries(texts: string[]): Query[] {
   return when.flatMap((date) => targets.map((commodity) => ({ date, commodity })));
 }
 
+// ───────────── holdings ─────────────
+/** A `holdings()` question: values at `commodity`; `end` is `-e` (exclusive), null for none. */
+export type HoldingQuestion = { end: string | null; commodity: string };
+
+/** What our `holdings()` gives (crates/ledgermill/src/model.rs; JSON field names are the Rust ones). */
+export type Holding = {
+  account: string;
+  commodity: string;
+  units: string;
+  cost: Quantity[];
+  value: Quantity[];
+  cost_value: Quantity[];
+};
+
+/** An exact decimal: `-12.50` is mantissa -1250, 2 places. */
+type Dec = { m: bigint; p: number };
+
+function parseDecimal(text: string): Dec {
+  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!m) throw new Error(`not a decimal: ${text}`);
+  const fraction = m[3] ?? "";
+  return { m: BigInt(`${m[1]}${m[2]}${fraction}`), p: fraction.length };
+}
+
+/** The sum of exact decimals as a string without trailing zeros (`0` for zero): numbers compared by value. */
+export function decimalSum(parts: Dec[]): string {
+  const places = Math.max(0, ...parts.map((d) => d.p));
+  let sum = 0n;
+  for (const d of parts) sum += d.m * 10n ** BigInt(places - d.p);
+  let text = decimalString(sum, places);
+  if (places > 0) text = text.replace(/\.?0+$/, "");
+  return text === "-0" ? "0" : text;
+}
+
+/** `Amounts of hledger's balance -O json` per account and commodity, added up whatever their costs; zero sums left out. */
+export function decodeBalance(json: string): Map<string, Map<string, string>> {
+  const exact = json.replace(/"decimalMantissa":\s*([-+\d.eE]+)/g, '"decimalMantissa":"$1"');
+  const [rows] = JSON.parse(exact) as [J[], J];
+  const out = new Map<string, Map<string, string>>();
+  for (const row of rows) {
+    const parts = new Map<string, Dec[]>();
+    for (const a of row[3] as J[]) {
+      const list = parts.get(a.acommodity) ?? [];
+      list.push({ m: exactInteger(a.aquantity.decimalMantissa), p: a.aquantity.decimalPlaces });
+      parts.set(a.acommodity, list);
+    }
+    const sums = new Map<string, string>();
+    for (const [commodity, list] of parts) {
+      const sum = decimalSum(list);
+      if (sum !== "0") sums.set(commodity, sum);
+    }
+    if (sums.size > 0) out.set(row[0] as string, sums);
+  }
+  return out;
+}
+
+/** The commodity of each name of a `cur:` pattern that matches it and only it: regex characters escaped, anchored. */
+export const currencyQuery = (commodity: string): string => `cur:^${commodity.replace(/[\\.^$|?*+()[\]{}]/g, "\\$&")}$`;
+
+/** One side of a holdings comparison: the four positions of an (account, commodity), as sorted `COMMODITY QUANTITY` lists. */
+export type HoldingRow = { units: string; cost: string[]; value: string[]; costValue: string[] };
+
+const sortedLines = (m: Map<string, string> | undefined): string[] =>
+  [...(m ?? [])].map(([commodity, quantity]) => `${commodity}\0${quantity}`).sort();
+
+const emptyRow = (): HoldingRow => ({ units: "0", cost: [], value: [], costValue: [] });
+const rowKey = (account: string, commodity: string): string => `${account}\0${commodity}`;
+const isEmptyRow = (r: HoldingRow): boolean => r.units === "0" && !r.cost.length && !r.value.length && !r.costValue.length;
+
+/** Our holdings as rows: quantities by value, exact zeros left out (the reference has no row for them). */
+export function oursAsRows(holdings: Holding[]): Map<string, HoldingRow> {
+  const lines = (list: Quantity[]) =>
+    list
+      .map((q) => ({ commodity: q.commodity, quantity: decimalSum([parseDecimal(q.quantity)]) }))
+      .filter((q) => q.quantity !== "0")
+      .map((q) => `${q.commodity}\0${q.quantity}`)
+      .sort();
+  const rows = new Map<string, HoldingRow>();
+  for (const h of holdings) {
+    const row = {
+      units: decimalSum([parseDecimal(h.units)]),
+      cost: lines(h.cost),
+      value: lines(h.value),
+      costValue: lines(h.cost_value),
+    };
+    if (!isEmptyRow(row)) rows.set(rowKey(h.account, h.commodity), row);
+  }
+  return rows;
+}
+
+const shown = (lines: string[]): string => (lines.length ? lines.map((l) => l.replace("\0", " ")).join(", ") : "-");
+
+/** The first difference between the reference's rows and ours (`ACCOUNT [COMMODITY] field: hledger=… ours=…`), or null. */
+export function diffHoldingRows(theirs: Map<string, HoldingRow>, ours: Map<string, HoldingRow>): string | null {
+  for (const key of [...new Set([...theirs.keys(), ...ours.keys()])].sort()) {
+    const [a, b] = [theirs.get(key) ?? emptyRow(), ours.get(key) ?? emptyRow()];
+    const [account, commodity] = key.split("\0");
+    const at = `${account} [${commodity}]`;
+    if (a.units !== b.units) return `${at} units: hledger=${a.units} ours=${b.units}`;
+    for (const [field, x, y] of [
+      ["cost", a.cost, b.cost],
+      ["value", a.value, b.value],
+      ["costValue", a.costValue, b.costValue],
+    ] as const)
+      if (x.join("\n") !== y.join("\n")) return `${at} ${field}: hledger=${shown(x)} ours=${shown(y)}`;
+  }
+  return null;
+}
+
+const codePoints = (s: string): number[] => Array.from(s, (c) => c.codePointAt(0) as number);
+function compareCodePoints(a: string, b: string): number {
+  const [x, y] = [codePoints(a), codePoints(b)];
+  for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return (x[i] as number) - (y[i] as number);
+  return x.length - y.length;
+}
+
+/** The order `holdings()` promises: the account's `:`-separated names by code point, then the commodity by code point. */
+export function holdingsInOrder(holdings: Holding[]): string | null {
+  const before = (a: Holding, b: Holding): number => {
+    const [x, y] = [a.account.split(":"), b.account.split(":")];
+    for (let i = 0; i < Math.min(x.length, y.length); i++) {
+      const c = compareCodePoints(x[i] as string, y[i] as string);
+      if (c !== 0) return c;
+    }
+    return x.length - y.length || compareCodePoints(a.commodity, b.commodity);
+  };
+  for (let i = 1; i < holdings.length; i++) {
+    const [a, b] = [holdings[i - 1] as Holding, holdings[i] as Holding];
+    if (before(a, b) >= 0) return `order: ${a.account} [${a.commodity}] comes before ${b.account} [${b.commodity}]`;
+  }
+  return null;
+}
+
+/** Today's date on this machine, which is hledger's clock. */
+export function localToday(now = new Date()): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+}
+
+/** hledger runs of one journal, kept: the units and the `--cost` runs do not depend on the valuation commodity. */
+export type RunCache = Map<string, Promise<string>>;
+
+async function cached(cache: RunCache, paths: string[], args: string[]): Promise<string> {
+  const key = args.join("\0");
+  let run = cache.get(key);
+  if (!run) {
+    run = runHledgerText(paths, args).then((r) => {
+      if (r.exitCode !== 0) throw new Error(`hledger ${args.join(" ")} fails: ${r.stderr.split("\n")[0]}`);
+      return r.stdout;
+    });
+    cache.set(key, run);
+  }
+  return run;
+}
+
+/** Every commodity of a journal, as `hledger commodities` lists them (names without quotes). */
+async function journalCommodities(paths: string[], cache: RunCache): Promise<string[]> {
+  return (await cached(cache, paths, ["commodities"])).split("\n").filter((l) => l !== "").map(unquote);
+}
+
+/** Two different commodities that one `cur:` pattern matches: it is case-insensitive, so `X` also finds `x`. */
+const foldsTogether = (a: string, b: string): boolean => a !== b && (a.toLowerCase() === b.toLowerCase() || a.toUpperCase() === b.toUpperCase());
+
+type Holdings = { holdings: Holding[] } | { refused: Finding } | { thrown: string };
+
+function runOursHoldings(paths: string[], query: { commodity: string; end: string | null; today: string }): Holdings {
+  const answer = runOursQuery<Holding[]>(paths, (ledger) => ledger.holdings(JSON.stringify(query)));
+  return "answer" in answer ? { holdings: answer.answer } : answer;
+}
+
+/**
+ * `Ledger::holdings()` against `hledger balance --layout=tidy -O json --real` (spec/hledger/holdings.md): the units
+ * of every account, then for each commodity C that is held, `--cost`, `--value=end,V` and both, with `cur:^C$`.
+ * Units and positions by value. A commodity whose `cur:` pattern also matches another (`X`, `x`) cannot be asked
+ * alone: the rows of the other commodities are compared, and the verdict is a SKIP if they agree.
+ */
+export async function compareHoldings(paths: string[], q: HoldingQuestion, cache: RunCache, today = localToday()): Promise<Verdict> {
+  const ours = runOursHoldings(paths, { commodity: q.commodity, end: q.end, today });
+  if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
+  if ("refused" in ours) {
+    const { code, details, message } = ours.refused;
+    if (code === "unsupported-syntax") return { status: "SKIP", note: `unsupported: ${details.construct ?? "?"}` };
+    return { status: "FAIL", note: `ours returns ${code} (${message}), hledger accepts` };
+  }
+  const order = holdingsInOrder(ours.holdings);
+  if (order) return { status: "FAIL", note: order };
+  try {
+    const base = ["balance", "--layout=tidy", "-O", "json", "--real", ...(q.end ? ["-e", q.end] : [])];
+    const units = decodeBalance(await cached(cache, paths, base));
+    const all = await journalCommodities(paths, cache);
+    const commodities = new Set([...ours.holdings.map((h) => h.commodity), ...[...units.values()].flatMap((m) => [...m.keys()])]);
+    const skipped = new Set([...commodities].filter((c) => all.some((other) => foldsTogether(c, other))));
+    const theirs = new Map<string, HoldingRow>();
+    const at = (account: string, commodity: string): HoldingRow => {
+      const key = rowKey(account, commodity);
+      return theirs.get(key) ?? (theirs.set(key, emptyRow()), theirs.get(key) as HoldingRow);
+    };
+    for (const [account, sums] of units)
+      for (const [commodity, sum] of sums) if (!skipped.has(commodity)) at(account, commodity).units = sum;
+    const value = `--value=end,${q.commodity}`;
+    for (const commodity of commodities) {
+      if (skipped.has(commodity)) continue;
+      const cur = currencyQuery(commodity);
+      const runs = [
+        ["cost", ["--cost"]],
+        ["value", [value]],
+        ["costValue", ["--cost", value]],
+      ] as const;
+      for (const [field, options] of runs)
+        for (const [account, sums] of decodeBalance(await cached(cache, paths, [...base, ...options, cur])))
+          at(account, commodity)[field] = sortedLines(sums);
+    }
+    for (const [key, row] of theirs) if (isEmptyRow(row)) theirs.delete(key);
+    const mine = oursAsRows(ours.holdings.filter((h) => !skipped.has(h.commodity)));
+    const diff = diffHoldingRows(theirs, mine);
+    if (diff) return { status: "FAIL", note: diff };
+    return skipped.size ? { status: "SKIP", note: `cur: cannot tell ${[...skipped].join(", ")} from another commodity` } : { status: "PASS", note: "" };
+  } catch (error) {
+    return { status: "FAIL", note: String(error instanceof Error ? error.message : error) };
+  }
+}
+
+/** The dates of the transactions of some journal texts (`YYYY-MM-DD`, real dates only), sorted. */
+function transactionDates(texts: string[]): string[] {
+  const dates: string[] = [];
+  for (const text of texts)
+    for (const l of text.split("\n")) {
+      const m = /^(\d{4})([-/.])(\d{1,2})\2(\d{1,2})(?=[\s=*!]|$)/.exec(l);
+      if (!m) continue;
+      const date = `${m[1]}-${(m[3] as string).padStart(2, "0")}-${(m[4] as string).padStart(2, "0")}`;
+      if (date >= "1000-01-01" && date <= "9998-12-31" && isoDate(Date.parse(`${date}T00:00:00Z`)) === date) dates.push(date);
+    }
+  return dates.sort();
+}
+
+/**
+ * The holdings questions for a journal: no `end` and up to three end dates around its `P` lines (the first
+ * `--value` date, the middle one and the last), valued in EUR, USD and the first commodity priced. With no `P` line:
+ * no `end` and the day after its middle transaction, in EUR.
+ */
+export function holdingQuestions(texts: string[]): HoldingQuestion[] {
+  const values = valueQueries(texts);
+  if (values.length === 0) {
+    const dates = transactionDates(texts);
+    const middle = dates[Math.floor(dates.length / 2)];
+    const ends = middle === undefined ? [null] : [null, isoDate(Date.parse(`${middle}T00:00:00Z`) + DAY)];
+    return ends.map((end) => ({ end, commodity: "EUR" }));
+  }
+  const dates = [...new Set(values.map((v) => v.date))];
+  const ends = [...new Set([dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]])] as string[];
+  const [first] = priceLines(texts);
+  const commodities = [...new Set(["EUR", "USD", first?.from ?? ""])].filter((c) => c !== "");
+  return [null, ...ends].flatMap((end) => commodities.map((commodity) => ({ end, commodity })));
+}
+
+// ───────────── Plainledger's own holdings reads ─────────────
+const VALUATION_ALIASES: Record<string, string[]> = { EUR: ["EUR", "€"], USD: ["USD", "$", "US$"] };
+const isValuationAlias = (commodity: string, valuation: string): boolean =>
+  (VALUATION_ALIASES[valuation.toUpperCase()] ?? [valuation]).some((a) => a.toUpperCase() === commodity.trim().toUpperCase());
+const startsWithPrefix = (account: string, prefixes: string[]): boolean =>
+  prefixes.some((p) => account.toLowerCase().startsWith(p.toLowerCase()));
+
+/** One row of the tidy CSV as Plainledger reads it: commodity, the number, and the places the CSV wrote. */
+type CsvRow = { account: string; commodity: string; value: number; places: number };
+
+function csvBalanceRows(text: string): CsvRow[] {
+  const [header, ...rows] = decodeCsv(text);
+  if (!header) return [];
+  const [iAccount, iCommodity, iValue] = ["account", "commodity", "value"].map((h) => header.indexOf(h)) as [number, number, number];
+  return rows
+    .filter((r) => r.length > iValue)
+    .map((r) => {
+      const value = (r[iValue] as string).trim().replace(",", ".");
+      return { account: (r[iAccount] as string).trim(), commodity: (r[iCommodity] as string).trim(), value: Number(value), places: value.split(".")[1]?.length ?? 0 };
+    });
+}
+
+/** What Plainledger makes of each (account, C): cost basis and market value in V, null as it does. */
+type Figures = Map<string, { costBasis: number | null; marketValue: number | null; slack: number }>;
+
+/**
+ * Plainledger's reads (packages/ledger-domain/src/holdings/hledgerHoldings.ts): the units run, then for each held
+ * commodity `balance --layout=tidy -O csv -- PREFIXES cur:C` with `--cost`, `--cost --value=end,V` and `--value=end,V`;
+ * `real` adds `--real` to those three (Plainledger's units run has it already). Accounts with a space are left out:
+ * Plainledger looks them up by their first word, which is its own quirk.
+ */
+async function plainledgerFigures(paths: string[], prefixes: string[], valuation: string, real: boolean, cache: RunCache): Promise<Figures> {
+  const run = (args: string[]) => cached(cache, paths, ["balance", "--layout=tidy", "-O", "csv", ...args]);
+  const held = new Set<string>();
+  for (const r of csvBalanceRows(await run(["--real"])))
+    if (r.commodity && startsWithPrefix(r.account, prefixes) && !isValuationAlias(r.commodity, valuation) && !/\s/.test(r.account) && Math.abs(r.value) > 1e-8)
+      held.add(rowKey(r.account, r.commodity));
+  const figures: Figures = new Map();
+  for (const commodity of new Set([...held].map((k) => k.split("\0")[1] as string))) {
+    const flags = real ? ["--real"] : [];
+    const query = ["--", ...prefixes, `cur:${commodity}`];
+    const sums = (rows: CsvRow[]) => {
+      const byAccount = new Map<string, { value: number; slack: number }>();
+      for (const r of rows)
+        if (r.commodity && isValuationAlias(r.commodity, valuation) && Number.isFinite(r.value)) {
+          const so_far = byAccount.get(r.account) ?? { value: 0, slack: 0 };
+          byAccount.set(r.account, { value: so_far.value + r.value, slack: so_far.slack + 0.5 * 10 ** -r.places });
+        }
+      return byAccount;
+    };
+    const rawCost = csvBalanceRows(await run([...flags, "--cost", ...query]));
+    const costBasis = sums(csvBalanceRows(await run([...flags, "--cost", `--value=end,${valuation}`, ...query])));
+    const market = sums(csvBalanceRows(await run([...flags, `--value=end,${valuation}`, ...query])));
+    for (const key of held) {
+      const [account, c] = key.split("\0") as [string, string];
+      if (c !== commodity) continue;
+      const missingCost = rawCost.some((r) => r.account === account && r.commodity.toUpperCase() === c.toUpperCase() && Math.abs(r.value) > 1e-8);
+      const cb = costBasis.get(account);
+      const mv = market.get(account);
+      figures.set(key, { costBasis: missingCost || !cb ? null : cb.value, marketValue: mv ? mv.value : null, slack: (cb?.slack ?? 0) + (mv?.slack ?? 0) });
+    }
+  }
+  return figures;
+}
+
+/** The same figures from our holdings, filtered as Plainledger filters: tracked prefix, not V, not an exact zero. */
+function figuresFromOurs(holdings: Holding[], prefixes: string[], valuation: string): Figures {
+  const inValuation = (list: Quantity[]): number | null => {
+    const mine = list.filter((q) => isValuationAlias(q.commodity, valuation));
+    return mine.length ? mine.reduce((n, q) => n + Number(q.quantity), 0) : null;
+  };
+  const figures: Figures = new Map();
+  for (const h of holdings) {
+    if (!h.commodity || !startsWithPrefix(h.account, prefixes) || isValuationAlias(h.commodity, valuation) || /\s/.test(h.account)) continue;
+    if (Math.abs(Number(h.units)) <= 1e-8) continue;
+    const missingCost = h.cost.some((q) => q.commodity.toUpperCase() === h.commodity.toUpperCase() && Math.abs(Number(q.quantity)) > 1e-8);
+    figures.set(rowKey(h.account, h.commodity), {
+      costBasis: missingCost ? null : inValuation(h.cost_value),
+      marketValue: inValuation(h.value),
+      slack: 0,
+    });
+  }
+  return figures;
+}
+
+/** The first difference between Plainledger's figures and ours, or null; the CSV's rounding is allowed for. */
+function diffFigures(theirs: Figures, ours: Figures): string | null {
+  for (const key of [...new Set([...theirs.keys(), ...ours.keys()])].sort()) {
+    const [a, b] = [theirs.get(key), ours.get(key)];
+    const at = key.replace("\0", " [") + "]";
+    if (!a || !b) return `${at}: held in ${a ? "Plainledger's reads" : "ours"} only`;
+    for (const field of ["costBasis", "marketValue"] as const) {
+      const [x, y] = [a[field], b[field]];
+      const same = x === null || y === null ? x === y : Math.abs(x - y) <= a.slack + 1e-9;
+      if (!same) return `${at} ${field}: Plainledger=${x} ours=${y}`;
+    }
+  }
+  return null;
+}
+
+/** Plainledger's holdings reads on one journal: V = EUR, prefixes `assets` and `liabilities`, no end. */
+export type PlainledgerVerdict = { verdict: Verdict; changes: string | null };
+
+/**
+ * Compare Plainledger's figures (the commands it runs, with `--real` added to the per-commodity runs) with ours: it
+ * must agree. Then run the commands as Plainledger runs them today (no `--real` there): where the figures differ,
+ * `changes` says how. That happens for a virtual posting on a tracked account, which `holdings()` ignores.
+ */
+export async function comparePlainledger(paths: string[], cache: RunCache): Promise<PlainledgerVerdict> {
+  const [prefixes, valuation] = [["assets", "liabilities"], "EUR"];
+  const ours = runOursHoldings(paths, { commodity: valuation, end: null, today: localToday() });
+  if ("thrown" in ours) return { verdict: { status: "FAIL", note: `wasm threw: ${ours.thrown}` }, changes: null };
+  if ("refused" in ours) {
+    const { code, details } = ours.refused;
+    const status = code === "unsupported-syntax" ? "SKIP" : "FAIL";
+    return { verdict: { status, note: `${code} ${details.construct ?? ""}`.trim() }, changes: null };
+  }
+  try {
+    const mine = figuresFromOurs(ours.holdings, prefixes, valuation);
+    const real = await plainledgerFigures(paths, prefixes, valuation, true, cache);
+    const diff = diffFigures(real, mine);
+    if (diff) return { verdict: { status: "FAIL", note: `plainledger: ${diff}` }, changes: null };
+    const today = await plainledgerFigures(paths, prefixes, valuation, false, cache);
+    return { verdict: { status: "PASS", note: "" }, changes: diffFigures(today, mine) };
+  } catch (error) {
+    return { verdict: { status: "FAIL", note: `plainledger: ${error instanceof Error ? error.message : error}` }, changes: null };
+  }
+}
+
 /** Every comparison of one hledger case: the raw one, `--cost`, and `--value` for each query. The last two only when the first passes. */
 export type Comparison = {
   raw: Verdict;
@@ -826,6 +1210,9 @@ export type Comparison = {
   values: { query: Query; verdict: Verdict }[];
   postings: Verdict | null;
   prices: Verdict | null;
+  holdings: { question: HoldingQuestion; verdict: Verdict }[];
+  /** Plainledger's own reads (see `comparePlainledger`), for the cases that ask for them. */
+  plainledger: PlainledgerVerdict | null;
 };
 
 /**
@@ -833,16 +1220,26 @@ export type Comparison = {
  * `valueQueries` makes from the journals' `P` lines). The second and third are not run for a Beancount file, for a journal
  * hledger rejects, or when the raw comparison does not pass.
  */
-export async function compareAll(paths: string[], ignorePlaces = false, queries?: Query[]): Promise<Comparison> {
+export async function compareAll(
+  paths: string[],
+  ignorePlaces = false,
+  queries?: Query[],
+  { plainledger = false, holdings = false } = {},
+): Promise<Comparison> {
   const { verdict: raw, agreed, ours } = await compareRaw(paths, ignorePlaces);
-  if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null };
+  if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null };
   const postings = await comparePostings(paths, ours.postings);
   const prices = await comparePrices(paths, ours.prices);
   const cost = await compareCost(paths, ignorePlaces);
   const questions = queries ?? valueQueries(paths.map((p) => readFileSync(p, "utf8")));
   const values: Comparison["values"] = [];
   for (const query of questions) values.push({ query, verdict: await compareValue(paths, query, ignorePlaces) });
-  return { raw, cost, values, postings, prices };
+  const cache: RunCache = new Map();
+  const held: Comparison["holdings"] = [];
+  if (holdings)
+    for (const question of holdingQuestions(paths.map((p) => readFileSync(p, "utf8"))))
+      held.push({ question, verdict: await compareHoldings(paths, question, cache) });
+  return { raw, cost, values, postings, prices, holdings: held, plainledger: plainledger ? await comparePlainledger(paths, cache) : null };
 }
 
 /** The worst verdict, with its note told apart by what was compared. */
@@ -856,6 +1253,11 @@ export function summarize(c: Comparison): Verdict {
       ...verdict,
       note: verdict.note && `value=${query.date},${query.commodity}: ${verdict.note}`,
     })),
+    ...c.holdings.map(({ question, verdict }) => ({
+      ...verdict,
+      note: verdict.note && `holdings end=${question.end ?? "-"} in ${question.commodity}: ${verdict.note}`,
+    })),
+    ...(c.plainledger ? [c.plainledger.verdict] : []),
   ];
   for (const status of ["FAIL", "SKIP"] as const) {
     const hit = parts.find((p) => p.status === status);
@@ -876,15 +1278,24 @@ const total = (...ts: Counts[]): Counts => ({
 });
 
 /** The tallies of what a hledger case compared besides the raw comparison. */
-export type Tallies = { cost: Counts; value: Counts; postings: Counts; prices: Counts };
-export const tallies = (): Tallies => ({ cost: counts(), value: counts(), postings: counts(), prices: counts() });
+export type Tallies = { cost: Counts; value: Counts; postings: Counts; prices: Counts; holdings: Counts; plainledger: Counts };
+export const tallies = (): Tallies => ({
+  cost: counts(),
+  value: counts(),
+  postings: counts(),
+  prices: counts(),
+  holdings: counts(),
+  plainledger: counts(),
+});
 
-/** Add what a hledger case compared under `--cost`, `--value`, `postings()` and `prices()` to the tallies. */
+/** Add what a hledger case compared under `--cost`, `--value`, `postings()`, `prices()` and `holdings()` to the tallies. */
 export function tally(c: Comparison, t: Tallies): void {
   if (c.cost) t.cost[c.cost.status]++;
   for (const { verdict } of c.values) t.value[verdict.status]++;
   if (c.postings) t.postings[c.postings.status]++;
   if (c.prices) t.prices[c.prices.status]++;
+  for (const { verdict } of c.holdings) t.holdings[verdict.status]++;
+  if (c.plainledger) t.plainledger[c.plainledger.verdict.status]++;
 }
 
 /**
@@ -893,7 +1304,7 @@ export function tally(c: Comparison, t: Tallies): void {
  * dates and commodities when it has `P` lines (see `compareAll`); its line shows the worst of them.
  */
 export async function runCases(
-  cases: { name: string; paths: string[]; ignorePlaces?: boolean }[],
+  cases: { name: string; paths: string[]; ignorePlaces?: boolean; plainledger?: boolean }[],
   quiet: boolean,
 ): Promise<void> {
   const comparisons: Comparison[] = [];
@@ -901,18 +1312,20 @@ export async function runCases(
   const worker = async () => {
     while (next < cases.length) {
       const i = next++;
-      const c = cases[i] as { paths: string[]; ignorePlaces?: boolean };
-      comparisons[i] = await compareAll(c.paths, c.ignorePlaces);
+      const c = cases[i] as { paths: string[]; ignorePlaces?: boolean; plainledger?: boolean };
+      comparisons[i] = await compareAll(c.paths, c.ignorePlaces, undefined, { plainledger: c.plainledger, holdings: true });
     }
   };
   await Promise.all(Array.from({ length: JOBS }, worker));
 
   const totals = { hledger: counts(), beancount: counts() };
   const t = tallies();
+  const changes: string[] = [];
   for (const [i, comparison] of comparisons.entries()) {
     const c = cases[i] as { name: string; paths: string[] };
     totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"][comparison.raw.status]++;
     tally(comparison, t);
+    if (comparison.plainledger?.changes) changes.push(`${(cases[i] as { name: string }).name}: ${comparison.plainledger.changes}`);
     const v = summarize(comparison);
     if (!quiet || v.status !== "PASS") console.log(`${v.status} ${c.name}${v.note ? `  ${v.note}` : ""}`);
   }
@@ -920,7 +1333,11 @@ export async function runCases(
   if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${countsLine(h)}\nbeancount: ${countsLine(b)}`);
   console.log(`\nhledger postings: ${countsLine(t.postings)}\nhledger prices:   ${countsLine(t.prices)}`);
   console.log(`hledger --cost:  ${countsLine(t.cost)}\nhledger --value: ${countsLine(t.value)} (one per date and commodity asked)`);
-  const all = total(h, b, t.cost, t.value, t.postings, t.prices);
+  console.log(`hledger holdings: ${countsLine(t.holdings)} (one per end date and commodity asked)`);
+  console.log(`Plainledger's reads: ${countsLine(t.plainledger)} (journals of the app corpus)`);
+  if (changes.length > 0)
+    console.log(`\nPlainledger's figures that change with real postings only (expected; a virtual posting on a tracked account):\n${changes.map((c) => `  ${c}`).join("\n")}`);
+  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger);
   console.log(`\n${all.PASS} pass, ${all.FAIL} fail, ${all.SKIP} skip`);
   if (all.FAIL > 0) process.exitCode = 1;
 }
