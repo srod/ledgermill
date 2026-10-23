@@ -1,0 +1,20 @@
+; A price written on a posting (@, @@) and a cost ({}) are not rates for convert().
+2026-01-01 open Assets:UnitPrice
+2026-01-01 open Assets:TotalPrice
+2026-01-01 open Assets:Cost
+2026-01-01 open Assets:CostAndPrice
+2026-01-01 open Assets:PriceAndDirective
+2026-01-01 open Assets:Native
+2026-01-01 open Equity:Other
+
+; the only price directive is for the last commodity: its own rate, not the 3 EUR of the posting
+2026-02-01 price PPP 5 EUR
+
+2026-01-02 * "annotations"
+  Assets:UnitPrice        2 UUU @ 100 EUR
+  Assets:TotalPrice      -2 TTT @@ 100 EUR
+  Assets:Cost             2 CCC {80 EUR}
+  Assets:CostAndPrice     2 BBB {80 EUR} @ 100 EUR
+  Assets:PriceAndDirective 2 PPP @ 3 EUR
+  Assets:Native          10 EUR
+  Equity:Other

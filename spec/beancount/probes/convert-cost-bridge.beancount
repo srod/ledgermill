@@ -1,0 +1,57 @@
+; A position with a cost converts to V through the currency of its cost; nothing else bridges.
+2026-01-01 open Assets:Direct
+2026-01-01 open Assets:Bridge
+2026-01-01 open Assets:InverseFirstLeg
+2026-01-01 open Assets:InverseSecondLeg
+2026-01-01 open Assets:NoSecondLeg
+2026-01-01 open Assets:NoFirstLeg
+2026-01-01 open Assets:NoPrice
+2026-01-01 open Assets:ZeroSecondLeg
+2026-01-01 open Assets:CostIsTarget
+2026-01-01 open Assets:UnitsAreTarget
+2026-01-01 open Assets:NoCost
+2026-01-01 open Equity:Other
+
+; Direct: T1 has a price in EUR of its own, which wins over the bridge through K1 (50, not 200)
+2026-02-01 price T1 5 EUR
+2026-02-01 price T1 10 K1
+2026-02-01 price K1 2 EUR
+; Bridge: T2 to its cost currency K2, then K2 to EUR (10 * 10 * 2)
+2026-02-01 price T2 10 K2
+2026-02-01 price K2 2 EUR
+; either leg may be an inverse price
+2026-02-01 price K3 0.1 T3
+2026-02-01 price K3 2 EUR
+2026-02-01 price T4 10 K4
+2026-02-01 price EUR 0.5 K4
+; no price from K5 to EUR: the position stays, it is not turned into 100 K5
+2026-02-01 price T5 10 K5
+; no price from T6 to its cost currency K6, only a longer way round: the position stays
+2026-02-01 price T6 10 K7
+2026-02-01 price K7 3 K6
+2026-02-01 price K6 2 EUR
+; no price at all for T7, a price for its cost currency
+2026-02-01 price K8 2 EUR
+; a zero price on the second leg is a rate of zero
+2026-02-01 price T9 10 K9
+2026-02-01 price K9 0 EUR
+; cost currency is the target: only a price of T10 in EUR would convert it
+2026-02-01 price T11 5 EUR
+
+2026-01-02 * "lots, each in its own commodity and cost currency"
+  Assets:Direct          10 T1 {3 K1}
+  Assets:Bridge          10 T2 {3 K2}
+  Assets:InverseFirstLeg 10 T3 {3 K3}
+  Assets:InverseSecondLeg 10 T4 {3 K4}
+  Assets:NoSecondLeg     10 T5 {3 K5}
+  Assets:NoFirstLeg      10 T6 {3 K6}
+  Assets:NoPrice         10 T7 {3 K8}
+  Assets:ZeroSecondLeg   10 T9 {3 K9}
+  Assets:CostIsTarget    10 T10 {3 EUR}
+  Assets:UnitsAreTarget  10 EUR {1.1 K1}
+  Assets:NoCost          10 T11
+  Equity:Other
+
+2026-01-03 * "a lot in EUR whose commodity has a price in EUR"
+  Assets:CostIsTarget    10 T11 {3 EUR}
+  Equity:Other

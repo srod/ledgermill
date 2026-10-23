@@ -1,0 +1,11 @@
+; The bridge is two conversions one after the other, each rounded to 28 digits: the units in the
+; currency of the cost, then that amount in V. Multiplying the two rates first gives another last digit.
+2026-01-01 open Assets:Lot
+2026-01-01 open Equity:Other
+
+2026-02-01 price QQQ 35884403.57 USD
+2026-02-01 price EUR 62.2 USD
+
+2026-01-02 * "a lot with a large number of units"
+  Assets:Lot  12889439741600 QQQ {1 USD}
+  Equity:Other
