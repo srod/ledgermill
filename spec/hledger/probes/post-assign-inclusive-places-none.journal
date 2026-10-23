@@ -1,0 +1,88 @@
+; Cases where the balance of an account in X does not take the places of a sub-account's 0.0 X: the same
+; setup as post-assign-inclusive-places, then an exclusive assignment in X, which shows no places.
+
+2026-01-01 setup a: exclusive assignment, not inclusive
+    a:b:c  0.0 X
+    a:b    4 X
+    a:b    -2 USD
+    z
+
+2026-01-02 a: = takes no sub-account
+    a:b    = -2 USD
+    z
+
+2026-01-03 a: places 0
+    a:b    = 3 X
+    z
+
+2026-02-01 setup b: an inclusive assertion with an amount
+    b:b:c  0.0 X
+    b:b    4 X
+    b:b    -2 USD
+    z
+
+2026-02-02 b: a posting with an amount and =*
+    b:b    0 USD =* -2 USD
+    z
+
+2026-02-03 b: places 0
+    b:b    = 3 X
+    z
+
+2026-03-01 setup c: the sub-account gets its X after the assignment
+    c:b    4 X
+    c:b    -2 USD
+    z
+
+2026-03-02 c: inclusive assignment, no sub-account holds X yet
+    c:b    =* -2 USD
+    z
+
+2026-03-03 c: the sub-account
+    c:b:c  0.0 X
+    z
+
+2026-03-04 c: places 0
+    c:b    = 3 X
+    z
+
+2026-04-01 setup d: the assignment is on the parent
+    d:b:c  0.0 X
+    d:b    4 X
+    d      -2 USD
+    z
+
+2026-04-02 d: inclusive assignment on d, not on d:b
+    d      =* -2 USD
+    z
+
+2026-04-03 d: places 0 for d:b
+    d:b    = 3 X
+    z
+
+2026-05-01 setup e: the sub-account holds Y, not X
+    e:b:c  0.0 Y
+    e:b    4 X
+    e:b    -2 USD
+    z
+
+2026-05-02 e: inclusive assignment
+    e:b    =* -2 USD
+    z
+
+2026-05-03 e: places 0
+    e:b    = 3 X
+    z
+
+2026-06-01 setup f: no sub-account holds X
+    f:b    4 X
+    f:b    -2 USD
+    z
+
+2026-06-02 f: total inclusive assignment
+    f:b    ==* -2 USD
+    z
+
+2026-06-03 f: places 0
+    f:b    = 3 X
+    z

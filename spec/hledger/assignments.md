@@ -91,6 +91,9 @@ plus that amount, so a later `a = 0 D` gives the share back. A zero share is not
   same value with fewer places is rare and is not probed).
   A zero whole is no exception to the plain arithmetic (`f` 1 and `f:g` -1.00 give `1.00`).
 - `==*` already zeroes these (it zeroes every commodity of the subtree); the rule above is for `=*`.
+- A zero share is not listed, but the account's balance in D still takes the places of the sub-accounts' amounts, and
+  a later assignment in D is worked out with them: see [postings-flat](postings-flat.md), "the places of an amount"
+  (`probes/post-assign-inclusive-places.journal`).
 
 Probe `probes/assign-inclusive-other.journal`, command `spec/hledger/show.sh` on it. Lines 9 and 15
 (`a` holds -2.00 X and `a:b` -1 X; `d:b:c` 2 Y; `f` 1 Y and `f:g` 1.00 Y):

@@ -1,0 +1,103 @@
+; An inclusive assignment (=* or ==*) makes the account's balance in every other commodity that a
+; sub-account holds as precise as that sub-account, even when what it takes from the sub-account is zero.
+; The last transaction of each case is an exclusive assignment in that commodity (X): its row shows the places.
+
+2026-01-01 setup a: sub-account with 0.0 X
+    a:b:c  0.0 X
+    a:b    4 X
+    a:b    -2 USD
+    z
+
+2026-01-02 a: the account's X is now as precise as the sub-account's
+    a:b    =* -2 USD
+    z
+
+2026-01-03 a: exclusive assignment in X
+    a:b    = 3 X
+    z
+
+2026-02-01 setup b: two sub-accounts, 0.0 X and 0.00 X
+    b:b:c  0.0 X
+    b:b:d  0.00 X
+    b:b    4 X
+    b:b    -2 USD
+    z
+
+2026-02-02 b: the most places
+    b:b    =* -2 USD
+    z
+
+2026-02-03 b: exclusive assignment in X
+    b:b    = 3 X
+    z
+
+2026-03-01 setup c: the account holds no X itself
+    c:b:c  0.0 X
+    c:b    -2 USD
+    z
+
+2026-03-02 c: inclusive assignment
+    c:b    =* -2 USD
+    z
+
+2026-03-03 c: exclusive assignment in X
+    c:b    = 3 X
+    z
+
+2026-04-01 setup d: sub-account with 0.0 X, total inclusive
+    d:b:c  0.0 X
+    d:b    4 X
+    d:b    -2 USD
+    z
+
+2026-04-02 d: ==* takes 4.0 X off the subtree
+    d:b    ==* -2 USD
+    z
+
+2026-04-03 d: the account holds 0.0 X
+    d:b    = 3 X
+    z
+
+2026-05-01 setup e: sub-account with 0.0 X
+    e:b:c  0.0 X
+    e:b    4 X
+    e:b    -2 USD
+    z
+
+2026-05-02 e: inclusive assignment
+    e:b    =* -2 USD
+    z
+
+2026-05-03 e: places 1
+    e:b    = 3 X
+    z
+
+2026-05-04 e: another sub-account, more places, not looked at yet
+    e:b:d  0.000 X
+    z
+
+2026-05-05 e: places still 1
+    e:b    = 4 X
+    z
+
+2026-05-06 e: the next inclusive assignment looks again
+    e:b    =* -2 USD
+    z
+
+2026-05-07 e: places 3
+    e:b    = 5 X
+    z
+
+2026-06-01 setup f: sub-account with 0.0 X
+    f:b:c  0.0 X
+    f:b    4 X
+    f:b    -2 USD
+    z
+
+2026-06-02 f: inclusive assignment
+    f:b    =* -2 USD
+    z
+
+2026-06-03 f: a total exclusive assignment lists X with the places
+    f:b    == -2 USD
+    z

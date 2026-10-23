@@ -281,10 +281,29 @@ The row shows `max(places of the quantity, precision)` places. A zero is always 
   though the quantity is `-3`; `0.00 EUR` held and `= 3 EUR` give `3.00`. The probe is
   `probes/assign-diff-places.journal`; the CSV rows of its second transaction (line 5) are
   `p1 -3.00 EUR` and `z 3.00 EUR`.
+- the balance an assignment starts from has the precision of an **inclusive assignment** before it: after `a  =* B` or
+  `a  ==* B` (a posting with no amount), the balance of `a` in every commodity other than `B`'s that a sub-account of `a`
+  holds at that moment is as precise as that sub-account's amounts, though the amount the assignment takes in that commodity
+  is zero and is not listed. With `a:b:c  0.0 X`, `a:b` holding `2 X` and `a:b  =* -2 USD`, a later `a:b  = 3 X` is
+  `1.0 X` (the balance has one place), where without the `=*` it is `1 X`. Details:
+  - it needs the assignment: an exclusive assignment (`= -2 USD`, `== -2 USD`), a plain posting, and an inclusive
+    assertion on a posting that has an amount (`0 USD =* -2 USD`) leave the places alone;
+  - the most places among the sub-accounts (`0.0 X` and `0.00 X` give two); the sub-accounts' commodity must be the one of
+    the later assignment (`0.0 Y` changes nothing for X), and the account need not hold any X itself;
+  - it is the sub-accounts as they are when the assignment runs: one that gets its X later changes nothing, until
+    another inclusive assignment on `a:b` looks at it again (`0.000 X` posted after, then `=*` again: three places);
+  - it is for the account of the assignment only (`a  =* ...` does not change the places of `a:b`);
+  - it lasts: any later exclusive assignment on the account in that commodity, `=` or `==`, is worked out with it (`==`
+    lists the X it takes off with one place, `-4.0 X`);
+  - with `==*` the account's X is afterwards the negated sum of the sub-accounts (`4 X` on `a:b` and `0.0 X` below: the `==*`
+    takes `-4.0 X`, and `= 3 X` after it is `3.0 X`); with no sub-account holding X, `==*` leaves no places.
+  The probes are `probes/post-assign-inclusive-places.journal` (the rows that show it) and
+  `probes/post-assign-inclusive-places-none.journal` (the ones that do not).
 
 ### Probe
 
-`probes/post-elided-places.journal`, `probes/post-default-commodity.journal`
+`probes/post-elided-places.journal`, `probes/post-default-commodity.journal`,
+`probes/post-assign-inclusive-places.journal`, `probes/post-assign-inclusive-places-none.journal`
 
 ### Command and output
 
@@ -333,6 +352,34 @@ $ spec/hledger/show-postings.sh spec/hledger/probes/post-default-commodity.journ
 4 2026-01-04 | "bare amount, group mark" | post-default-commodity.journal:16-18 | b | -1000.00 EUR
 5 2026-01-05 | "bare amount in a cost" | post-default-commodity.journal:20-22 | a | 3 X
 5 2026-01-05 | "bare amount in a cost" | post-default-commodity.journal:20-22 | b | -6.00 EUR
+```
+
+Inclusive assignments, the rows of the exclusive assignment in X that follows each (the setup and the `=*` rows, which show
+nothing, are left out):
+
+```text
+$ spec/hledger/show-postings.sh spec/hledger/probes/post-assign-inclusive-places.journal
+3 2026-01-03 | "a: exclusive assignment in X" | post-assign-inclusive-places.journal:15-17 | a:b | -1.0 X
+6 2026-02-03 | "b: exclusive assignment in X" | post-assign-inclusive-places.journal:30-32 | b:b | -1.00 X
+9 2026-03-03 | "c: exclusive assignment in X" | post-assign-inclusive-places.journal:43-45 | c:b | 3.0 X
+11 2026-04-02 | "d: ==* takes 4.0 X off the subtree" | post-assign-inclusive-places.journal:53-55 | d:b | -4.0 X
+12 2026-04-03 | "d: the account holds 0.0 X" | post-assign-inclusive-places.journal:57-59 | d:b | 3.0 X
+15 2026-05-03 | "e: places 1" | post-assign-inclusive-places.journal:71-73 | e:b | -1.0 X
+17 2026-05-05 | "e: places still 1" | post-assign-inclusive-places.journal:79-81 | e:b | 1 X
+19 2026-05-07 | "e: places 3" | post-assign-inclusive-places.journal:87-89 | e:b | 1.000 X
+22 2026-06-03 | "f: a total exclusive assignment lists X with the places" | post-assign-inclusive-places.journal:101-103 | f:b | -4.0 X
+```
+
+and the cases that leave the places alone:
+
+```text
+$ spec/hledger/show-postings.sh spec/hledger/probes/post-assign-inclusive-places-none.journal
+3 2026-01-03 | "a: places 0" | post-assign-inclusive-places-none.journal:14-16 | a:b | -1 X
+6 2026-02-03 | "b: places 0" | post-assign-inclusive-places-none.journal:28-30 | b:b | -1 X
+10 2026-03-04 | "c: places 0" | post-assign-inclusive-places-none.journal:45-47 | c:b | -1 X
+13 2026-04-03 | "d: places 0 for d:b" | post-assign-inclusive-places-none.journal:59-61 | d:b | -1 X
+16 2026-05-03 | "e: places 0" | post-assign-inclusive-places-none.journal:73-75 | e:b | -1 X
+19 2026-06-03 | "f: places 0" | post-assign-inclusive-places-none.journal:86-88 | f:b | 3 X
 ```
 
 ## Rule: costs, lots and assertions are not in the row
