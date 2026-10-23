@@ -33,6 +33,7 @@ bean-query --version                       # beanquery 0.2.0, beancount 3.2.3
 bun harness/compare.ts            # every corpus journal and pair, one line each
 bun harness/compare.ts --quiet    # only the lines that are not PASS
 bun harness/fuzz.ts [N] [SEED]    # N random journals (default 500); CI runs 1,000 with a new seed each run
+                                  # (--save DIR writes the journals that fail to DIR, with their holdings questions)
 bun harness/fuzz.ts --graph [N] [SEED]   # N random networks of prices, valued at random dates; CI runs 300
 bun harness/real.ts FILE...       # your own journals (several files: each alone, then all together)
 bun test harness/lib.test.ts      # the harness's own checks
@@ -169,9 +170,10 @@ listed under the summary (`Plainledger's figures that change with real postings 
 account, and none of the app journals has one, so the list is empty. Accounts with a space in their name are left out of both
 sides: Plainledger looks them up by their first word. The summary line is `Plainledger's reads: ...`.
 
-The fuzzer does not ask `holdings()` yet. Asked of 100 random journals it found two where hledger drops an amount that looks zero at
-its own display precision (an inferred amount below the precision of its style) from a run with a `cur:` query, or from the units run,
-and ledgermill keeps it (see the Gaps of `spec/hledger/holdings.md`); that rule is to be probed first.
+The fuzzer asks `holdings()` too (two questions per journal: no end date, and one end date; a random valuation commodity).
+Every hledger run of the holdings comparison has `-E`: without it `balance` hides an account whose amounts all look zero at
+their display precision (an inferred `-0.01506 Y` when `Y` is written with one place), with or without `cur:`, and the
+engine keeps the exact amount (`spec/hledger/holdings.md`, "balance hides an account whose amounts all look zero").
 
 ### Beancount
 

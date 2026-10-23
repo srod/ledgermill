@@ -1006,7 +1006,7 @@ export async function compareHoldings(paths: string[], q: HoldingQuestion, cache
   const order = holdingsInOrder(ours.holdings);
   if (order) return { status: "FAIL", note: order };
   try {
-    const base = ["balance", "--layout=tidy", "-O", "json", "--real", ...(q.end ? ["-e", q.end] : [])];
+    const base = ["balance", "--layout=tidy", "-O", "json", "--real", "-E", ...(q.end ? ["-e", q.end] : [])];
     const units = decodeBalance(await cached(cache, paths, base));
     const all = await journalCommodities(paths, cache);
     const commodities = new Set([...ours.holdings.map((h) => h.commodity), ...[...units.values()].flatMap((m) => [...m.keys()])]);
