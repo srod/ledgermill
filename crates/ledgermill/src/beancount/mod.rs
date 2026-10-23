@@ -16,7 +16,7 @@ mod pydec;
 mod text;
 mod value;
 
-pub(crate) use value::{at_cost, holdings, value};
+pub(crate) use value::{at_cost, both_ways_refusal, holdings, value};
 
 use crate::model::{
     Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, PriceDirective, Quantity,

@@ -186,7 +186,8 @@ impl Ledger {
     /// finding with code `unsupported-syntax` (details `construct`): `value-without-commodity`
     /// for an empty `commodity` (hledger reads `--value=DATE,` as another mode that the spec
     /// does not cover), and for a Beancount ledger the first `unsupported-syntax` finding of
-    /// [`Ledger::check`], if any.
+    /// [`Ledger::check`], if any; also `price-both-ways` for a Beancount ledger with a price of zero in a
+    /// pair priced both ways (spec/beancount/convert-rates.md).
     ///
     /// Beancount (`convert(position, commodity, date)`: spec/beancount/convert-rates.md and
     /// `convert-positions.md`): rates come from the `price` directives only, never from `@`, `@@` or a
@@ -219,6 +220,9 @@ impl Ledger {
             ));
         }
         if self.beancount {
+            if let Some(refusal) = crate::beancount::both_ways_refusal(&self.price_list) {
+                return Err(refusal);
+            }
             return Ok(crate::beancount::value(
                 &self.transactions,
                 &self.price_list,

@@ -760,3 +760,26 @@ fn a_pair_priced_both_ways_gets_its_own_prices_back_as_a_double_inverse() {
         assert_eq!(rates, expected, "{from} in {to}");
     }
 }
+
+#[test]
+fn a_zero_price_in_a_pair_priced_both_ways_is_refused_for_value_and_holdings_only() {
+    let ledger = load(&[file(
+        "z.beancount",
+        include_str!("../../../spec/beancount/probes/refused/price-both-ways-zero.beancount"),
+    )]);
+    assert_eq!(ledger.check().len(), 0);
+    for finding in [
+        ledger.value("2026-01-03", "CCC").unwrap_err(),
+        ledger.holdings(&query("CCC", None)).unwrap_err(),
+    ] {
+        assert_eq!(finding.code, "unsupported-syntax");
+        assert_eq!(finding.details, json!({ "construct": "price-both-ways" }));
+        assert_eq!((finding.file.as_str(), finding.line), ("z.beancount", 7));
+    }
+    // Nothing else of the ledger is in doubt.
+    assert_eq!(ledger.prices().len(), 2);
+    assert!(ledger.at_cost().is_ok());
+    // A zero price in a pair priced one way only is the rate of zero.
+    let one_way = probe!("convert-rate-inverse");
+    assert!(one_way.value("2026-02-02", "EUR").is_ok());
+}

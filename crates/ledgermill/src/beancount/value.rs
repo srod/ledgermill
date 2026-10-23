@@ -6,10 +6,36 @@
 //! `prices()`): their numbers are `Num`'s own output, so they parse back exactly.
 
 use super::pydec::Num;
-use crate::model::{Amount, Holding, Posting, PriceDirective, Quantity, Transaction};
+use crate::model::{Amount, Finding, Holding, Posting, PriceDirective, Quantity, Transaction};
+use crate::problem::unsupported_finding;
 use num_bigint::BigInt;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap};
+
+/// A pair priced both ways, one of its prices zero: what the reference tool takes for the latest
+/// entry then follows no rule the notes settle (spec/beancount/convert-rates.md), so a valuation
+/// is refused (`price-both-ways`), on the line of the first such zero price.
+pub(crate) fn both_ways_refusal(prices: &[PriceDirective]) -> Option<Finding> {
+    let priced = |from: &str, to: &str| {
+        prices
+            .iter()
+            .any(|p| p.commodity == from && p.rate.commodity == to)
+    };
+    prices
+        .iter()
+        .find(|p| {
+            Num::parse(&p.rate.quantity).is_some_and(|n| n.is_zero())
+                && priced(&p.rate.commodity, &p.commodity)
+        })
+        .map(|p| {
+            unsupported_finding(
+                "price-both-ways",
+                "A price of zero in a pair that is priced both ways is not supported.",
+                &p.file,
+                p.line,
+            )
+        })
+}
 
 /// The rates the `price` directives make: for each ordered pair, its entries in the order of the
 /// prices table (spec/beancount/convert-rates.md, "A pair seen both ways").

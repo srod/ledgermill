@@ -137,7 +137,8 @@ impl Ledger {
     /// is not a real `YYYY-MM-DD`. A finding with code `unsupported-syntax` (details `construct`):
     /// `value-without-commodity` for an empty `query.commodity`, `cost-conversion-postings` for a
     /// transaction [`Ledger::at_cost`] refuses, and for a Beancount ledger the first
-    /// `unsupported-syntax` finding of [`Ledger::check`], if any.
+    /// `unsupported-syntax` finding of [`Ledger::check`], if any, or `price-both-ways` (a price of zero in a pair
+    /// priced both ways).
     pub fn holdings(&self, query: &HoldingsQuery) -> Result<Vec<Holding>, Finding> {
         let end = match &query.end {
             None => None,
@@ -157,6 +158,9 @@ impl Ledger {
             ));
         }
         if self.beancount {
+            if let Some(refusal) = crate::beancount::both_ways_refusal(&self.price_list) {
+                return Err(refusal);
+            }
             // `WHERE date <= D` with D the day before `end`; no day before the first one.
             let through = match end {
                 None => None,
