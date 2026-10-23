@@ -1217,14 +1217,14 @@ export type Comparison = {
 
 /**
  * Compare a case raw, then under `--cost`, then under `--value=DATE,COMM` for `queries` (by default the ones
- * `valueQueries` makes from the journals' `P` lines). The second and third are not run for a Beancount file, for a journal
+ * `valueQueries` makes from the journals' `P` lines). `holdings` asks the questions `holdingQuestions` makes, or the ones given. The `--cost`, `--value` and holdings comparisons are not run for a Beancount file, for a journal
  * hledger rejects, or when the raw comparison does not pass.
  */
 export async function compareAll(
   paths: string[],
   ignorePlaces = false,
   queries?: Query[],
-  { plainledger = false, holdings = false } = {},
+  { plainledger = false, holdings = false }: { plainledger?: boolean; holdings?: boolean | HoldingQuestion[] } = {},
 ): Promise<Comparison> {
   const { verdict: raw, agreed, ours } = await compareRaw(paths, ignorePlaces);
   if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null };
@@ -1237,7 +1237,7 @@ export async function compareAll(
   const cache: RunCache = new Map();
   const held: Comparison["holdings"] = [];
   if (holdings)
-    for (const question of holdingQuestions(paths.map((p) => readFileSync(p, "utf8"))))
+    for (const question of holdings === true ? holdingQuestions(paths.map((p) => readFileSync(p, "utf8"))) : holdings)
       held.push({ question, verdict: await compareHoldings(paths, question, cache) });
   return { raw, cost, values, postings, prices, holdings: held, plainledger: plainledger ? await comparePlainledger(paths, cache) : null };
 }

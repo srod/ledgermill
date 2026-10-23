@@ -1,19 +1,23 @@
-// bun harness/fuzz.ts [COUNT] [SEED] [--keep]
-// bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep]
+// bun harness/fuzz.ts [COUNT] [SEED] [--keep] [--save DIR]
+// bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep] [--save DIR]
 // Random journals, mostly valid, compared like the corpus: hledger against our wasm. Covers
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
 // inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
 // numbers, so that assertions often hold) and big numbers. Journals sometimes have `P` lines. Each
 // journal is compared raw, under `--cost` and under one or two random `--value=DATE,COMM`.
 // With `--graph`: dense random networks of prices (9 to 11 commodities, 1 to 16 `P` lines) valued
-// by two random `--value` runs each, raw and `--cost` too. Every case must
+// by two random `--value` runs each, raw and `--cost` too. Each journal is also asked two `holdings()` questions
+// (no end date, and one end date; a random valuation commodity). `--save DIR` writes the journals that fail
+// there, with their questions. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Comparison, compareAll, type Query, summarize, tally, tallies } from "./lib.ts";
+import { type Comparison, compareAll, type HoldingQuestion, type Query, summarize, tally, tallies } from "./lib.ts";
 
-const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const saveAt = process.argv.indexOf("--save");
+const saveDir = saveAt < 0 ? null : (process.argv[saveAt + 1] ?? null);
+const args = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--save");
 const count = Number(args[0] ?? 500);
 const seed = Number(args[1] ?? 1);
 const keep = process.argv.includes("--keep");
@@ -32,6 +36,8 @@ function rng(start: number): () => number {
   };
 }
 const r = rng(seed);
+// Its own stream: asking holdings questions must not change the journals a seed gives.
+const rq = rng(seed ^ 0x5bd1e995);
 const int = (n: number) => Math.floor(r() * n);
 const pick = <T>(xs: readonly T[]): T => xs[int(xs.length)] as T;
 const chance = (p: number) => r() < p;
@@ -371,9 +377,9 @@ function priceLines(count: number, commodities: readonly string[], style: Style)
 }
 
 /** A random `--value` question: a date around the `P` lines, a commodity of the fuzzer's. */
-function randomQuery(commodities: readonly string[]): Query {
-  const day = int(10);
-  return { date: day === 0 ? "2025-12-31" : `2026-01-${String(day).padStart(2, "0")}`, commodity: pick(commodities).replace(/^"|"$/g, "") };
+function randomQuery(commodities: readonly string[], rand: () => number = r): Query {
+  const day = Math.floor(rand() * 10);
+  return { date: day === 0 ? "2025-12-31" : `2026-01-${String(day).padStart(2, "0")}`, commodity: (commodities[Math.floor(rand() * commodities.length)] as string).replace(/^"|"$/g, "") };
 }
 
 function journal(): { text: string; second?: string } {
@@ -441,8 +447,12 @@ for (let k = 0; k < count; k++) {
     writeFileSync(paths[1] as string, second);
   }
   const commodities = "used" in j ? j.used : [...COMMODITIES];
+  const asked = Array.from({ length: 2 }, (_, i): HoldingQuestion => {
+    const q = randomQuery(commodities, rq);
+    return { end: i === 0 ? null : q.date, commodity: q.commodity };
+  });
   const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(commodities));
-  const c: Comparison = await compareAll(paths, false, queries);
+  const c: Comparison = await compareAll(paths, false, queries, { holdings: asked });
   raw[c.raw.status]++;
   tally(c, t);
   if (c.raw.status === "PASS" && c.raw.note === "") valid++;
@@ -450,11 +460,18 @@ for (let k = 0; k < count; k++) {
   if (v.status === "FAIL") {
     const queried = c.values.find((x) => x.verdict.status === "FAIL");
     console.log(`FAIL fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${j.text}${second ? `--- second file\n${second}` : ""}`);
+    if (saveDir) {
+      mkdirSync(saveDir, { recursive: true });
+      const questions = asked.map((q) => `${q.end ?? "-"},${q.commodity}`).join(" ");
+      const name = join(saveDir, `${graph ? "graph" : "fuzz"}-${seed}-${k}`);
+      writeFileSync(`${name}.journal`, `; ${v.note}\n; holdings questions (end,commodity): ${questions}\n${j.text}`);
+      if (second !== undefined) writeFileSync(`${name}.second.journal`, second);
+    }
   }
 }
 const counts = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
 console.log(`fuzz${graph ? " --graph" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${raw.FAIL} fail, ${raw.SKIP} skip`);
-console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}`);
+console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}\n  holdings: ${counts(t.holdings)}`);
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
-if (raw.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL > 0) process.exitCode = 1;
+if (raw.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL > 0) process.exitCode = 1;
