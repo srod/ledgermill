@@ -14,11 +14,11 @@ journal.
 load(files) → ledger
 ledger.transactions()   booked transactions with their file and line (Beancount: padding included)
 ledger.postings()       one row per posting and commodity, with its transaction's header fields
-ledger.prices()         hledger: the `P` directives, as `hledger prices` lists them (Beancount: empty for now)
+ledger.prices()         the `P` directives, as `hledger prices` lists them; the Beancount `price` directives, as its `prices` table does
 ledger.check()          problems found, as structured findings
-ledger.atCost()         hledger: the transactions as `print --cost` gives them
-ledger.value(date, commodity)   hledger: the transactions as `print --value=DATE,COMMODITY` gives them
-ledger.holdings(query)  hledger: per account and commodity, the units, cost, value and cost value (real postings only)
+ledger.atCost()         the transactions as hledger's `print --cost` gives them; every cost as Beancount's `cost(position)`
+ledger.value(date, commodity)   the transactions as `print --value=DATE,COMMODITY` gives them; every posting as Beancount's `convert(position, V, date)`
+ledger.holdings(query)  per account and commodity, the units, cost, value and cost value (hledger: real postings only)
 ledger.free()
 ```
 
@@ -35,7 +35,8 @@ In Rust these are `Ledger::at_cost()` and `Ledger::value(date, commodity)`; both
 every amount at the prices (`P` lines) known on `date` (`YYYY-MM-DD`), by the shortest path of prices, with the
 arithmetic hledger uses. A question ledgermill cannot answer as hledger does is an `Err` with an `unsupported-syntax`
 finding, not a guess: an `at_cost` on a transaction that has pairs of conversion postings together with several priced
-postings or a balance assignment, a `value` in no commodity, and both on a Beancount ledger (its valuation is not built). A date
+postings or a balance assignment, a `value` in no commodity, and, on a Beancount ledger, the first construct it refused (a
+Beancount file with a refused construct lists nothing, so a valuation would look complete and be empty). A date
 that is not `YYYY-MM-DD` is an `invalid-argument` finding. In the wasm binding the `Err` is thrown as an `Error` whose message is
 the finding as JSON.
 
@@ -45,6 +46,16 @@ in, `end` an optional exclusive `YYYY-MM-DD` like `-e`, and `today` the date tod
 `cost_value` (the same name in JSON), exact, every sum rounded to ten places once. Only real postings count; no account-prefix
 filter and no symbol aliases (callers do those). It refuses like `at_cost` and `value` (`unsupported-syntax`) and answers an
 `invalid-argument` finding for an `end` or `today` that is not a date; see `spec/hledger/holdings.md`.
+
+For Beancount, `prices()` lists the `price` directives by date (the same date as written, nothing dropped), and the three reads
+follow `convert()`, `cost()` and the sums of the queries Plainledger sends to `bean-query`
+([price-table](spec/beancount/price-table.md), [convert-rates](spec/beancount/convert-rates.md),
+[convert-positions](spec/beancount/convert-positions.md), [cost-of-position](spec/beancount/cost-of-position.md),
+[holdings](spec/beancount/holdings.md)): rates come from `price` directives only, never from `@`, `@@` or a cost; the latest
+price of a pair on or before the date, direct or inverse; no chain of pairs, except that a position with a cost goes through the
+cost's currency when both rates exist. `holdings` takes `end` as exclusive here too (the postings dated before it) but values at
+the latest prices there are, as `convert(position, V)` does, and does not use `today`. Beancount's numbers come with its own
+arithmetic: 28 significant digits, `holdings` strings in plain digits, `value` strings as `number()` prints them (`1E-7`).
 
 For hledger, balance assertions (`=`, `==`, `=*`, `==*`) and assignments are read: `check()` reports a failed
 assertion (`assertion-failed`, with the account, commodity and the exact expected and actual amounts) and the
@@ -62,8 +73,7 @@ constraints, duplicates, unbalanced transactions and more (`spec/README.md` list
 Beancount `pad` is read and its padding transactions are built; `include`, `plugin`, unusual options
 and AVERAGE booking are refused with a finding.
 
-More questions follow: Beancount prices and valuation, and a
-formatter that only realigns whitespace. See the issue tracker for the plan.
+More questions follow: a formatter that only realigns whitespace. See the issue tracker for the plan.
 
 ledgermill is not a command-line clone of hledger or Beancount. It does not print their
 reports and does not copy their messages; it answers questions about a ledger.
