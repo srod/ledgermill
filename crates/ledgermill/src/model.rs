@@ -65,6 +65,42 @@ pub struct PriceDirective {
     pub line: u32,
 }
 
+/// What `Ledger::holdings` is asked (hledger only).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HoldingsQuery {
+    /// The commodity `value` and `cost_value` are given in (`V`); not empty.
+    pub commodity: String,
+    /// `YYYY-MM-DD`, exclusive like `-e`: only postings dated before it count, and values are taken
+    /// at the day before. `None`: every posting counts.
+    #[serde(default)]
+    pub end: Option<String>,
+    /// `YYYY-MM-DD`, today's date. The core has no clock; it decides which `P` lines may move the
+    /// valuation date when there is no `end`.
+    pub today: String,
+}
+
+/// One account's position in one commodity, as `Ledger::holdings` gives it.
+///
+/// `cost`, `value` and `cost_value` list one quantity per commodity, in code point order, without
+/// the commodities whose sum is exactly zero. JSON field names are as written here.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Holding {
+    /// The account, as written (a virtual posting is never counted).
+    pub account: String,
+    /// The commodity `C` held; `""` for amounts without one.
+    pub commodity: String,
+    /// The exact sum of the quantities of `commodity`, costs and lots ignored. May be `"0"`: see
+    /// `Ledger::holdings`.
+    pub units: String,
+    /// The same postings at their cost (`hledger --cost`): the costs' commodities, and `commodity`
+    /// itself for the amounts without a cost.
+    pub cost: Vec<Quantity>,
+    /// The units valued at the end date in the query's commodity (`--value=end,V`).
+    pub value: Vec<Quantity>,
+    /// The cost, valued (`--cost --value=end,V`).
+    pub cost_value: Vec<Quantity>,
+}
+
 /// The price written (or inferred) for an amount: `@` gives a unit price, `@@` a total.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]

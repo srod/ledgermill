@@ -1095,12 +1095,14 @@ impl FileParser<'_> {
                 continue;
             }
             let exact = Exact {
+                date: tx.date,
                 postings: tx
                     .postings
                     .iter()
                     .zip(&walked.drafts)
                     .zip(&plan.tagged)
                     .map(|((p, d), &tagged)| ExactPosting {
+                        date: posting_date(&p.comment_lines, tx.date.year()).unwrap_or(tx.date),
                         amounts: d.amounts.clone().unwrap_or_default(),
                         conversion_tagged: tagged
                             || p.comment_lines

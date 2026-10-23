@@ -18,7 +18,7 @@ pub(crate) struct Plan {
 
 /// An amount on its way to the output of `--cost`: with a cost it becomes an amount in the
 /// cost's commodity (no cost, no lot); without one it is left as it is, lot kept.
-fn at_cost_term(a: &WrittenAmount) -> Term<'_> {
+pub(crate) fn at_cost_term(a: &WrittenAmount) -> Term<'_> {
     match &a.cost {
         None => Term {
             commodity: a.commodity.as_str(),

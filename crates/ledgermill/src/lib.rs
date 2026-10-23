@@ -14,6 +14,7 @@ mod date;
 mod decimal;
 mod exact;
 mod flat;
+mod holdings;
 mod model;
 mod number;
 mod parse;
@@ -30,15 +31,16 @@ pub use model::*;
 
 /// A loaded ledger. Freed by drop.
 ///
-/// Besides the public lists it keeps what `at_cost` and `value` need (hledger only): every `P` line
-/// and the exact amounts of each transaction, so that those two questions read nothing again.
+/// Besides the public lists it keeps what `at_cost`, `value` and `holdings` need (hledger only):
+/// every `P` line and the exact amounts and dates of each transaction, so that those questions read
+/// nothing again.
 #[derive(Debug, Default)]
 pub struct Ledger {
     transactions: Vec<Transaction>,
     postings: Vec<FlatPosting>,
     findings: Vec<Finding>,
-    /// Parallel to `transactions` (hledger): the exact amounts and cost tags, for `at_cost` and
-    /// `value`.
+    /// Parallel to `transactions` (hledger): the exact amounts, dates and cost tags, for `at_cost`,
+    /// `value` and `holdings`.
     exact: Vec<Exact>,
     /// Every `P` line, in parse order (hledger).
     prices: Vec<prices::Price>,

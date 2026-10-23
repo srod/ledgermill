@@ -16,6 +16,29 @@ impl Date {
         self.year
     }
 
+    /// The day before, `None` before year 0.
+    pub(crate) fn previous_day(self) -> Option<Date> {
+        let Date { year, month, day } = self;
+        if day > 1 {
+            return Some(Date {
+                day: day - 1,
+                ..self
+            });
+        }
+        if month > 1 {
+            return Some(Date {
+                month: month - 1,
+                day: days_in_month(year, month - 1),
+                year,
+            });
+        }
+        Some(Date {
+            year: year.checked_sub(1)?,
+            month: 12,
+            day: 31,
+        })
+    }
+
     /// `YYYY-MM-DD` and nothing else: four digits, two, two, a real day.
     pub(crate) fn from_iso(text: &str) -> Option<Date> {
         let mut parts = text.split('-');

@@ -12,7 +12,7 @@ pub(crate) const DIVISION_PLACES: u32 = 255;
 /// Places a reported quantity is rounded to.
 pub(crate) const OUTPUT_PLACES: u32 = 10;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Decimal {
     mantissa: BigInt,
     places: u32,
