@@ -1,0 +1,64 @@
+; An elided posting has one row per commodity of the balance, in commodity-name order.
+2026-01-01 three commodities
+    a      1 b
+    b      2 Z
+    c      3 a
+    d      4 $
+    e      5 €
+    f      6 "E F"
+    g      7 É
+    h
+2026-01-02 elided posting in the middle
+    a      4 X
+    b
+    c     -9 Z
+    d      7 Y
+; Zero amounts of the balance: all zero gives one row, the smallest named commodity.
+2026-01-03 every commodity nets to zero
+    a      1 B
+    b     -1 B
+    c      1 A
+    d     -1 A
+    e
+2026-01-04 zeros are left out when another amount is not zero
+    a      1 B
+    b     -1 B
+    c      2 A
+    d      3 C
+    e     -3 C
+    f
+2026-01-05 a commodity-less zero
+    a      1
+    b     -1
+    c      1 Z
+    d     -1 Z
+    e
+2026-01-06 only the commodity-less amount
+    a      1
+    b     -1
+    c
+; Assignments.
+2026-01-07 holdings to assign over
+    n      5 X
+    n      7 Y
+    q
+2026-01-08 total assignment zeroes two commodities
+    n      == 0
+    q
+2026-01-09 a difference of zero leaves an empty amount
+    n      = 0 X
+    m      0 X
+2026-01-10 and so does an elided posting after it
+    n      = 0 X
+    m
+; The empty commodity sorts first.
+2026-01-11 a bare number and a named commodity
+    a      1
+    b      3 B
+    c
+2026-01-12 zeros of a bare number and a named commodity
+    a      1
+    b     -1
+    c      1 B
+    d     -1 B
+    e

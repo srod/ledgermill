@@ -1,0 +1,8 @@
+2026-01-01 crlf  ; header comment
+    a    1 X  ; posting comment
+    ; second comment line
+    b   -1 X
+
+2026-01-02 crlf, no trailing newline
+    a    2 X
+    b

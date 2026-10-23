@@ -1,0 +1,22 @@
+; The rows show the units; the cost or lot is not in them.
+2026-01-01 unit cost
+    a      10 X @ 2 EUR
+    b     -20 EUR
+2026-01-02 total cost
+    a      10 X @@ 25 EUR
+    b     -25 EUR
+2026-01-03 lot cost
+    a      10 X {3 EUR}
+    b     -30 EUR
+2026-01-04 total lot, date and label
+    a      10 X {{35 EUR}} [2026-01-01] (lab)
+    b     -35 EUR
+2026-01-05 lot and price
+    a      10 X {3 EUR} @ 4 EUR
+    b     -40 EUR
+2026-01-06 the elided posting of a costed one holds the cost commodity
+    a      10 X @ 2.5 EUR
+    b
+2026-01-07 an inferred price
+    a      10 X
+    b     -30 EUR

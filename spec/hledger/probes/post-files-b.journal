@@ -1,0 +1,9 @@
+2026-01-02 b1 same date as a1
+    p   3 X
+    q
+; comment
+2026-01-01 b2 no postings
+
+2026-01-03 b3
+    p   5 X
+    q

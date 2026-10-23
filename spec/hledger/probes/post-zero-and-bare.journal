@@ -1,0 +1,27 @@
+; Zero amounts, amounts with no commodity, number forms.
+2026-01-01 zeros
+    a      0 EUR
+    b      0.00 EUR
+    c      -0 EUR
+    d      0
+    e      -0.0
+    f      0 EUR
+2026-01-02 no commodity
+    a      5
+    b     -5
+2026-01-03 number forms
+    (a)    1E3 X
+    (b)    1,234,567.89 X
+    (c)    1.2e-3 X
+    (d)    123456789012345678901234567890.5 X
+    (e)    0.000000000000000000000001 X
+    (f)    -12.50 X
+    (g)    +7 X
+    (h)    1 000 X
+2026-01-04 places of an elided posting
+    a      1.5 X
+    b     -1.25 X
+    c
+2026-01-05 an elided posting with more than ten places
+    a      0.00000000001 X
+    b

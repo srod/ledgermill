@@ -1,0 +1,24 @@
+; preamble comment
+
+2026-01-05 * (c1) Shop | bought things  ; note on header
+    ; comment line inside the transaction
+    expenses:food        10.50 EUR
+    expenses:misc         3 USD  ; posting comment
+    ! assets:cash
+    ; trailing indented comment belongs to the transaction
+
+; a comment line at the margin, after a blank line
+2026-01-03 earlier date, written later
+    a    1 X
+    b   -1 X
+; a margin comment ends the transaction
+2026-01-03 same date, written after
+    a    2 X
+    b   -2 X
+
+
+2026-01-04 header only, no postings
+
+2026-01-04 ! pending ; location: this text is the author's, not hledger's
+    a    4 X
+    b

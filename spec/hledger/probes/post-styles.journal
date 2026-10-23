@@ -1,0 +1,16 @@
+; The decimal mark of the amount column is the mark of the commodity's style.
+commodity 1.000,00 EUR
+commodity 1,000.0 USD
+2026-01-01 declared styles
+    (a)    1234,5678 EUR
+    (b)    1,234.5678 USD
+    (c)    1234.5678 CHF
+    (d)    12345678.1 CHF
+    (e)    3,5 EUR
+    (f)    1000000 USD
+2026-01-02 the style of a commodity without a directive comes from its first amount
+    (a)    1.5 X
+    (b)    2,25 X
+    (c)    1 234.50 X
+    (d)    1,5 GBP
+    (e)    2.5 GBP

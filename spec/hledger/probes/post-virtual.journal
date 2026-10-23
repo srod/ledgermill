@@ -1,0 +1,27 @@
+2026-01-01 ! pending
+    a            1 X
+    b           -1 X
+    (v)          5 X
+    [bv1]        2 Y
+    [bv2]       -2 Y
+    * c          3 Z
+    ! d         -3 Z
+    (nothing)
+    [bnothing]
+2026-01-02 * cleared, virtual postings only
+    (v)          5 X
+    (w)
+2026-01-03 names that look like brackets
+    (a) b        1 X
+    a (b)        1 X
+    (a) (b)      1 X
+    [c] d       -1 X
+    (e)         -1 X
+    x[y]        -1 X
+    ((f))       -1 X
+    ()           1 X
+2026-01-04 nested brackets are all stripped, the outer pair gives the kind
+    (((g)))      1 X
+    ([h])        1 X
+    [(i)]        2 X
+    [[j]]       -2 X

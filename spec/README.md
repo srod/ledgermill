@@ -21,6 +21,7 @@ Each note has:
   (`show.sh --cost FILE`, `show.sh --value=2026-01-01,EUR FILE`). `hledger/show-amounts.sh` prints the same
   transactions in a short form, one line each, amounts as decimal numbers (the valuation notes use it), and
   `hledger/show-tags.sh` the tags hledger puts on postings (`_conversion-posting`, `_cost-posting`).
+  `hledger/show-postings.sh` prints the rows of `print --location -O csv`, one line each (the flat postings note uses it).
 - `hledger/probes/` – the probe journals.
 - `hledger/show-assertions.sh` prints the assertions hledger reads (position, asserted amount, flags, the
   amounts an assignment got). `hledger/assertion-verdicts.sh` prints hledger's verdict on every journal with an
@@ -81,6 +82,7 @@ Each note has:
 | [value-prices](hledger/value-prices.md) | `--value=DATE,COMM`: which `P` lines exist on DATE, the path of prices, inverse rates |
 | [value-arithmetic](hledger/value-arithmetic.md) | `--value=DATE,COMM`: products, rounding, cost and lot of an amount, merged amounts of a posting |
 | [cost](hledger/cost.md) | `--cost`: unit and total costs, lots, inferred prices, a posting with several amounts, which conversion postings are dropped |
+| [postings-flat](hledger/postings-flat.md) | `print --location -O csv`: one row per posting and commodity, row order, header line range, virtual postings, costs, elided amounts, the posting's own line |
 
 ## Index (Beancount 3.2.3)
 

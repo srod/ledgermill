@@ -1,0 +1,6 @@
+; hledger gives a posting no position, except through its assertion.
+2026-01-01 t
+    a      1 X   = 1 X
+    ; comment
+    b     -1 X
+    c      0 X   = 0 X  ; c

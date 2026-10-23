@@ -1,0 +1,7 @@
+; The date column is the transaction's: not the secondary date, not a posting's date: tag.
+2026-01-10=2026-01-02 secondary date and posting dates
+    a      1 X  ; date:2026-01-20
+    b     -1 X  ; date:2026-01-01
+2026-01-05 written second, sorts first
+    a      1 X
+    b     -1 X
