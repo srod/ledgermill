@@ -1,0 +1,19 @@
+; balance leaves out an account whose amounts all look zero at their display precision, unless
+; -E. Y is written with one place, EUR with none, so an inferred -0.01506 Y or -0.008 EUR looks zero.
+2026-01-01 style
+    big       6.5 Y
+    wallet    4 EUR
+    sink
+
+2026-01-02 inferred
+    cheap     0.01004 X @ 1.5 Y
+    quiet
+
+2026-01-03 cost
+    buy       0.004 X @ 2 EUR
+    purse
+
+2026-01-04 mixed
+    cheap2    0.01004 X @ 1.5 Y
+    src       5 W
+    mixed

@@ -2,7 +2,7 @@
 
 Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-23 (the day of the probes: "today" below).
 
-Status: built as `Ledger::holdings()`; the harness compares it with hledger on every journal of the corpus.
+Status: built as `Ledger::holdings()`; the harness compares it with hledger on every journal of the corpus and of the fuzzer.
 
 Plainledger reads its holdings from four `hledger balance` runs. The engine call to design for is
 `holdings({ end?: D, commodity: V })`. For every account and every commodity C it answers four
@@ -485,6 +485,80 @@ sink: EUR -500.0000000000
 tiny: EUR 0.0000000000
 ```
 
+## Rule: `balance` hides an account whose amounts all look zero; `-E` shows it
+
+Without `-E` (`--empty`), a run leaves out an account when **every amount it has in the run looks zero at its own display
+precision**, although the amount is not zero. The precision is that of the amount's style: the commodity's style for a plain amount (the most places
+any amount of the commodity is written with, `Y` has one place when `6.5 Y` is the only way it is written), the **price's** style for a
+cost (`0.004 X @ 2 EUR` costs `0.008 EUR`, which has the places of `2`: none). It is a property of the report, not of `cur:` or of `--cost`; they only
+change which amounts an account is left with:
+
+- an amount that is inferred (the elided posting of `0.01004 X @ 1.5 Y` takes `-0.01506 Y`) has more places than the style of `Y`, and its account is hidden, in the units run too;
+- `--cost` turns `0.01004 X` into `0.01506 Y`, and `0.004 X @ 2 EUR` into `0.008 EUR`: those accounts vanish from the cost run (and the units run, which has
+  `X`, keeps them);
+- an account that holds other amounts that do not look zero stays, with its small amount in the JSON (`mixed`: `W -5 | Y -0.01506`);
+  with `cur:^Y$` the other amounts are gone, so the account is hidden too.
+
+`-E` gives every account back, exact amounts and all (it also gives the accounts whose sum is exactly zero, with `0` amounts; the rows rule above says they are dropped when
+comparing). The engine returns the exact amount in all these cases. **The harness runs hledger with `-E`**, so that what it compares is the position, not what the report chooses to show.
+
+**Plainledger.** Its commands do not pass `-E`, so a position that looks zero at its display precision is a missing row in its units run and in its
+`cur:C` runs: not held (units), or no cost basis / market value (null, where the exact figure would be a tiny number). The CSV rounds to the same precision, so
+the figure it would have given is `0` or `0.00`; the difference is a missing figure instead of a zero one, and only for a position below half a unit of the last place.
+That is a Plainledger-side difference of its command, and the engine does not reproduce it.
+
+### Probe
+
+`probes/hold-looks-zero.journal`
+
+### Command and output
+
+`style` writes `Y` with one place and `EUR` with none; `inferred` makes `quiet` take `-0.01506 Y`; `cost` makes `purse` take `-0.008 EUR`, and `buy` (X at 2 EUR) costs `0.008 EUR`;
+`mixed` takes `-0.01506 Y` and `-5 W`. `quiet`, `purse` and, under `--cost`, `buy`, `cheap` and `cheap2` have no row without `-E`:
+
+```text
+$ spec/hledger/show-holdings.sh spec/hledger/probes/hold-looks-zero.journal
+big: Y 6.5
+buy: X 0.004
+cheap: X 0.01004
+cheap2: X 0.01004
+mixed: W -5 | Y -0.01506
+sink: EUR -4 | Y -6.5
+src: W 5
+wallet: EUR 4
+$ spec/hledger/show-holdings.sh -E spec/hledger/probes/hold-looks-zero.journal
+big: Y 6.5
+buy: X 0.004
+cheap: X 0.01004
+cheap2: X 0.01004
+mixed: W -5 | Y -0.01506
+purse: EUR -0.008
+quiet: Y -0.01506
+sink: EUR -4 | Y -6.5
+src: W 5
+wallet: EUR 4
+$ spec/hledger/show-holdings.sh --cost spec/hledger/probes/hold-looks-zero.journal
+big: Y 6.5
+mixed: W -5 | Y -0.01506
+sink: EUR -4 | Y -6.5
+src: W 5
+wallet: EUR 4
+$ spec/hledger/show-holdings.sh --cost -E spec/hledger/probes/hold-looks-zero.journal
+big: Y 6.5
+buy: EUR 0.008
+cheap: Y 0.01506
+cheap2: Y 0.01506
+mixed: W -5 | Y -0.01506
+purse: EUR -0.008
+quiet: Y -0.01506
+sink: EUR -4 | Y -6.5
+src: W 5
+wallet: EUR 4
+$ spec/hledger/show-holdings.sh spec/hledger/probes/hold-looks-zero.journal -- mixed cur:^Y$
+$ spec/hledger/show-holdings.sh -E spec/hledger/probes/hold-looks-zero.journal -- mixed cur:^Y$
+mixed: Y -0.01506
+```
+
 ## Rule: the CSV is rounded; the exact value is in the JSON
 
 The tidy CSV writes each value in the **display style of its commodity**, so it is not the exact position:
@@ -619,9 +693,5 @@ Per (account, commodity C), over all the real postings of the ledger that count:
 - Lots (`{...}`) in the value and cost runs follow [value-arithmetic](value-arithmetic.md) and [cost](cost.md); only `cost-lots`'s cases are covered, none through `balance`.
 - The harness (`compare.ts`) reads every probe of this directory. The `hold-*` journals use only forms the engine reads, but it was not rebuilt (no `pkg/`), so none was run through it.
 - The CSV's decimal mark for a commodity whose journal mixes `7900,00` and `1 234,50` was not worked out (the CSV wrote a dot for EUR and a comma for X in one probe); it never matters for the exact value.
-- `cur:C` also drops a posting whose amount is not zero but **looks zero at its own display precision**: in a first version of
-  hold-units-round the balancing posting `h` was elided and got `-2.4e-10 EUR` from a cost written in whole euros (precision 0);
-  `balance cur:^EUR$`, with or without `--cost`, had no row for it while the run with no query had one. The engine keeps such an amount, so a
-  journal with an amount below the display precision of its own style (an inferred amount, mostly) would differ under `cur:`. Not probed further; the
-  probes and the harness avoid it.
+- The near-zero rule above was probed for the units, `--cost` and `cur:` runs; `--value` runs (a value that rounds to zero keeps an account, as the tidy rows rule says) were not probed with `-E`.
 - Commodity names that hledger cannot quote (a name containing `"` or a newline) were not probed.
