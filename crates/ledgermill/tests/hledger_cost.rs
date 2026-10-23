@@ -187,6 +187,28 @@ fn an_odd_leading_run_of_conversion_postings_before_a_priced_posting() {
 }
 
 #[test]
+fn a_priced_posting_behind_a_lone_conversion_posting_can_repeat_the_anchor() {
+    assert_eq!(
+        at_cost(&[probe!("cost-pair-odd-run")]),
+        [
+            "2026-01-01  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -3.555 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 1995.555, USD 11.85",
+            "2026-01-02  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -2.1 | z: AB -359, EUR 1994.1, USD 11.85",
+            "2026-01-03  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR 3.555 | z: AB -359, EUR 1988.445, USD 11.85",
+            "2026-01-04  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -3.5535 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 1995.5535, USD 11.85",
+            "2026-01-05  a: USD -11.85 | equity:conversion: EUR -3 | p: EUR -3.54 | z: AB -359, EUR 1995.54, USD 11.85",
+            "2026-01-06  a: USD -11.8 | equity:conversion: EUR -3 | p: EUR -3.555 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 1995.555, USD 11.8",
+            "2026-01-07  a: USD -11.85 | equity:conversion: EUR -3 | c: USD 5 | p: EUR -3.555 | z: AB -359, EUR 1995.555, USD 6.85",
+            "2026-01-08  a: USD -11.85 | equity:conversion: EUR -3 | equity:conversion: EUR -3 | equity:conversion: EUR -3 | p: EUR -3.555 | equity:trade: EUR -1989 | equity:conversion: AB 359 | z: AB -359, EUR 2001.555, USD 11.85",
+            "2026-01-09  a: USD -11.85 | p: EUR -3.555 | z: AB -359, EUR 1998.555, USD 11.85",
+            "2026-01-10  a: USD -7 | equity:conversion: EUR -3 | p: EUR -3.555 | c: X -11.85 | z: AB -359, EUR 1995.555, USD 7, X 11.85",
+            "2026-01-11  a: USD -11.85 | p: EUR -3.555 | z: AB -359, EUR 1992.555, USD 11.85",
+            "2026-01-12  a: USD -11.85 | p: EUR -3.555 | equity:conversion: AB 359 | z: AB -359, EUR 1995.555, USD 11.85",
+            "2026-01-13  c:d: AB 0.00 | equity:trading:x: A B 0.00 | a0: EUR 0 | equity:trade: EUR -1882 | equity:trade: A B 0.00 | equity:trade: EUR 0.002 | b: EUR 1881.998",
+        ]
+    );
+}
+
+#[test]
 fn the_amounts_of_a_posting_are_merged_per_commodity_after_conversion() {
     assert_eq!(
         at_cost(&[probe!("assign-cost")]),

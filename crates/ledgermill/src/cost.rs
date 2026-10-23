@@ -148,10 +148,13 @@ pub(crate) fn plan(drafts: &[Draft], assignment: bool) -> Plan {
                 // not by quantity, nothing is.
                 by_quantity
             } else {
-                by_quantity || first_free_is_unique(drafts)
+                // Behind an odd run that does not open the transaction, the priced posting
+                // can repeat the anchor too.
+                let repeater = (run % 2 == 1).then_some(k);
+                by_quantity || first_free_is_unique(drafts, repeater)
             }
         }
-        None => first_free_is_unique(drafts),
+        None => first_free_is_unique(drafts, None),
     };
     let mut tagged = untagged();
     if tag_pairs {
@@ -169,11 +172,14 @@ pub(crate) fn plan(drafts: &[Draft], assignment: bool) -> Plan {
 
 /// The first posting that is neither a conversion posting nor priced is the anchor; the pairs
 /// are tagged when no other such posting repeats its number (to half a unit at the anchor's
-/// places). With no anchor nothing is tagged.
-fn first_free_is_unique(drafts: &[Draft]) -> bool {
+/// places). With no anchor nothing is tagged. `priced_repeater`: the index of a priced posting
+/// that also counts as a posting that can repeat the anchor.
+fn first_free_is_unique(drafts: &[Draft], priced_repeater: Option<usize>) -> bool {
     let mut free = drafts
         .iter()
-        .filter(|p| !p.conversion_account && !priced(p));
+        .enumerate()
+        .filter(|(i, p)| !p.conversion_account && (!priced(p) || priced_repeater == Some(*i)))
+        .map(|(_, p)| p);
     let Some(anchor) = free.next() else {
         return false;
     };
