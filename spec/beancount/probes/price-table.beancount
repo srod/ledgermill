@@ -1,0 +1,28 @@
+; The prices table: what it lists, in what order, with which numbers.
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Stock
+2026-01-01 open Equity:Other
+
+; written out of date order; the same date keeps the order written
+2026-03-01 price AAA 1.50 EUR
+2026-01-05 price BBB 2 EUR
+2026-03-01 price AAA 1.60 EUR
+2026-03-01 price AAA 1.60 EUR
+2026-02-01 price CCC 0.0000001 EUR
+2026-02-01 price DDD 1,234.50 EUR
+2026-02-01 price EEE +3. EUR
+2026-02-01 price FFF 0 EUR
+2026-02-01 price GGG -2 EUR
+2026-02-01 price EUR 1 EUR
+2026-02-01 price HHH 1.123456789012345678901234 EUR
+2026-02-01 price JJJ -0 EUR
+2026-02-01 price KKK 1.000 EUR
+2026-02-01 price LLL 12345678901234567890 EUR
+  source: "metadata under a price changes nothing"
+
+; none of these puts a row in the table
+2026-01-10 * "unit price, total price and a cost"
+  Assets:Stock  2 MMM @ 3 EUR
+  Assets:Stock  2 NNN @@ 5 EUR
+  Assets:Stock  2 OOO {4 EUR}
+  Assets:Bank

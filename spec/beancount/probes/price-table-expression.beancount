@@ -1,0 +1,4 @@
+; A price may be written as an expression; the table lists its value. ledgermill refuses these.
+2026-01-01 open Assets:Bank
+2026-01-02 price AAA (1 + 2) EUR
+2026-01-02 price BBB 3 * 2 EUR
