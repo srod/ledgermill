@@ -20,38 +20,29 @@ struct Position<'a> {
     costed: Vec<&'a WrittenAmount>,
 }
 
-/// Sums per commodity; the flag is `true` when a term was converted (the sum is then rounded to
-/// ten places at the end) and `false` while every term was left as it was (the sum stays exact).
+/// Exact sums per commodity.
 #[derive(Default)]
-struct Sums(BTreeMap<String, (Decimal, bool)>);
+struct Sums(BTreeMap<String, Decimal>);
 
 impl Sums {
-    fn add(&mut self, commodity: &str, value: &Decimal, converted: bool) {
-        let entry = self
-            .0
-            .entry(commodity.to_string())
-            .or_insert_with(|| (Decimal::zero(), false));
-        entry.0 = entry.0.add(value);
-        entry.1 |= converted;
+    fn add(&mut self, commodity: &str, value: &Decimal) {
+        let entry = self.0.entry(commodity.to_string()).or_default();
+        *entry = entry.add(value);
     }
 
     fn any_held(&self) -> bool {
-        self.0.values().any(|(sum, _)| !sum.is_zero())
+        self.0.values().any(|sum| !sum.is_zero())
     }
 
-    /// The quantities in code point order of commodity; an exactly zero sum is left out, a sum
-    /// that only rounds to zero stays.
+    /// The quantities in code point order of commodity, each rounded to ten places once; a sum
+    /// that is exactly zero is left out, one that only rounds to zero stays.
     fn quantities(self) -> Vec<Quantity> {
         self.0
             .into_iter()
-            .filter(|(_, (sum, _))| !sum.is_zero())
-            .map(|(commodity, (sum, converted))| Quantity {
+            .filter(|(_, sum)| !sum.is_zero())
+            .map(|(commodity, sum)| Quantity {
                 commodity,
-                quantity: if converted {
-                    sum.output()
-                } else {
-                    sum.to_string()
-                },
+                quantity: sum.output(),
             })
             .collect()
     }
@@ -92,9 +83,8 @@ fn valued<'a>(
             Some(rate) => sums.add(
                 target,
                 &quantity.mul(rate).rounded(DIVISION_PLACES).normalized(),
-                true,
             ),
-            None => sums.add(commodity, quantity, false),
+            None => sums.add(commodity, quantity),
         }
     }
     sums.quantities()
@@ -115,8 +105,8 @@ impl Ledger {
     /// amount of C that has a cost to its cost, drops the conversion postings (see
     /// [`Ledger::at_cost`]) and sums per commodity; `value` values the units; `cost_value` values
     /// each commodity of the cost. A commodity with no path of prices to V stays as it is, as does V
-    /// itself. A sum is rounded to ten places once, when it was converted; a sum that is exactly
-    /// zero is left out.
+    /// itself. Every sum is rounded to ten places, once, at the end (`units` too); a sum that is
+    /// exactly zero is left out.
     ///
     /// A holding is listed when its units or one of its costs is not zero: an account whose units
     /// of C cancel can still have a cost (10 X at 2 EUR and -10 X at 3 EUR), as hledger's cost run
@@ -192,7 +182,7 @@ impl Ledger {
             let mut cost = Sums::default();
             for a in position.costed {
                 let term = at_cost_term(a);
-                cost.add(term.commodity, &term.value, term.original.is_none());
+                cost.add(term.commodity, &term.value);
             }
             if position.units.is_zero() && !cost.any_held() {
                 continue;
@@ -204,7 +194,7 @@ impl Ledger {
                 &mut rates,
             );
             let cost_value = valued(
-                cost.0.iter().map(|(c, (sum, _))| (c.as_str(), sum)),
+                cost.0.iter().map(|(c, sum)| (c.as_str(), sum)),
                 &query.commodity,
                 &graph,
                 &mut rates,
@@ -212,7 +202,7 @@ impl Ledger {
             out.push(Holding {
                 account: segments.join(":"),
                 commodity: commodity.to_string(),
-                units: position.units.to_string(),
+                units: position.units.output(),
                 cost: cost.quantities(),
                 value,
                 cost_value,

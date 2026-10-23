@@ -276,6 +276,42 @@ fn conversion_postings_are_dropped_from_the_cost_but_not_from_units_or_value() {
     );
 }
 
+#[test]
+fn every_sum_is_rounded_to_ten_places_once_when_it_is_given() {
+    let p = probe!("hold-units-round");
+    let all = || lines(p, "EUR", None);
+    // a tie goes to the even digit, units included
+    assert_eq!(
+        of("a ", all()),
+        ["a [X] | 0.1234567890 | X 0.1234567890 | EUR 0.2469135781 | EUR 0.2469135781"]
+    );
+    // two amounts of 4e-11 alone are zero when rounded; added they are 8e-11, so 1e-10
+    assert_eq!(
+        of("c ", all()),
+        ["c [X] | 0.0000000001 | X 0.0000000001 | EUR 0.0000000002 | EUR 0.0000000002"]
+    );
+    assert_eq!(
+        of("e ", all()),
+        ["e [X] | -0.0000000002 | X -0.0000000002 | EUR -0.0000000005 | EUR -0.0000000005"]
+    );
+    // the cost is summed and valued unrounded: 2.4e-10 EUR and 4e-11 X (8e-11 EUR) make 3e-10, not 2e-10
+    assert_eq!(
+        of("g ", all()),
+        [
+            "g [X] | 0.0000000001 | EUR 0.0000000002, X 0.0000000000 | EUR 0.0000000002 | EUR 0.0000000003"
+        ]
+    );
+    assert_eq!(
+        of("i ", all()),
+        ["i [EUR] | 1.1234567890 | EUR 1.1234567890 | EUR 1.1234567890 | EUR 1.1234567890"]
+    );
+    // 3e-11 units are not zero, and are zero once rounded; valued they are 1e-10
+    assert_eq!(
+        of("k ", all()),
+        ["k [X] | 0.0000000000 | X 0.0000000000 | EUR 0.0000000001 | EUR 0.0000000001"]
+    );
+}
+
 // ───────────── which rows exist ─────────────
 
 #[test]

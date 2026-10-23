@@ -89,8 +89,8 @@ pub struct Holding {
     pub account: String,
     /// The commodity `C` held; `""` for amounts without one.
     pub commodity: String,
-    /// The exact sum of the quantities of `commodity`, costs and lots ignored. May be `"0"`: see
-    /// `Ledger::holdings`.
+    /// The sum of the quantities of `commodity`, costs and lots ignored: exact, rounded half to even
+    /// to ten places when it has more (`"0.0000000001"`). May be `"0"`: see `Ledger::holdings`.
     pub units: String,
     /// The same postings at their cost (`hledger --cost`): the costs' commodities, and `commodity`
     /// itself for the amounts without a cost.
