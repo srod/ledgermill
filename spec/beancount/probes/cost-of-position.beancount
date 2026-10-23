@@ -1,0 +1,35 @@
+; cost(position): the units times the cost per unit, in the cost currency; the units without a cost.
+2026-01-01 open Assets:Lots
+2026-01-01 open Assets:Plain
+2026-01-01 open Assets:Free
+2026-01-01 open Assets:Sold
+2026-01-01 open Equity:Other
+
+2026-01-02 * "lots"
+  Assets:Lots  3 AAA {33.33 EUR}
+  Assets:Lots  2.50 AAA {4 EUR}
+  Assets:Lots  1 AAA {0.0000001 EUR}
+  Assets:Lots  10000000 AAA {1000000000 EUR}
+  Assets:Lots  3 AAA {{10 EUR}}
+  Assets:Lots  0.5 AAA {{100 EUR}}
+  Assets:Lots  2 AAA {100 # 5 EUR}
+  Equity:Other
+
+2026-01-03 * "no cost: the units, the price annotation is not a cost"
+  Assets:Plain  5 BBB @ 2 EUR
+  Assets:Plain  4 CCC @@ 12 EUR
+  Assets:Plain  7.50 EUR
+  Equity:Other
+
+2026-01-04 * "a cost of zero, units of either sign"
+  Assets:Free  2.50 FFF {0 EUR}
+  Assets:Free  -1.5 GGG {0.00 EUR}
+  Equity:Other
+
+2026-01-05 * "a sale gives one row per lot"
+  Assets:Sold  2 HHH {10 EUR}
+  Assets:Sold  3 HHH {12.50 EUR}
+  Equity:Other
+2026-01-06 * "sell it all"
+  Assets:Sold  -5 HHH {} @ 20 EUR
+  Equity:Other
