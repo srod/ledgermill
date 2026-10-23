@@ -1,0 +1,14 @@
+2026-01-10 unit price
+  assets:a  10 USD @ 0.9 EUR
+  equity:open
+
+2026-01-11 total price
+  assets:a  10 GBP @@ 12 EUR
+  equity:open
+
+2026-01-12 inferred
+  assets:b  10 AAA
+  equity:open  -9 BBB
+
+P 2026-01-05 ZZZ 2 EUR
+P 2099-01-01 FUT 2 EUR

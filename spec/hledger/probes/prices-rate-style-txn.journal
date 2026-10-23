@@ -1,0 +1,4 @@
+P 2026-01-01 USD 0.8 EUR
+2026-01-02 comma decimals in a transaction change nothing
+  assets:cash  1,50 EUR
+  equity:open

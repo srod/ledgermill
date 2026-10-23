@@ -1,0 +1,4 @@
+; side and spacing of the rate follow the first amount hledger sees for the commodity
+P 2026-01-01 USD EUR 3
+P 2026-01-02 USD 4 EUR
+P 2026-01-03 GBP 5 EUR

@@ -1,0 +1,5 @@
+; the directive is for the commodity written first (USD), not the rate's
+commodity 1.000,00 USD
+P 2026-01-01 USD 0.8 EUR
+P 2026-01-02 EUR 0.8 USD
+P 2026-01-03 USD 1.000 EUR

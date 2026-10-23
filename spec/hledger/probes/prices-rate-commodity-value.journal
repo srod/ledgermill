@@ -1,0 +1,7 @@
+; what the rate really is: value one USD with the last price on or before the date
+commodity 1.000,00 EUR
+P 2026-07-30 USD 0.8 EUR
+P 2026-07-31 USD 0.9333 EUR
+2026-08-01 value it
+  assets:cash  1 USD
+  equity:open

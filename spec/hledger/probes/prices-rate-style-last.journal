@@ -1,0 +1,4 @@
+; the first run shows rates in a style taken from all the P amounts of the commodity
+P 2026-01-01 USD 0.8 EUR
+P 2026-01-02 USD 1.50E1 EUR
+P 2026-01-03 USD 1.2.3 EUR

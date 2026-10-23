@@ -1,0 +1,4 @@
+P 2026-01-01 USD 1 EUR
+2026-01-02 does not balance
+  assets:a  1 USD
+  equity:open  -2 USD

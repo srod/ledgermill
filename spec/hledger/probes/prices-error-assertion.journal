@@ -1,0 +1,4 @@
+P 2026-01-01 USD 1 EUR
+2026-01-02 assertion fails
+  assets:a  1 USD = 5 USD
+  equity:open
