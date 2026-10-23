@@ -498,3 +498,31 @@ fn a_date_that_is_not_a_date_is_an_invalid_argument() {
         )
     );
 }
+
+// ───────────── amounts that look zero ─────────────
+
+#[test]
+fn an_amount_below_its_display_precision_is_kept_exact() {
+    // hledger's balance hides these accounts unless asked with -E (holdings.md): the engine
+    // answers the position, not the report.
+    let all = lines(probe!("hold-looks-zero"), "EUR", None);
+    assert_eq!(
+        of("quiet", all.clone()),
+        ["quiet [Y] | -0.01506 | Y -0.01506 | Y -0.01506 | Y -0.01506"]
+    );
+    assert_eq!(
+        of("purse", all.clone()),
+        ["purse [EUR] | -0.008 | EUR -0.008 | EUR -0.008 | EUR -0.008"]
+    );
+    assert_eq!(
+        of("buy", all.clone()),
+        ["buy [X] | 0.004 | EUR 0.008 | X 0.004 | EUR 0.008"]
+    );
+    assert_eq!(
+        of("mixed", all),
+        [
+            "mixed [W] | -5 | W -5 | W -5 | W -5",
+            "mixed [Y] | -0.01506 | Y -0.01506 | Y -0.01506 | Y -0.01506"
+        ]
+    );
+}
