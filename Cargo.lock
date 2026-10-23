@@ -278,6 +278,7 @@ name = "ledgermill-wasm"
 version = "0.1.0"
 dependencies = [
  "ledgermill",
+ "serde",
  "serde_json",
  "wasm-bindgen",
 ]

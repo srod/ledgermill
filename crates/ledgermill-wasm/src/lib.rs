@@ -52,14 +52,21 @@ impl Ledger {
     pub fn value(&self, date: &str, commodity: &str) -> Result<String, JsError> {
         answer(self.0.value(date, commodity))
     }
+
+    /// JSON array of holdings (`Ledger::holdings`). `query` is a JSON object
+    /// `{ "commodity": "EUR", "end": "2026-05-01", "today": "2026-10-23" }`; `end` may be left out
+    /// or `null`. A refusal or an invalid date throws an `Error` whose `message` is the finding as
+    /// JSON, as for `atCost`; so does a `query` that is not that object.
+    pub fn holdings(&self, query: &str) -> Result<String, JsError> {
+        let query: ledgermill::HoldingsQuery = serde_json::from_str(query)?;
+        answer(self.0.holdings(&query))
+    }
 }
 
-/// The transactions as JSON, or the finding as the message of the error.
-fn answer(
-    result: Result<Vec<ledgermill::Transaction>, ledgermill::Finding>,
-) -> Result<String, JsError> {
+/// The answer as JSON, or the finding as the message of the error.
+fn answer<T: serde::Serialize>(result: Result<T, ledgermill::Finding>) -> Result<String, JsError> {
     match result {
-        Ok(transactions) => Ok(serde_json::to_string(&transactions)?),
+        Ok(answer) => Ok(serde_json::to_string(&answer)?),
         Err(finding) => Err(JsError::new(&serde_json::to_string(&finding)?)),
     }
 }
