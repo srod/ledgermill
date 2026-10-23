@@ -619,4 +619,9 @@ Per (account, commodity C), over all the real postings of the ledger that count:
 - Lots (`{...}`) in the value and cost runs follow [value-arithmetic](value-arithmetic.md) and [cost](cost.md); only `cost-lots`'s cases are covered, none through `balance`.
 - The harness (`compare.ts`) reads every probe of this directory. The `hold-*` journals use only forms the engine reads, but it was not rebuilt (no `pkg/`), so none was run through it.
 - The CSV's decimal mark for a commodity whose journal mixes `7900,00` and `1 234,50` was not worked out (the CSV wrote a dot for EUR and a comma for X in one probe); it never matters for the exact value.
+- `cur:C` also drops a posting whose amount is not zero but **looks zero at its own display precision**: in a first version of
+  hold-units-round the balancing posting `h` was elided and got `-2.4e-10 EUR` from a cost written in whole euros (precision 0);
+  `balance cur:^EUR$`, with or without `--cost`, had no row for it while the run with no query had one. The engine keeps such an amount, so a
+  journal with an amount below the display precision of its own style (an inferred amount, mostly) would differ under `cur:`. Not probed further; the
+  probes and the harness avoid it.
 - Commodity names that hledger cannot quote (a name containing `"` or a newline) were not probed.
