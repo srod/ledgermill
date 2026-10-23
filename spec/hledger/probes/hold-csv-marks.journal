@@ -1,0 +1,12 @@
+; The CSV writes a number with the decimal mark of the commodity (comma for EUR here, from the
+; directive) and no digit groups; the JSON is the same number.
+commodity 1.000,00 EUR
+commodity $1,000.00
+P 2026-01-01 X 3 EUR
+
+2026-01-01 comma decimals
+    a      7.900,00 EUR
+    b      1.234.567,89 EUR
+    c      5 X
+    d      $1,234,567.89
+    sink

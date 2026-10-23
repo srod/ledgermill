@@ -1,0 +1,17 @@
+; cur:X filters the amounts first (X, not EUR or USD), then --cost converts them: account a
+; holds 17 X, of which 10 cost 2 EUR each and 2 cost 5 USD together; --cost --value converts
+; the cost first (USD to EUR by the price of EUR in USD) and values the rest (5 X) by X.
+P 2026-01-01 X 3 EUR
+P 2026-01-01 EUR 1.1 USD
+
+2026-01-05 buy with a unit cost
+    a      10 X @ 2 EUR
+    b     -20 EUR
+
+2026-01-06 buy with no cost
+    a       5 X
+    c
+
+2026-01-07 buy with a total cost
+    a       2 X @@ 5 USD
+    b      -5 USD

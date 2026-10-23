@@ -1,0 +1,39 @@
+; Which rows vanish when a sum is zero.
+P 2026-01-01 X 2 EUR
+P 2026-01-01 Z 0 EUR
+
+2026-01-01 units cancel in one commodity of two
+    zeromix       5 X
+    zeromix      -5 X
+    zeromix       3 Y
+    sink0
+
+2026-01-02 cost cancels a plain EUR amount
+    costzero     10 X @ 2 EUR
+    costzero    -20 EUR
+    sink1
+
+2026-01-03 cost leaves 5 EUR
+    costhalf     10 X @ 2 EUR
+    costhalf    -20 EUR
+    costhalf      5 EUR
+    sink2
+
+2026-01-04 value cancels another value
+    valcancel     3 EUR
+    valcancel    -1.5 X
+    sink3
+
+2026-01-05 price of zero
+    zeroprice     5 Z
+    sink4
+
+2026-01-06 units cancel exactly
+    unitzero      4 Y
+    unitzero     -4 Y
+    sink5
+
+2026-01-07 two costs for the same units
+    twocosts     10 X @ 2 EUR
+    twocosts    -10 X @ 3 EUR
+    sink6

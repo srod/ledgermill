@@ -1,0 +1,12 @@
+; The end counts a virtual posting's date: tag even under --real (06-01), and a virtual
+; posting's transaction date (02-10 in the second transaction).
+P 2026-01-01 X 1 EUR
+P 2026-04-01 X 4 EUR
+
+2026-01-10 real postings and a virtual one dated later
+    a   10 X
+    b
+    (v)  1 X  ; date:2026-06-01
+
+2026-02-10 only a virtual posting
+    (v)  5 X

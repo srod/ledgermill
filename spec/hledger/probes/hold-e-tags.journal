@@ -1,0 +1,15 @@
+; A posting counts on its own date: tag, not on the transaction date or the secondary date.
+P 2026-01-01 X 1 EUR
+P 2026-02-01 X 2 EUR
+P 2026-04-01 X 4 EUR
+P 2026-06-01 X 6 EUR
+
+; a is dated 01-05, b 05-05 (the transaction says 03-01)
+2026-03-01 posting dates
+    a   10 X  ; date:2026-01-05
+    b  -10 X  ; date:2026-05-05
+
+; secondary date 05-25 plays no part: the lot counts from 01-20
+2026-01-20=2026-05-25 secondary date
+    c   1 X
+    d  -1 X

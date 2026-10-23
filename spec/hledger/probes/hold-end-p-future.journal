@@ -1,0 +1,7 @@
+; No -e: a P line dated after today does not move the end; the one on 2099-01-01 is ignored.
+P 2026-01-01 X 1 EUR
+P 2099-01-01 X 9 EUR
+
+2026-03-10 buy
+    a   10 X
+    b

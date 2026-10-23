@@ -1,0 +1,13 @@
+; No -e: the end is the last date of the whole journal, whatever the query: the last P line is
+; for Y (08-01) and the last transaction is in account c (05-10).
+P 2026-01-01 X 1 EUR
+P 2026-02-01 X 2 EUR
+P 2026-08-01 Y 7 EUR
+
+2026-01-10 buy
+    a   10 X
+    b
+
+2026-05-10 other account and commodity
+    c   10 Y
+    b

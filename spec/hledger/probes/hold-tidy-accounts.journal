@@ -1,0 +1,20 @@
+; Rows are flat (a parent has its own row), accounts are in order of their ':'-separated names,
+; compared in code point order; an account whose sum is zero has no row.
+2026-01-01 sorting
+    Zeta       1 X
+    alpha      1 X
+    Alpha      1 X
+    a:b        1 X
+    a-b        1 X
+    a_b        1 X
+    a:B        1 X
+    é          1 X
+    Émile      1 X
+    10:x       1 X
+    9:x        1 X
+    a b        1 X
+    parent:child  2 X
+    parent     1 X
+    zero       5 X
+    zero      -5 X
+    zz

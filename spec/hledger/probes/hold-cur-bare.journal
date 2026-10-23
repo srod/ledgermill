@@ -1,0 +1,6 @@
+; An amount without commodity has the empty commodity: cur: and cur:^$ select it.
+2026-01-01 bare numbers
+    a   5
+    b   3 X
+    c  -3 X
+    d  -5

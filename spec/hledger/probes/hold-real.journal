@@ -1,0 +1,9 @@
+; --real ignores (v) and [bv] postings everywhere, in the units, the cost and the value.
+P 2026-01-01 X 2 EUR
+
+2026-01-10 real, virtual, balanced virtual
+    a      10 X
+    b
+    (v)     7 X
+    [bv]    3 X
+    [bw]   -3 X

@@ -1,0 +1,13 @@
+; Values are summed before they are rounded to ten places: three 1 EUR are 1.0000000000 Y
+; (3 x 0.333...3), not 3 x 0.3333333333.
+P 2026-01-01 Y 3 EUR
+
+2026-01-10 one
+    a   1 EUR
+    b
+2026-01-11 two
+    a   1 EUR
+    b
+2026-01-12 three
+    a   1 EUR
+    b

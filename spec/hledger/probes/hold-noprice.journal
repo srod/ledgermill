@@ -1,0 +1,8 @@
+; X is worth 3 EUR; W has no price; the cost in USD has no path to EUR.
+P 2026-01-01 X 3 EUR
+
+2026-01-01 mixed
+    a      10 X @ 2 USD
+    a       4 W
+    a       2 X
+    sink

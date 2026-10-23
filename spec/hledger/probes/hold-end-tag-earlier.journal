@@ -1,0 +1,8 @@
+; No -e: the transaction date (03-10) counts for the end even when its postings are dated earlier.
+P 2026-01-01 X 1 EUR
+P 2026-02-01 X 2 EUR
+P 2026-03-01 X 3 EUR
+
+2026-03-10 postings dated earlier
+    a   10 X  ; date:2026-01-05
+    b  -10 X  ; date:2026-02-05

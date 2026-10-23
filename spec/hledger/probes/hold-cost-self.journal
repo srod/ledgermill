@@ -1,0 +1,8 @@
+; C is the valuation commodity (EUR) and the amounts have a cost in USD: --value alone leaves
+; them (EUR is EUR), --cost turns them into USD, and --cost --value then values those USD back
+; into EUR at the price of the end date (0.9).
+P 2026-01-01 USD 0.9 EUR
+
+2026-01-05 euros bought with dollars
+    a      10 EUR @ 1.2 USD
+    b     -12 USD

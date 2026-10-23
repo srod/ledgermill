@@ -1,0 +1,8 @@
+; Account patterns: unanchored, case-insensitive regular expressions on the whole account name.
+2026-01-01 queries
+    Assets:Cash          1 X
+    assets:bank          2 X
+    liabilities:assets   3 X
+    equity:Opening       4 X
+    expenses:my-assets   5 X
+    sink

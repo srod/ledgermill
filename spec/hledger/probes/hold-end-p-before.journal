@@ -1,0 +1,11 @@
+; No -e: the last transaction (03-10) is after the last P line (02-01).
+P 2026-01-01 X 1 EUR
+P 2026-02-01 X 2 EUR
+
+2026-01-10 buy
+    a   10 X
+    b
+
+2026-03-10 buy more
+    a   10 X
+    b

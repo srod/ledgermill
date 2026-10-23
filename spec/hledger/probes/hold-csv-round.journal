@@ -1,0 +1,13 @@
+; The CSV rounds a value to the display precision of its commodity (2 places for EUR, from the
+; anchor), half to even; the JSON keeps all its places.
+P 2026-01-01 X 0.5 EUR
+
+2026-01-01 values with 3 places and 1 place
+    anchor   1.00 EUR
+    a1       0.25 X
+    a2       0.27 X
+    a3       0.29 X
+    a4       0.23 X
+    a5      -0.25 X
+    a6       0.01 X
+    sink

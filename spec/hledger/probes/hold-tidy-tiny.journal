@@ -1,0 +1,8 @@
+; A sum that is not zero but is zero once valued and rounded (5e-11 EUR) keeps a row, with an
+; empty commodity and 0; a sum that is exactly zero loses it.
+P 2026-01-01 X 0.5 EUR
+
+2026-01-01 tiny
+    tiny      0.0000000001 X
+    big       1000.00 X
+    sink

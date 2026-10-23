@@ -1,0 +1,17 @@
+; cur:C is a regular expression on the commodity of each amount, case-insensitive, with ^ and $
+; put around it. z holds one amount of every commodity (it is elided).
+2026-01-01 many commodities
+    a:x       1 X
+    a:xy      2 XY
+    a:lx      3 x
+    a:usd     4 $
+    a:ef      5 "E F"
+    a:plus    6 "A+B"
+    a:dot     7 "A.B"
+    a:axb     8 AXB
+    a:eur     9 EUR
+    a:euro   10 €
+    a:digit  11 "2X"
+    a:dash   13 "A-B"
+    a:ab     14 AB
+    z

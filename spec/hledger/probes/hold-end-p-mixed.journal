@@ -1,0 +1,9 @@
+; No -e: of the P lines after the last transaction (03-10), the one dated before today moves the end
+; (06-01) and the one on 2099-01-01 does not.
+P 2026-01-01 X 1 EUR
+P 2026-06-01 X 5 EUR
+P 2099-01-01 X 9 EUR
+
+2026-03-10 buy
+    a   10 X
+    b

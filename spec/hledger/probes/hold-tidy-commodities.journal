@@ -1,0 +1,21 @@
+; Commodities of one account are in code point order, "" first.
+2026-01-01 sorting commodities
+    a       1 X
+    a       1 x
+    a       1 "2X"
+    a       1 €
+    a       1 $
+    a       1 "E F"
+    a       1 A
+    a       1 a
+    a       1 Z
+    a       1 é
+    a       1 "10X"
+    a       1 "9X"
+    a       1 EUR
+    a       1 "A B"
+    a       5
+    a       1 "A-B"
+    a       1 "A_B"
+    a       1 "A.B"
+    z

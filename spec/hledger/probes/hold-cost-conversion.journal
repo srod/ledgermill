@@ -1,0 +1,9 @@
+; --cost drops conversion-account postings in pairs (cost.md), and so does the cost run of the
+; holdings: equity:conversion has no row under --cost, a row under the units run and the value run.
+P 2026-01-01 USD 0.9 EUR
+
+2026-01-05 exchange through the conversion account
+    assets:eur         -100 EUR
+    equity:conversion   100 EUR
+    equity:conversion  -110 USD
+    assets:usd          110 USD

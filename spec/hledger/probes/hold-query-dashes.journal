@@ -1,0 +1,4 @@
+; An account whose name contains "--" matches every query that follows a "--" (see holdings.md).
+2026-01-01 dashes
+    q--r   1 X
+    s
