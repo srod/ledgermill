@@ -52,12 +52,12 @@ pub(crate) fn realign(file: &SourceFile) -> String {
         }
     }
 
+    let pad = " ".repeat(indent);
     let mut out = String::with_capacity(file.content.len());
     for (index, ((body, ending), shape)) in lines.iter().zip(&shapes).enumerate() {
         if index > 0 {
             out.push('\n');
         }
-        let (pad, p, n) = (" ".repeat(indent), prefix_width, number_width);
         match shape {
             Some(Shape::Posting {
                 account,
@@ -66,13 +66,17 @@ pub(crate) fn realign(file: &SourceFile) -> String {
                 ..
             }) => {
                 let head = format!("{pad}{account}");
-                out.push_str(&format!("{head:<p$}  {number:>n$} {rest}"));
+                out.push_str(&format!(
+                    "{head:<prefix_width$}  {number:>number_width$} {rest}"
+                ));
             }
             Some(Shape::Dated {
                 prefix,
                 number,
                 rest,
-            }) => out.push_str(&format!("{prefix:<p$}  {number:>n$} {rest}")),
+            }) => out.push_str(&format!(
+                "{prefix:<prefix_width$}  {number:>number_width$} {rest}"
+            )),
             Some(Shape::Account { rest, .. }) => {
                 out.push_str(&pad);
                 out.push_str(rest);

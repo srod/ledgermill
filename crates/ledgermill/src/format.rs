@@ -148,9 +148,8 @@ fn same_ledger(file: &SourceFile, formatted: &str) -> bool {
         && findings(&before) == findings(&after)
 }
 
-/// The findings without what moves with the posting lines (the column and the message), in an
-/// order that does not depend on the run: Beancount's findings of one line come out in a
-/// different order from one load to the next, which would make the check fail by chance.
+/// The findings without what moves with the posting lines (the column and the message), sorted
+/// so the comparison does not hang on the order in which the findings of one line are listed.
 fn findings(ledger: &Ledger) -> Vec<Finding> {
     let mut found: Vec<Finding> = ledger
         .check()
