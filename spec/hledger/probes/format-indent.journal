@@ -1,0 +1,11 @@
+2026-03-01 one space
+ expenses:food  12.50
+ assets:cash
+
+2026-03-01 four spaces
+    expenses:food  12.50
+    assets:cash
+
+2026-03-01 a tab
+	expenses:food  12.50
+	assets:cash

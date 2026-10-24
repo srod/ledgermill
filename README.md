@@ -20,6 +20,8 @@ ledger.atCost()         the transactions as hledger's `print --cost` gives them;
 ledger.value(date, commodity)   the transactions as `print --value=DATE,COMMODITY` gives them; every posting as Beancount's `convert(position, V, date)`
 ledger.holdings(query)  per account and commodity, the units, cost, value and cost value (hledger: real postings only)
 ledger.free()
+
+format(file) → text   hledger journals: realigns posting lines (4-space indent, amounts ending in one column per transaction), whitespace only
 ```
 
 `postings()` gives, for hledger, what `print --location -O csv` lists: one row per posting and commodity (an elided
@@ -73,7 +75,7 @@ constraints, duplicates, unbalanced transactions and more (`spec/README.md` list
 Beancount `pad` is read and its padding transactions are built; `include`, `plugin`, unusual options
 and AVERAGE booking are refused with a finding.
 
-More questions follow: a formatter that only realigns whitespace. See the issue tracker for the plan.
+`format(file)` realigns the posting lines of an hledger journal and changes nothing but whitespace; if the result would not read as the same ledger, it returns the file as it was. A Beancount file is returned unchanged for now. See the issue tracker for the plan.
 
 ledgermill is not a command-line clone of hledger or Beancount. It does not print their
 reports and does not copy their messages; it answers questions about a ledger.

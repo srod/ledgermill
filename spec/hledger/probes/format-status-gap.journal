@@ -1,0 +1,9 @@
+2026-03-06 gap between status and account
+    *    expenses:food  12.50 EUR
+    * expenses:tea  3 EUR
+    assets:cash
+
+2026-03-06 no gap
+    *expenses:food  12.50 EUR
+    *expenses:tea  3 EUR
+    assets:cash

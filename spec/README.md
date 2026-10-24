@@ -87,6 +87,7 @@ Each note has:
 | [postings-flat](hledger/postings-flat.md) | `print --location -O csv`: one row per posting and commodity, row order, header line range, virtual postings, costs, elided amounts, the posting's own line |
 | [prices-list](hledger/prices-list.md) | `prices`: only the `P` lines, sorted by date, the exact rate under the marks in force, names, the `-c` run |
 | [holdings](hledger/holdings.md) | `balance --layout=tidy --real` with `-e`, `--cost`, `--value=end,COMM`, `cur:`: which postings count, the valuation date, cost then value, rounding |
+| [format](hledger/format.md) | the whitespace of a posting line hledger ignores (indent, separator, trailing blanks, CRLF), and the rules `format()` follows |
 
 ## Index (Beancount 3.2.3)
 

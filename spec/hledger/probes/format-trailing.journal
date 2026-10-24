@@ -1,0 +1,8 @@
+2026-03-03 trailing blanks
+    expenses:food  12.50 EUR   
+    expenses:tea  3 EUR ; with a comment   
+    assets:cash   
+
+2026-03-03 trailing tab after an amount and a bare account
+    expenses:food  12.50 EUR	
+    assets:cash	

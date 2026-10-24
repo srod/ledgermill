@@ -1,0 +1,15 @@
+2026-03-02 two spaces
+    expenses:food  12.50 EUR
+    assets:cash
+
+2026-03-02 many spaces
+    expenses:food                       12.50 EUR
+    assets:cash
+
+2026-03-02 two tabs
+    expenses:food		12.50 EUR
+    assets:cash
+
+2026-03-02 space and tab
+    expenses:food 	12.50 EUR
+    assets:cash

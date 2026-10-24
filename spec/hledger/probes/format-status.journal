@@ -1,0 +1,7 @@
+2026-03-05 star and brackets
+    * expenses:food  12.50 EUR
+    !  expenses:tea  3 EUR
+    (virtual)  1 EUR
+    [balanced]  5 EUR
+    [balanced b]  -5 EUR
+    assets:cash
