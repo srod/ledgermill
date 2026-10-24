@@ -107,6 +107,8 @@ struct Pieces<'a> {
 }
 
 impl<'a> Pieces<'a> {
+    /// `None` when the parser's offsets do not cut this line (they always should): the caller then
+    /// leaves the whole transaction as written rather than misalign it.
     fn of(lines: &'a [String], p: &PostingLayout) -> Option<Pieces<'a>> {
         let index = usize::try_from(p.line).ok()?.checked_sub(1)?;
         let raw = lines.get(index)?;
