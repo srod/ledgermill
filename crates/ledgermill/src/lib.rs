@@ -14,6 +14,7 @@ mod date;
 mod decimal;
 mod exact;
 mod flat;
+mod format;
 mod holdings;
 mod model;
 mod number;
@@ -27,6 +28,7 @@ mod valuation;
 mod walk;
 
 use exact::Exact;
+pub use format::format;
 pub use model::*;
 
 /// A loaded ledger. Freed by drop.
@@ -157,6 +159,7 @@ pub fn load(files: &[SourceFile]) -> Ledger {
         transactions: Vec::new(),
         prices: Vec::new(),
         findings: Vec::new(),
+        layouts: Vec::new(),
     };
     for (index, file) in files.iter().enumerate() {
         parse::parse_file(index, file, &mut out);

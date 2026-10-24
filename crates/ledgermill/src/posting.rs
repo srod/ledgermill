@@ -94,6 +94,11 @@ pub(crate) struct PostingLine {
     pub assertion: Option<WrittenAssertion>,
     /// Text after the first `;`, untrimmed; `None` without one.
     pub comment: Option<String>,
+    /// Where the account (with its status and brackets) ends, as a byte offset in the content.
+    pub account_end: usize,
+    /// Byte range in the content of the amount alone, without price, lot, assertion or comment:
+    /// what `format` aligns. `None` without an amount (an assignment has none).
+    pub amount_span: Option<(usize, usize)>,
 }
 
 /// Where the account name ends: at two whitespace characters in a row, or at a tab followed by
@@ -131,6 +136,7 @@ pub(crate) fn parse_posting(
             return invalid("A status mark needs an account after it.");
         }
     }
+    let account_start = content.len() - cur.rest().len();
     let (raw_account, rest) = split_account(cur.rest());
     // A posting with no amount needs two spaces before its comment; otherwise `;` is part of
     // the name (the reference tool does the same).
@@ -155,6 +161,7 @@ pub(crate) fn parse_posting(
         ),
         _ => (PostingKind::Regular, trimmed),
     };
+    let account_end = account_start + trimmed.len();
     let account = match kind {
         PostingKind::Regular => account_name(name),
         // Inside brackets the name keeps its spaces as written (`( a )` is ` a `).
@@ -170,8 +177,11 @@ pub(crate) fn parse_posting(
             amount: None,
             assertion: None,
             comment,
+            account_end,
+            amount_span: None,
         });
     }
+    let rest_start = content.len() - rest.len();
     let mut cur = Cursor::new(rest);
     let amount = if cur.peek() == Some('=') {
         None
@@ -190,6 +200,15 @@ pub(crate) fn parse_posting(
         }
     } else {
         Some(parse_amount_tail(&mut cur, styles, year, Tail::Posting)?)
+    };
+    // The amount alone: read again from its start, which stops where the first read did.
+    let amount_span = if amount.is_some() && mode == Mode::Transaction {
+        let mut again = Cursor::new(rest);
+        read_amount(&mut again, styles, Default::Ignore)
+            .ok()
+            .map(|_| (rest_start, content.len() - again.rest().len()))
+    } else {
+        None
     };
     cur.skip_blanks();
     let assertion = if cur.peek() == Some('=') {
@@ -215,6 +234,8 @@ pub(crate) fn parse_posting(
         amount,
         assertion,
         comment,
+        account_end,
+        amount_span,
     })
 }
 

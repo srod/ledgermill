@@ -36,6 +36,18 @@ pub(crate) struct Output {
     pub prices: Vec<Price>,
     /// `(index of the file in load order, finding)`; sorted by the caller.
     pub findings: Vec<(usize, Finding)>,
+    /// The postings of each transaction kept, as written (for `format`).
+    pub layouts: Vec<Vec<PostingLayout>>,
+}
+
+/// Where a posting line's parts are, for `format`. Offsets are bytes into the line without its
+/// indentation (and without a trailing carriage return).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PostingLayout {
+    /// The 1-based line of the posting.
+    pub line: u32,
+    pub account_end: usize,
+    pub amount: Option<(usize, usize)>,
 }
 
 struct PostingDraft {
@@ -45,6 +57,7 @@ struct PostingDraft {
     comment_lines: Vec<String>,
     amount: Option<WrittenAmount>,
     assertion: Option<Assertion>,
+    layout: PostingLayout,
 }
 
 struct TxDraft {
@@ -1009,6 +1022,11 @@ impl FileParser<'_> {
             kind: p.kind,
             line: line_no,
             assertion,
+            layout: PostingLayout {
+                line: line_no,
+                account_end: p.account_end,
+                amount: p.amount_span,
+            },
             comment_lines: p
                 .comment
                 .map(|c| trim_blank(&c).to_string())
@@ -1113,6 +1131,9 @@ impl FileParser<'_> {
                 cost_refused: plan.refused,
             };
             let lines: Vec<u32> = tx.postings.iter().map(|p| p.line).collect();
+            self.out
+                .layouts
+                .push(tx.postings.iter().map(|p| p.layout).collect());
             let postings = tx
                 .postings
                 .into_iter()
