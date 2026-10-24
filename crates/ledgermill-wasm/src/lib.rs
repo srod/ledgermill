@@ -4,6 +4,17 @@
 use ledgermill::SourceFile;
 use wasm_bindgen::prelude::*;
 
+/// Format an hledger journal: postings indented by 4 spaces, the amounts of a transaction ending in
+/// one column (`ledgermill::format`). Only whitespace changes; if the result would not read as the
+/// same ledger, or the file is Beancount, `content` comes back unchanged. `name` decides the format.
+#[wasm_bindgen]
+pub fn format(name: &str, content: &str) -> String {
+    ledgermill::format(&SourceFile {
+        name: name.into(),
+        content: content.into(),
+    })
+}
+
 /// A loaded ledger held in wasm memory. Call `free()` when done.
 #[wasm_bindgen]
 pub struct Ledger(ledgermill::Ledger);
