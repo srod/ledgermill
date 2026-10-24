@@ -571,8 +571,8 @@ The same with 3000 files (`format-model.py 3000 7`; half of them with one indent
 
 These make `format()` equal to `bean-format` wherever `bean-format` only moves whitespace and keeps the ledger
 (and every file with one indent), and keep it whitespace-only, idempotent and ledger-preserving. Where the
-choice is not obvious it is marked **Open decision**; until it is settled the default stated is the one that
-satisfies the acceptance (equality with `bean-format`).
+choice was not obvious it is marked **Decision**; the owner settled all four on 2026-10-24 by taking the default
+stated, the one that satisfies the acceptance (equality with `bean-format`).
 
 1. **Which lines change.** A line is rewritten only if it has one of bean-format's three shapes (above) **and**
    ledgermill reads it as part of what it parsed: a posting of a transaction, a `balance` directive or a `price`
@@ -588,7 +588,7 @@ satisfies the acceptance (equality with `bean-format`).
 3. **The indent** `I` of the account lines (shape 1 and 3): the indent, in characters with a tab counting 1, that most
    of them have; **a tie goes to the larger**. Every account line is written with `I` spaces, then the account
    as written. Metadata and comment lines keep their indent.
-   **Open decision O1: the indent.** (a) *`bean-format`'s* (above): keeps whatever the file mostly uses, equals
+   **Decision O1: the indent (settled: (a)).** (a) *`bean-format`'s* (above): keeps whatever the file mostly uses, equals
    `bean-format` on every file, never rewrites a consistent file's style; but a tab-indented file comes out with one
    space, and "postings indented 2 spaces" of the ticket holds only when the file mostly uses 2. (b) *Always 2 spaces*
    (as the hledger formatter always uses 4): matches the ticket's wording, no tie rule, tabs become 2; but it differs
@@ -607,14 +607,14 @@ satisfies the acceptance (equality with `bean-format`).
    spaces, comment, trailing blanks). The prefix of a posting is `I` spaces plus the account; the prefix of a `balance`
    or `price` line is its text as written up to the blanks before the number (blanks, tabs and doubled spaces
    in it kept). The number is the text as written (`1,500.00`, `+3`, `- 5`); notation is never touched.
-   **Open decision O2: the tolerance.** In `balance DATE ACCOUNT NUMBER ~ TOL CUR`, `bean-format` aligns `TOL`, so
+   **Decision O2: the tolerance (settled: follow `bean-format`).** In `balance DATE ACCOUNT NUMBER ~ TOL CUR`, `bean-format` aligns `TOL`, so
    `NUMBER ~` belongs to the prefix and one such line makes `P` about 20 columns wider for every amount in
    the file (in `format-align-kinds`, 39 instead of 30). Following it keeps equality with `bean-format` (the default
    here). The alternative is to align the first number of a `balance` line like the others and keep `~ TOL CUR`
    as the tail: tidier files, but unequal to `bean-format` in any file with a tolerance. Recommendation: follow
    `bean-format`; tolerance lines are rare, and the harness can compare against `bean-format` only if we agree with it.
 6. **Account-only lines** (no amount: elided postings, a posting with only a comment after the account) are re-indented to `I` and otherwise kept as written, trailing blanks included; they do not count in `P`.
-   **Open decision O3: flagged postings.** `bean-format` neither re-indents nor aligns `! Account  5 EUR` and
+   **Decision O3: flagged postings (settled: kept as written).** `bean-format` neither re-indents nor aligns `! Account  5 EUR` and
    `* Account  5 EUR`, and does not count them in `P` or `N`. Following it (the default here) gives equality, but a
    transaction with a flagged posting keeps that posting's own spacing and indent. The alternative is to treat a flagged
    posting like any other (indent `I`, flag and account as written, aligned and counted): consistent files, as in
@@ -629,7 +629,7 @@ satisfies the acceptance (equality with `bean-format`).
    `include`, a `plugin`, an `option` that changes names or tolerances, a number expression, a cost to merge, …) the
    file is returned unchanged: ledgermill then reads no transaction of the file, so the safety check (rule 9)
    compares two empty ledgers and proves nothing.
-   **Open decision O4: refused files.** The default is the safe one. The alternative is to format them anyway with
+   **Decision O4: refused files (settled: returned unchanged).** The default is the safe one. The alternative is to format them anyway with
    the same text rules (as `bean-format` does): it equals `bean-format` on those files too, but nothing checks that
    the ledger is kept.
 9. **Safety check.** The original and the formatted text are loaded under the same name. If their `transactions()`,
