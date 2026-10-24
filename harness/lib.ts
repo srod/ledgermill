@@ -544,16 +544,158 @@ async function compareBeancountCase(path: string): Promise<{ verdict: Verdict; a
 /** `a` and `b` are the same text once every whitespace character is removed. */
 export const sameWithoutWhitespace = (a: string, b: string): boolean => a.replace(/\s+/g, "") === b.replace(/\s+/g, "");
 
-/** What `format()` did to the files of a case: the verdict, and whether any file changed (else it came back as it went in). */
-export type FormatCheck = { verdict: Verdict; changed: boolean };
+/**
+ * Beancount only: how our text compares with `bean-format`'s. `equal`: the same once line endings and the final newline
+ * are alike; `design`: different, for a reason the spec gives (`designDifference`); `none`: no `bean-format` output to
+ * compare with (it stops, the file is not UTF-8 or has a BOM, or it changes more than whitespace).
+ */
+export type BeanFormatReference = "equal" | "design" | "none";
 
 /**
- * Format each hledger file (`format(name, content)` of the wasm) and check that: formatting again changes nothing, the
+ * What `format()` did to the files of a case: the verdict, and whether any file changed (else it came back as it went in).
+ * `reference` is set for a Beancount file only.
+ */
+export type FormatCheck = { verdict: Verdict; changed: boolean; reference?: BeanFormatReference };
+
+/** `bean-format` rewrites CR and CRLF to LF and adds the final newline; ours keeps both, so the comparison turns ours into its shape. */
+export function likeBeanFormat(text: string): string {
+  const lf = text.replace(/\r\n?/g, "\n");
+  return lf === "" || lf.endsWith("\n") ? lf : `${lf}\n`;
+}
+
+/** A string of the text runs over a line break (`"` closes it, `\` escapes, `;` outside a string starts a comment). */
+export function hasMultilineString(text: string): boolean {
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === "\\") {
+        if (text[i + 1] === "\n") return true;
+        i++;
+      } else if (c === '"') inString = false;
+      else if (c === "\n") return true;
+    } else if (c === '"') inString = true;
+    else if (c === ";") {
+      i = text.indexOf("\n", i);
+      if (i < 0) return false;
+    }
+  }
+  return false;
+}
+
+/** The account lines (an indent, then an account) all have the same indent, in characters: the case where our column is `bean-format`'s. */
+export function hasOneIndent(text: string): boolean {
+  const indents = new Set<number>();
+  for (const m of text.matchAll(/^([ \t]+)\p{Lu}[\p{L}\p{N}-]*:/gmu)) indents.add((m[1] as string).length);
+  return indents.size <= 1;
+}
+
+/**
+ * Why our output may differ from `bean-format`'s although only alignment is at stake (`spec/beancount/format.md`), or null
+ * when it must be equal: we return a file we refuse or cannot parse as it was (`read` is false); `bean-format` rewrites a
+ * line inside a multi-line string, we do not; its column is worked out from the indents as written, ours from the usual one
+ * (the same when the account lines have one indent).
+ */
+export function designDifference(original: string, read: boolean): string | null {
+  if (!read) return "refused or unparsable, returned unchanged";
+  if (hasMultilineString(original)) return "multi-line string";
+  if (!hasOneIndent(original)) return "several indents";
+  return null;
+}
+
+/** The text `bean-format` prints for the file, or null: a BOM or non-UTF-8 bytes (it crashes on some of them), or a non-zero exit. Its stderr is never shown. */
+async function runBeanFormat(path: string, bytes: Buffer): Promise<string | null> {
+  if (bytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]))) return null;
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+  const proc = Bun.spawn(["bean-format", path], { stdout: "pipe", stderr: "ignore" });
+  const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  return code === 0 ? out : null;
+}
+
+function firstLineDiff(theirs: string, ours: string): string {
+  const [x, y] = [theirs.split("\n"), ours.split("\n")];
+  const i = Array.from({ length: Math.max(x.length, y.length) }, (_, k) => k).find((k) => x[k] !== y[k]) ?? 0;
+  return `line ${i + 1}: bean-format=${JSON.stringify(x[i])} ours=${JSON.stringify(y[i])}`;
+}
+
+/** What bean-check and bean-query say about one file: its rejection, and the lists (null when bean-query printed no CSV). */
+async function beanSnapshot(path: string) {
+  const rejection = await runBeanCheck(path);
+  const lists = await queryBeancount(path).catch(() => null);
+  return { rejection, lists };
+}
+
+/**
+ * Format a Beancount file and check that: formatting again changes nothing, only whitespace changed, bean-check and
+ * bean-query read the same from the formatted file as from the original (a rejected file is rejected at the same first
+ * error), and the text equals `bean-format`'s unless `designDifference` says it may differ.
+ */
+async function compareBeancountFormat(path: string): Promise<FormatCheck> {
+  const bytes = readFileSync(path);
+  const original = bytes.toString("utf8");
+  const name = basename(path);
+  const fail = (note: string, changed = true): FormatCheck => ({ verdict: { status: "FAIL", note }, changed, reference: "none" });
+  let formatted: string;
+  try {
+    formatted = wasm.format(path, original);
+  } catch (error) {
+    return fail(`format threw: ${error}`, false);
+  }
+  const changed = formatted !== original;
+  if (wasm.format(path, formatted) !== formatted) return fail(`${name}: format is not idempotent`, changed);
+  if (!sameWithoutWhitespace(original, formatted)) return fail(`${name}: more than whitespace changed`, changed);
+  if (changed) {
+    const dir = mkdtempSync(join(tmpdir(), "ledgermill-format-"));
+    try {
+      const [before, after] = ["original", "formatted"].map((kind) => {
+        mkdirSync(join(dir, kind));
+        const file = join(dir, kind, name);
+        writeFileSync(file, kind === "original" ? original : formatted);
+        return file;
+      }) as [string, string];
+      const [x, y] = [await beanSnapshot(before), await beanSnapshot(after)];
+      if (!x.rejection !== !y.rejection)
+        return fail(`bean-check ${x.rejection ? "rejects the original, accepts the formatted" : "accepts the original, rejects the formatted"}`);
+      if (x.rejection && y.rejection) {
+        const [a, b] = [x.rejection.first ?? x.rejection.message.replaceAll(dir, ""), y.rejection.first ?? y.rejection.message.replaceAll(dir, "")];
+        if (JSON.stringify(a) !== JSON.stringify(b)) return fail(`first error moved: ${JSON.stringify(a)} became ${JSON.stringify(b)}`);
+      }
+      if (!x.lists !== !y.lists) return fail("bean-query lists rows for only one of the two");
+      if (x.lists && y.lists) {
+        const diff =
+          firstDiff(withBasenames(x.lists.transactions), withBasenames(y.lists.transactions)) ??
+          firstDiff(postingBasenames(x.lists.postings), postingBasenames(y.lists.postings));
+        if (diff) return fail(`bean-query reads other rows (original, formatted) ${diff}`);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  const pass = (reference: BeanFormatReference): FormatCheck => ({ verdict: { status: "PASS", note: "" }, changed, reference });
+  const theirs = await runBeanFormat(path, bytes);
+  if (theirs === null || !sameWithoutWhitespace(original, theirs)) return pass("none");
+  const [mine, expected] = [likeBeanFormat(formatted), likeBeanFormat(theirs)];
+  if (mine === expected) return pass("equal");
+  const ours = runOurs([path]);
+  const read = !("thrown" in ours) && !ours.findings.some((f) => f.code === "unsupported-syntax" || (f.severity === "error" && PARSE_LEVEL.has(f.code)));
+  const reason = designDifference(original, read);
+  if (reason) return pass("design");
+  return fail(`differs from bean-format (alignment only): ${firstLineDiff(expected, mine)}`);
+}
+
+/**
+ * Format each file (`format(name, content)` of the wasm; a Beancount file: `compareBeancountFormat`) and check that: formatting again changes nothing, the
  * text differs only in whitespace, and hledger reads the same transactions (source lines included) from the formatted
  * files as from the originals, or rejects both with the same first error. Both sets are written to a temp dir under
  * the same basenames (one subdirectory per file, so that a file given twice stays twice).
  */
 export async function compareFormat(paths: string[]): Promise<FormatCheck> {
+  const [only] = paths;
+  if (only !== undefined && paths.length === 1 && isBeancountPath(only)) return compareBeancountFormat(only);
   const originals = paths.map((path) => readFileSync(path, "utf8"));
   const fail = (note: string, changed = true): FormatCheck => ({ verdict: { status: "FAIL", note }, changed });
   let formatted: string[];
@@ -1533,7 +1675,7 @@ export type Comparison = {
   plainledger: PlainledgerVerdict | null;
   /** Beancount only: the holdings questions, against bean-query's units and holdings queries. */
   beanHoldings?: { question: BeanHoldingQuestion; verdict: Verdict }[];
-  /** hledger only: what `format()` did to the files (`compareFormat`); null for Beancount. */
+  /** What `format()` did to the files (`compareFormat`). */
   formatCheck?: FormatCheck | null;
   /** Beancount cases fill `prices`, `cost`, `values` and `beanHoldings`; absent for hledger. */
   format?: "beancount";
@@ -1550,13 +1692,14 @@ export async function compareAll(
   queries?: Query[],
   { plainledger = false, holdings = false }: { plainledger?: boolean; holdings?: boolean | HoldingQuestion[] } = {},
 ): Promise<Comparison> {
-  // Asked of every hledger case, whatever the other comparisons say: formatting must hold for a journal hledger rejects too.
-  const formatCheck = paths.some(isBeancountPath) ? null : await compareFormat(paths);
+  // Asked of every case, whatever the other comparisons say: formatting must hold for a journal the reference rejects too.
+  // (Several files with a Beancount one among them are refused: ledgermill loads one Beancount file at a time.)
+  const formatCheck = paths.length > 1 && paths.some(isBeancountPath) ? null : await compareFormat(paths);
   const { verdict: raw, agreed, ours } = await compareRaw(paths, ignorePlaces);
   if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null, formatCheck };
   const [only] = paths;
   if (only !== undefined && paths.length === 1 && isBeancountPath(only))
-    return compareBeancountReads(only, ours, raw, { queries, holdings });
+    return { ...(await compareBeancountReads(only, ours, raw, { queries, holdings })), formatCheck };
   const postings = await comparePostings(paths, ours.postings);
   const prices = await comparePrices(paths, ours.prices);
   const cost = await compareCost(paths, ignorePlaces);
@@ -1615,6 +1758,12 @@ const total = (...ts: Counts[]): Counts => ({
 export const formatLine = (t: Tallies): string =>
   `${t.format.PASS} pass, ${t.format.FAIL} fail (${t.formatted.changed} changed, ${t.formatted.unchanged} returned unchanged)`;
 
+/** The same for Beancount files, with how our text compares with `bean-format`'s. */
+export const beanFormatLine = (t: Tallies): string => {
+  const { format, formatted, reference: r } = t.beanFormat;
+  return `${format.PASS} pass, ${format.FAIL} fail (${formatted.changed} changed, ${formatted.unchanged} returned unchanged; bean-format: ${r.equal} equal, ${r.design} differ by design, ${r.none} no reference)`;
+};
+
 /** The tallies of what a hledger case compared besides the raw comparison. */
 export type Tallies = {
   cost: Counts;
@@ -1626,6 +1775,8 @@ export type Tallies = {
   /** `format()` on hledger files: the verdicts, and how many cases it changed or returned as they were. */
   format: Counts;
   formatted: { changed: number; unchanged: number };
+  /** `format()` on Beancount files: the same, and the files by how they compare with `bean-format` (`BeanFormatReference`). */
+  beanFormat: { format: Counts; formatted: { changed: number; unchanged: number }; reference: Record<BeanFormatReference, number> };
   /** What a Beancount case compared: `Ledger::at_cost()`, `value()`, `prices()` and `holdings()` against bean-query. */
   beancount: { cost: Counts; value: Counts; prices: Counts; holdings: Counts };
 };
@@ -1638,11 +1789,20 @@ export const tallies = (): Tallies => ({
   plainledger: counts(),
   format: counts(),
   formatted: { changed: 0, unchanged: 0 },
+  beanFormat: { format: counts(), formatted: { changed: 0, unchanged: 0 }, reference: { equal: 0, design: 0, none: 0 } },
   beancount: { cost: counts(), value: counts(), prices: counts(), holdings: counts() },
 });
 
+function tallyFormat({ verdict, changed, reference }: FormatCheck, t: Tallies): void {
+  const own = reference === undefined ? t : t.beanFormat;
+  own.format[verdict.status]++;
+  own.formatted[changed ? "changed" : "unchanged"]++;
+  if (reference !== undefined) t.beanFormat.reference[reference]++;
+}
+
 /** Add what a hledger case compared under `--cost`, `--value`, `postings()`, `prices()` and `holdings()` to the tallies. */
 export function tally(c: Comparison, t: Tallies): void {
+  if (c.formatCheck) tallyFormat(c.formatCheck, t);
   if (c.format === "beancount") {
     const b = t.beancount;
     if (c.cost) b.cost[c.cost.status]++;
@@ -1657,10 +1817,6 @@ export function tally(c: Comparison, t: Tallies): void {
   if (c.prices) t.prices[c.prices.status]++;
   for (const { verdict } of c.holdings) t.holdings[verdict.status]++;
   if (c.plainledger) t.plainledger[c.plainledger.verdict.status]++;
-  if (c.formatCheck) {
-    t.format[c.formatCheck.verdict.status]++;
-    t.formatted[c.formatCheck.changed ? "changed" : "unchanged"]++;
-  }
 }
 
 /**
@@ -1669,16 +1825,18 @@ export function tally(c: Comparison, t: Tallies): void {
  * dates and commodities when it has `P` lines (see `compareAll`); its line shows the worst of them.
  */
 export async function runCases(
-  cases: { name: string; paths: string[]; ignorePlaces?: boolean; plainledger?: boolean }[],
+  cases: { name: string; paths: string[]; ignorePlaces?: boolean; plainledger?: boolean; formatOnly?: boolean }[],
   quiet: boolean,
 ): Promise<void> {
   const comparisons: Comparison[] = [];
+  const formatOnly: (FormatCheck | undefined)[] = [];
   let next = 0;
   const worker = async () => {
     while (next < cases.length) {
       const i = next++;
-      const c = cases[i] as { paths: string[]; ignorePlaces?: boolean; plainledger?: boolean };
-      comparisons[i] = await compareAll(c.paths, c.ignorePlaces, undefined, { plainledger: c.plainledger, holdings: true });
+      const c = cases[i] as { paths: string[]; ignorePlaces?: boolean; plainledger?: boolean; formatOnly?: boolean };
+      if (c.formatOnly) formatOnly[i] = await compareFormat(c.paths);
+      else comparisons[i] = await compareAll(c.paths, c.ignorePlaces, undefined, { plainledger: c.plainledger, holdings: true });
     }
   };
   await Promise.all(Array.from({ length: JOBS }, worker));
@@ -1686,11 +1844,18 @@ export async function runCases(
   const totals = { hledger: counts(), beancount: counts() };
   const t = tallies();
   const changes: string[] = [];
-  for (const [i, comparison] of comparisons.entries()) {
-    const c = cases[i] as { name: string; paths: string[] };
+  for (const [i, c] of cases.entries()) {
+    const only = formatOnly[i];
+    if (only) {
+      // Not counted in the raw totals: the file is only asked to format (the files ledgermill refuses).
+      tallyFormat(only, t);
+      if (!quiet || only.verdict.status !== "PASS") console.log(`${only.verdict.status} ${c.name}  format${only.verdict.note ? `: ${only.verdict.note}` : ""}`);
+      continue;
+    }
+    const comparison = comparisons[i] as Comparison;
     totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"][comparison.raw.status]++;
     tally(comparison, t);
-    if (comparison.plainledger?.changes) changes.push(`${(cases[i] as { name: string }).name}: ${comparison.plainledger.changes}`);
+    if (comparison.plainledger?.changes) changes.push(`${c.name}: ${comparison.plainledger.changes}`);
     const v = summarize(comparison);
     if (!quiet || v.status !== "PASS") console.log(`${v.status} ${c.name}${v.note ? `  ${v.note}` : ""}`);
   }
@@ -1698,6 +1863,7 @@ export async function runCases(
   if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${countsLine(h)}\nbeancount: ${countsLine(b)}`);
   console.log(`\nhledger postings: ${countsLine(t.postings)}\nhledger prices:   ${countsLine(t.prices)}`);
   console.log(`hledger format:   ${formatLine(t)}`);
+  if (t.beanFormat.format.PASS + t.beanFormat.format.FAIL > 0) console.log(`beancount format: ${beanFormatLine(t)}`);
   console.log(`hledger --cost:  ${countsLine(t.cost)}\nhledger --value: ${countsLine(t.value)} (one per date and commodity asked)`);
   console.log(`hledger holdings: ${countsLine(t.holdings)} (one per end date and commodity asked)`);
   console.log(`Plainledger's reads: ${countsLine(t.plainledger)} (journals of the app corpus)`);
@@ -1709,7 +1875,7 @@ export async function runCases(
   }
   if (changes.length > 0)
     console.log(`\nPlainledger's figures that change with real postings only (expected; a virtual posting on a tracked account):\n${changes.map((c) => `  ${c}`).join("\n")}`);
-  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, t.format, b2.cost, b2.value, b2.prices, b2.holdings);
+  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, t.format, t.beanFormat.format, b2.cost, b2.value, b2.prices, b2.holdings);
   console.log(`\n${all.PASS} pass, ${all.FAIL} fail, ${all.SKIP} skip`);
   if (all.FAIL > 0) process.exitCode = 1;
 }

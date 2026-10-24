@@ -77,7 +77,7 @@ const specPairs: [string, string][] = [
 ];
 
 // The journals of `app` are Plainledger's own test journals: its holdings reads are compared on them too.
-const cases: { name: string; paths: string[]; ignorePlaces?: boolean; plainledger?: boolean }[] = [];
+const cases: { name: string; paths: string[]; ignorePlaces?: boolean; plainledger?: boolean; formatOnly?: boolean }[] = [];
 for (const [label, dir, extension] of DIRS)
   for (const f of readdirSync(dir).filter((f) => f.endsWith(extension)).sort())
     cases.push({
@@ -86,6 +86,11 @@ for (const [label, dir, extension] of DIRS)
       ...(placesMayDiffer.has(f) ? { ignorePlaces: true } : {}),
       ...(dir === APP ? { plainledger: true } : {}),
     });
+// The Beancount probes ledgermill refuses or cannot parse are not compared (see the README), but format() must leave them alone
+// or still align them like bean-format.
+const REFUSED = join(ROOT, "spec/beancount/probes/refused");
+for (const f of readdirSync(REFUSED).filter((f) => f.endsWith(".beancount")).sort())
+  cases.push({ name: `refused-beancount/${f}`, paths: [join(REFUSED, f)], formatOnly: true });
 for (const [dir, list] of [[PROTOTYPE, pairs], [APP, fixturePairs], [SPEC, specPairs]] as const)
   for (const [a, b] of list)
     cases.push({

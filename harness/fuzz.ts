@@ -17,7 +17,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Comparison, compareAll, formatLine, type HoldingQuestion, type Query, summarize, tally, tallies } from "./lib.ts";
+import { beanFormatLine, type Comparison, compareAll, formatLine, type HoldingQuestion, type Query, summarize, tally, tallies } from "./lib.ts";
 
 const saveAt = process.argv.indexOf("--save");
 const saveDir = saveAt < 0 ? null : (process.argv[saveAt + 1] ?? null);
@@ -531,11 +531,11 @@ const counts = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} p
 console.log(`fuzz${graph ? " --graph" : ""}${beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${raw.FAIL} fail, ${raw.SKIP} skip`);
 if (beancount) {
   const b = t.beancount;
-  console.log(`  prices: ${counts(b.prices)}\n  cost: ${counts(b.cost)}\n  value: ${counts(b.value)}\n  holdings: ${counts(b.holdings)}`);
+  console.log(`  format: ${beanFormatLine(t)}\n  prices: ${counts(b.prices)}\n  cost: ${counts(b.cost)}\n  value: ${counts(b.value)}\n  holdings: ${counts(b.holdings)}`);
 } else {
   console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  format: ${formatLine(t)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}\n  holdings: ${counts(t.holdings)}`);
 }
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
 const b = t.beancount;
-if (raw.FAIL + t.format.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0) process.exitCode = 1;
+if (raw.FAIL + t.format.FAIL + t.beanFormat.format.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0) process.exitCode = 1;

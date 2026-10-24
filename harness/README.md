@@ -116,20 +116,43 @@ has a line each (`hledger postings: ...`, `hledger prices: ...`), and the fuzzer
 
 ### Format
 
-Every hledger case (any journal, also one hledger rejects or we refuse; Beancount files are left out, PLA-360) is run through
-`format(name, content)` of the wasm (`spec/hledger/format.md`), file by file, and must satisfy (`compareFormat` in `lib.ts`):
+Every case (any journal, also one the reference rejects or we refuse) is run through `format(name, content)` of the wasm
+(`spec/hledger/format.md`, `spec/beancount/format.md`), file by file, and must satisfy (`compareFormat` in `lib.ts`):
 
 - formatting again changes nothing (`format(format(x)) === format(x)`);
 - the formatted text equals the original once all whitespace is removed (`sameWithoutWhitespace`);
-- hledger reads the same: the original and the formatted files are written to a temp dir under the same basenames (one
-  subdirectory per file, so the set and the order of a pair are kept) and `hledger print -O json` is run on both, compared
-  with the same projection and `firstDiff` as above, source lines included (lines never move). When hledger rejects the
-  original it must reject the formatted files with the same first error (file and line; with no position, the same message).
+- the reference reads the same: the original and the formatted files are written to a temp dir under the same basenames
+  (one subdirectory per file, so the set and the order of a pair are kept) and read by the reference, compared with the
+  same projection and `firstDiff` as above, source lines included (lines never move). For hledger it is
+  `hledger print -O json`. For Beancount it is the transaction and posting rows of the Beancount comparison
+  (`bean-query`); when the reference rejects the original it must reject the formatted files with the same first error
+  (file and line; hledger with no position: the same message). A Beancount file the formatter returned as it was is not
+  read again.
 
 A difference is a FAIL (`format: ...`). The summary line `hledger format: N pass, N fail (N changed, N returned unchanged)`
 counts the cases whose text the formatter changed and those it gave back as they were (already aligned, nothing to align, or
 its own safety check refused): a formatter that silently does nothing shows as `0 changed`. The fuzzer asks the same of every
-journal, `--graph` included.
+journal, `--graph` and `--beancount` included.
+
+**Beancount against `bean-format`.** A Beancount file must also come out as `bean-format` prints it
+wherever alignment is the only difference. The harness runs `bean-format FILE` on the original (its stderr is never
+shown) and turns both texts into the shape `bean-format` prints (CRLF and CR to LF, a final newline added: ours keeps the
+endings, `bean-format` does not). Then, in order:
+
+1. **no reference**: the file starts with a byte order mark or is not UTF-8 (`bean-format` crashes on some), `bean-format`
+   exits non-zero (a blank other than a space or tab next to a number), or its text differs from the original by more than
+   whitespace. Nothing is compared;
+2. **equal**: the two texts are the same;
+3. **differ by design**: they differ, and `designDifference` gives a reason from the spec: ledgermill refuses the file or
+   cannot parse it and returns it as it was (`unsupported-syntax`, or a parse-level error); a string runs over a line break
+   (`bean-format` rewrites the lines inside it, which changes the narration; we do not); or the account lines have more than
+   one indent (`bean-format` works the column out from the indents as written, we from the usual one, so the texts agree
+   only when there is one);
+4. otherwise a FAIL (`differs from bean-format (alignment only): line N: ...`).
+
+The summary line `beancount format: N pass, N fail (N changed, N returned unchanged; bean-format: N equal, N differ by design,
+N no reference)` counts them. `compare.ts` also formats the Beancount files of `spec/beancount/probes/refused/` (format only: they
+are not compared otherwise, and are not in the pass/fail/skip totals of the raw comparison).
 
 ### Cost and value
 

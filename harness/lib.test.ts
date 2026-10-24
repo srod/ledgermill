@@ -8,7 +8,12 @@ import {
   beanHoldingQuestions,
   beanValueQueries,
   compareAll,
+  beanFormatLine,
   compareFormat,
+  designDifference,
+  hasMultilineString,
+  hasOneIndent,
+  likeBeanFormat,
   sameWithoutWhitespace,
   compareBeanCost,
   compareBeanHoldings,
@@ -714,3 +719,62 @@ test("compareFormat passes a journal it realigns, one it leaves alone and one hl
   const pair = await compareFormat([write("d.journal", "2026-01-01 t\n  a   1 EUR\n  b\n"), write("again/d.journal", "2026-01-02 t\n  a   1 EUR\n  b\n")]);
   expect(pair.verdict).toEqual(pass);
 }, 60_000);
+
+test("likeBeanFormat gives the shape bean-format prints: LF endings and a final newline", () => {
+  expect(likeBeanFormat("a\r\nb\rc")).toBe("a\nb\nc\n");
+  expect(likeBeanFormat("a\n")).toBe("a\n");
+  expect(likeBeanFormat("")).toBe("");
+});
+
+test("hasMultilineString finds a string over a line break, not a comment's quote or an escaped one", () => {
+  expect(hasMultilineString('2026-01-01 * "a\n  Assets:Bank  5 EUR"\n')).toBe(true);
+  expect(hasMultilineString('2026-01-01 * "payee" "narration"\n  A:B  1 EUR\n')).toBe(false);
+  expect(hasMultilineString('; a " in a comment\n2026-01-01 * "x"\n')).toBe(false);
+  expect(hasMultilineString('2026-01-01 * "x" ; "\n  A:B  1 EUR\n')).toBe(false);
+  expect(hasMultilineString('2026-01-01 * "a \\" b"\n')).toBe(false);
+  expect(hasMultilineString('2026-01-01 * "a ; not a comment\nb"\n')).toBe(true);
+});
+
+test("hasOneIndent looks at the account lines only", () => {
+  expect(hasOneIndent("2026-01-01 *\n  Expenses:Food  1 EUR\n  Assets:Bank\n      note: 1\n    ; c\n")).toBe(true);
+  expect(hasOneIndent("2026-01-01 *\n  Expenses:Food  1 EUR\n    Assets:Bank\n")).toBe(false);
+  expect(hasOneIndent("2026-01-01 *\n\tExpenses:Food  1 EUR\n Assets:Bank\n")).toBe(true);
+  expect(hasOneIndent("2026-01-01 *\n")).toBe(true);
+});
+
+test("designDifference names why alignment alone does not decide, or null", () => {
+  const plain = "2026-01-01 *\n  A:B  1 EUR\n  C:D\n";
+  expect(designDifference(plain, true)).toBeNull();
+  expect(designDifference(plain, false)).toContain("unchanged");
+  expect(designDifference('2026-01-01 * "a\nb"\n', true)).toBe("multi-line string");
+  expect(designDifference("2026-01-01 *\n  A:B  1 EUR\n    C:D\n", true)).toBe("several indents");
+});
+
+test("compareFormat on Beancount: aligned like bean-format, by design, and a file it refuses", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ledgermill-test-"));
+  const write = (name: string, text: string) => {
+    const path = join(dir, name);
+    writeFileSync(path, text);
+    return path;
+  };
+  const entry = "2026-01-01 * \"t\"\n  Expenses:Food  1.50 EUR\n  Assets:Cash:Bank   -1.50 EUR\n";
+  expect(await compareFormat([write("a.beancount", entry)])).toEqual({ verdict: pass, changed: true, reference: "equal" });
+  expect(await compareFormat([write("b.beancount", entry.replace(/\n/g, "\r\n"))])).toEqual({ verdict: pass, changed: true, reference: "equal" });
+  const aligned = (await compareFormat([write("c.beancount", "2026-01-01 * \"t\"\n  Assets:A  -1 EUR\n  Assets:B   1 EUR\n")]));
+  expect(aligned).toEqual({ verdict: pass, changed: false, reference: "equal" });
+  const indents = await compareFormat([write("d.beancount", `${entry}\n2026-01-02 * "u"\n    Expenses:Food  1.50 EUR\n    Assets:Cash:Bank   -1.50 EUR\n    Assets:X\n  Assets:Y 0 EUR\n`)]);
+  expect(indents.verdict).toEqual(pass);
+  const refused = await compareFormat([write("e.beancount", "2026-01-01 * \"t\"\n  Expenses:Food  1+2 EUR\n  Assets:Bank  -3   EUR\n")]);
+  expect(refused).toEqual({ verdict: pass, changed: false, reference: expect.any(String) });
+}, 60_000);
+
+test("tally counts a Beancount format check apart from the hledger one, and beanFormatLine says how", () => {
+  const t = tallies();
+  const base = { raw: pass, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null };
+  tally({ ...base, formatCheck: { verdict: pass, changed: true, reference: "equal" } }, t);
+  tally({ ...base, formatCheck: { verdict: pass, changed: false, reference: "design" } }, t);
+  tally({ ...base, formatCheck: { verdict: { status: "FAIL", note: "x" }, changed: true, reference: "none" } }, t);
+  tally({ ...base, formatCheck: { verdict: pass, changed: true } }, t);
+  expect(beanFormatLine(t)).toBe("2 pass, 1 fail (2 changed, 1 returned unchanged; bean-format: 1 equal, 1 differ by design, 1 no reference)");
+  expect(t.format).toEqual({ PASS: 1, FAIL: 0, SKIP: 0 });
+});
