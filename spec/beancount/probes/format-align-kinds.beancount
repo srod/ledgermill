@@ -1,0 +1,43 @@
+option "title" "line kinds"
+
+2026-01-01 open Assets:Bank EUR
+2026-01-01 open Assets:Broker
+2026-01-01 open Expenses:Food
+2026-01-01 open Income:Pay
+2026-01-01 open Equity:Opening
+2026-01-01 commodity EUR
+  name: "Euro"
+2026-01-01 commodity VT
+
+; a comment line
+2026-02-01 price VT 100.5 EUR
+2026-02-02 price  VT   101.25   EUR  ; a comment after a price
+
+2026-02-03 * "Employer" "Pay"
+  id: "kind-1"
+  Assets:Bank  1,500.00 EUR
+    note: "a metadata line under a posting"
+  Income:Pay  -1,500.00 EUR ; a comment after an amount
+  ; a comment line inside the transaction
+2026-02-04 ! "Flagged"
+  ! Expenses:Food  12.50 EUR
+  * Assets:Bank  -12.50 EUR
+2026-02-05 * "Cost and price"
+  Assets:Broker  10 VT {100.5 EUR}
+  Assets:Broker  2 VT {{201 EUR}}
+  Assets:Bank  -1,206 EUR
+2026-02-06 * "Sale at a price"
+  Assets:Broker  -1 VT {100.5 EUR} @ 101.25 EUR
+  Assets:Bank  101.25 EUR
+  Income:Pay
+2026-02-07 * "Elided and a plus sign"
+  Expenses:Food  6.5 EUR
+  Expenses:Food  +3 EUR
+  Assets:Bank
+2026-02-08 pad Assets:Bank Equity:Opening
+2026-02-09 balance Assets:Bank 400.00 EUR
+2026-02-10 balance Assets:Bank 400.00 ~ 0.01 EUR
+2026-02-11 note Assets:Bank "wrote 5 EUR on the form"
+2026-02-12 event "location" "home"
+2026-02-13 custom "budget" Expenses:Food 100 EUR
+2026-02-14 close Assets:Broker

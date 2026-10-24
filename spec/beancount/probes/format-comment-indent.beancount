@@ -1,0 +1,12 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-03-01 * "indented comments between and around the postings"
+ ; one space, before the first posting
+  Expenses:Food  12.50 EUR
+ ; one space
+    ; four spaces
+	; a tab
+  Assets:Bank  -12.50 EUR
+      ; deeper than the postings, after the last one
+; at column 0, after the transaction

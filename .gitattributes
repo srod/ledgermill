@@ -1,2 +1,3 @@
 # Probe journals are byte-exact fixtures (some have CRLF line endings or a BOM).
 spec/hledger/probes/* -text
+spec/beancount/probes/* -text

@@ -1,0 +1,21 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-03-01 * "metadata at other indents than the postings"
+    id: "a1"
+  Expenses:Food  12.50 EUR
+      note: "deeper"
+  Assets:Bank  -12.50 EUR
+ tag: "shallower"
+
+2026-03-02 * "metadata at the posting's own indent"
+  id: "a2"
+  Expenses:Food  12.50 EUR
+  note: "same indent"
+  Assets:Bank  -12.50 EUR
+
+2026-03-03 * "metadata with a tab indent"
+	id: "a3"
+  Expenses:Food  12.50 EUR
+		note: "tabs"
+  Assets:Bank  -12.50 EUR

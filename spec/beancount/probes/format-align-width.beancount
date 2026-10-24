@@ -1,0 +1,11 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food:Groceries
+2026-01-01 open Income:Pay
+
+2026-03-01 * "the longest account, a small number"
+  Expenses:Food:Groceries  4.50 EUR
+  Assets:Bank  -4.50 EUR
+
+2026-03-02 * "short accounts, the widest number"
+  Assets:Bank  12,345.67 EUR
+  Income:Pay  -12,345.67 EUR

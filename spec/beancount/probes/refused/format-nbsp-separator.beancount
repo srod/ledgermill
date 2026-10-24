@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-03-01 * "a no-break space between the account and the number"
+  Expenses:Food  12.50 EUR
+  Assets:Bank  -12.50 EUR

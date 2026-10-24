@@ -1,0 +1,10 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Cash
+2026-01-01 open Expenses:Food
+2026-01-01 open Expenses:Tea
+
+2026-03-01 * "Cafe" "first line
+  Assets:Bank  5 EUR
+1   2 EUR last line"
+  Expenses:Food  5.00 EUR
+  Assets:Bank  -5.00 EUR

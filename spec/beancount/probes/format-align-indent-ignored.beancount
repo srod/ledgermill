@@ -1,0 +1,13 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Cash
+2026-01-01 open Expenses:Food
+2026-01-01 open Expenses:Tea
+
+2026-03-01 * "indented lines that are not postings"
+      id: "x"
+  Expenses:Food  1 EUR
+      note: "six spaces"
+      ; six spaces
+      ; six spaces
+      ; six spaces
+  Assets:Bank  -1 EUR

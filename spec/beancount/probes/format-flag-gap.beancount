@@ -1,0 +1,14 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-03-01 * "flag then account with one space"
+  ! Expenses:Food  12.50 EUR
+  * Assets:Bank  -12.50 EUR
+
+2026-03-02 * "flag then account with no space"
+  !Expenses:Food  12.50 EUR
+  !Assets:Bank  -12.50 EUR
+
+2026-03-03 * "flag then account with several blanks"
+  !    Expenses:Food  12.50 EUR
+  *		Assets:Bank  -12.50 EUR

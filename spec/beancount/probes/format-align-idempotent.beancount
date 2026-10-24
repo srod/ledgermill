@@ -1,0 +1,13 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Cash
+2026-01-01 open Expenses:Food
+2026-01-01 open Expenses:Tea
+2026-01-01 open Expenses:Food:Groceries
+
+2026-03-01 * "usual indent"
+  Expenses:Tea  2 EUR
+  Assets:Cash  -2 EUR
+
+2026-03-02 * "deeper indent, longer account"
+    Expenses:Food:Groceries  3 EUR
+  Assets:Cash  -3 EUR

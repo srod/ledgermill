@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food:Restaurants:Lunch
+
+2026-03-01 * "the long account is flagged, so it does not set the column"
+  ! Expenses:Food:Restaurants:Lunch  12.50 EUR
+  Assets:Bank  -12.50 EUR

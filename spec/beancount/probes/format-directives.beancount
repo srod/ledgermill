@@ -1,0 +1,20 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-01-01 commodity EUR
+2026-01-01 commodity USD
+
+2026-02-01 price USD 0.9 EUR
+2026-02-02 price  USD    0.91    EUR
+2026-02-03	price	USD	0.92	EUR
+2026-02-04 price USD 0.93EUR
+
+2026-03-01 * "money"
+  Expenses:Food  12.50 EUR
+  Assets:Bank  -12.50 EUR
+
+2026-03-02 balance Assets:Bank -12.50 EUR
+2026-03-03 balance Assets:Bank   -12.50   EUR
+2026-03-04  balance  Assets:Bank	-12.50	EUR
+2026-03-05 balance Assets:Bank -12.50 ~ 0.01 EUR
+2026-03-06 balance Assets:Bank   -12.50   ~   0.01   EUR

@@ -1,0 +1,21 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-03-01 * "a blank line between the postings"
+  Expenses:Food  12.50 EUR
+
+  Assets:Bank  -12.50 EUR
+
+2026-03-02 * "a line of blanks between the postings"
+  Expenses:Food  12.50 EUR
+   
+  Assets:Bank  -12.50 EUR
+
+2026-03-03 * "a comment at column 0 between the postings"
+  Expenses:Food  12.50 EUR
+; note
+  Assets:Bank  -12.50 EUR
+
+2026-03-04 * "a posting at column 0"
+Expenses:Food  12.50 EUR
+  Assets:Bank  -12.50 EUR

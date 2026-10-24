@@ -1,0 +1,16 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Cash
+2026-01-01 open Expenses:Food
+2026-01-01 open Expenses:Tea
+
+2026-03-01 * "a flag on the posting"
+  ! Expenses:Food  12.50 EUR
+  * Assets:Bank  -12.50 EUR
+
+2026-03-02 * "no blank between number and currency"
+  Expenses:Tea  3.50EUR
+  Assets:Cash  -3.50EUR
+
+2026-03-03 * "aligned for comparison"
+  Expenses:Tea  1 EUR
+  Assets:Cash  -1 EUR

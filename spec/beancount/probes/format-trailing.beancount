@@ -1,0 +1,14 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Expenses:Food
+
+2026-03-01 * "blanks after the amount"   
+  Expenses:Food  12.50 EUR   
+  Assets:Bank  -12.50 EUR	
+
+2026-03-02 * "blanks after a comment and a bare account"
+  Expenses:Food  12.50 EUR  ; note   
+  Assets:Bank   	
+
+2026-03-03 * "blanks after a posting with a price"  
+  Expenses:Food  10 USD @ 1.25 EUR  
+  Assets:Bank  -12.50 EUR   

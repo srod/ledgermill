@@ -45,6 +45,8 @@ Each note has:
   per-unit price, a cost the lot's cost per unit.
 - `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses (not run by the harness).
   `beancount/verdicts.sh` prints bean-check's verdict and first error for every journal of the corpus.
+  `beancount/show-format.sh` prints what `bean-format` changes (a ruler, then the changed lines with their numbers), `beancount/format-same.sh` says whether it
+  only moved whitespace and kept the ledger, and `beancount/format-model.py` is our model of it, checked against it on random journals (the format note uses all three).
 
 ## Index (hledger 1.52.4)
 
@@ -116,6 +118,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [convert-positions](beancount/convert-positions.md) | `convert()` of a position: the units' rate, else the cost currency as a bridge; `@` and a cost are no rates |
 | [cost-of-position](beancount/cost-of-position.md) | `cost(position)`: the units times the booked cost per unit, 28 digits |
 | [holdings](beancount/holdings.md) | the units and holdings queries: sums that drop a zero, the date filter, what ledgermill gives |
+| [format](beancount/format.md) | the whitespace Beancount ignores, what `bean-format` aligns (the column, the indent, the line shapes), and the rules `format()` will follow (spec only, PLA-360) |
 
 ## ledgermill findings
 
