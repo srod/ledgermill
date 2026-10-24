@@ -91,8 +91,8 @@ format-status-gap (full `show.sh` lines, shortened here to the amounts): `*    e
 1. **Which lines change.** Only the posting lines of the transactions ledgermill reads from the file.
    Everything else is kept byte for byte: transaction headers, directives and their indented lines,
    comment lines (indented or not), `comment … end comment` blocks, `=` and `~` rule blocks, blank
-   lines, `P` lines, and any transaction ledgermill refuses or drops. A Beancount file is returned
-   unchanged for now (Beancount formatting is PLA-360).
+   lines, `P` lines, and any transaction ledgermill refuses or drops. (A Beancount file is formatted by
+   its own rules, `spec/beancount/format.md`.)
 2. **A rewritten posting line** is 4 spaces, then the posting as written from its first non-blank
    character to the end of its account (status, brackets and the spaces between them as written);
    then, if it has an amount, padding of at least 2 spaces and the rest of the line from the first

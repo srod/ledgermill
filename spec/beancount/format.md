@@ -3,7 +3,8 @@
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`;
 `bean-format --version`: `Beancount 3.2.3`), 2026-10-24.
 
-Status: **spec only**. `format()` returns a Beancount file unchanged until PLA-360 is built.
+Status: **built** (PLA-360): `format()` follows "The formatter's rules" below, in `crates/ledgermill/src/beancount/align.rs`;
+`crates/ledgermill/tests/format_beancount.rs` checks them.
 
 `format(file)` rewrites the whitespace of posting lines (and of `balance` and `price` lines) and nothing
 else. The acceptance is that its output equals `bean-format`'s wherever `bean-format` only moves
@@ -628,7 +629,9 @@ stated, the one that satisfies the acceptance (equality with `bean-format`).
 8. **Files ledgermill refuses.** If loading the file reports anything ledgermill refuses (`unsupported-syntax`: an
    `include`, a `plugin`, an `option` that changes names or tolerances, a number expression, a cost to merge, …) the
    file is returned unchanged: ledgermill then reads no transaction of the file, so the safety check (rule 9)
-   compares two empty ledgers and proves nothing.
+   compares two empty ledgers and proves nothing. The same goes for a file ledgermill cannot parse (a syntax error,
+   an unknown account root, a duplicate metadata key, an unbalanced `pushtag`, or a byte order mark, which
+   Beancount rejects too): it reads nothing, and the file comes back as it was.
    **Decision O4: refused files (settled: returned unchanged).** The default is the safe one. The alternative is to format them anyway with
    the same text rules (as `bean-format` does): it equals `bean-format` on those files too, but nothing checks that
    the ledger is kept.

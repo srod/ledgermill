@@ -118,7 +118,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [convert-positions](beancount/convert-positions.md) | `convert()` of a position: the units' rate, else the cost currency as a bridge; `@` and a cost are no rates |
 | [cost-of-position](beancount/cost-of-position.md) | `cost(position)`: the units times the booked cost per unit, 28 digits |
 | [holdings](beancount/holdings.md) | the units and holdings queries: sums that drop a zero, the date filter, what ledgermill gives |
-| [format](beancount/format.md) | the whitespace Beancount ignores, what `bean-format` aligns (the column, the indent, the line shapes), and the rules `format()` will follow (spec only, PLA-360) |
+| [format](beancount/format.md) | the whitespace Beancount ignores, what `bean-format` aligns (the column, the indent, the line shapes), and the rules `format()` follows (PLA-360) |
 
 ## ledgermill findings
 
