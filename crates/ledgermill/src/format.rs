@@ -19,12 +19,16 @@ const GAP: usize = 2;
 /// postings, prices and findings (a finding's column and message aside), the file is returned as
 /// it was. Formatting the result again changes nothing.
 ///
-/// A Beancount file (`.beancount`, `.bean`) is returned unchanged: Beancount formatting is PLA-360.
+/// A Beancount file (`.beancount`, `.bean`) is formatted like `bean-format` does
+/// (`spec/beancount/format.md`): postings, `balance` and `price` lines get the amounts of the
+/// whole file in one column and the file's usual indent. A file ledgermill refuses or cannot
+/// parse is returned as it was.
 pub fn format(file: &SourceFile) -> String {
-    if beancount::is_beancount(&file.name) {
-        return file.content.clone();
-    }
-    let formatted = realign(file);
+    let formatted = if beancount::is_beancount(&file.name) {
+        beancount::realign(file)
+    } else {
+        realign(file)
+    };
     if formatted != file.content && same_ledger(file, &formatted) {
         formatted
     } else {
@@ -144,9 +148,11 @@ fn same_ledger(file: &SourceFile, formatted: &str) -> bool {
         && findings(&before) == findings(&after)
 }
 
-/// The findings without what moves with the posting lines: the column and the message.
+/// The findings without what moves with the posting lines (the column and the message), in an
+/// order that does not depend on the run: Beancount's findings of one line come out in a
+/// different order from one load to the next, which would make the check fail by chance.
 fn findings(ledger: &Ledger) -> Vec<Finding> {
-    ledger
+    let mut found: Vec<Finding> = ledger
         .check()
         .iter()
         .map(|f| Finding {
@@ -154,5 +160,7 @@ fn findings(ledger: &Ledger) -> Vec<Finding> {
             message: String::new(),
             ..f.clone()
         })
-        .collect()
+        .collect();
+    found.sort_by_cached_key(|f| (f.line, f.code.clone(), f.details.to_string()));
+    found
 }

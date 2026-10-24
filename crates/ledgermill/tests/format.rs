@@ -94,13 +94,6 @@ fn each_transaction_has_its_own_column() {
 }
 
 #[test]
-fn a_beancount_file_is_returned_unchanged() {
-    let input = "2026-03-01 * \"x\"\n Assets:Cash   1 EUR\n Expenses:Food  -1 EUR\n";
-    assert_eq!(fmt("a.beancount", input), input);
-    assert_eq!(fmt("a.bean", input), input);
-}
-
-#[test]
 fn a_transaction_ledgermill_refuses_is_left_as_it_is() {
     let input = "2026-03-01 bad\n a   1 EUR extra\n b\n\n2026-03-02 ok\n  a  1\n  b\n";
     let want = "2026-03-01 bad\n a   1 EUR extra\n b\n\n2026-03-02 ok\n    a  1\n    b\n";

@@ -8,6 +8,7 @@
 //! refused with `unsupported-syntax`, and then no transaction is returned: a partial answer would
 //! look complete.
 
+mod align;
 mod book;
 mod check;
 mod lima;
@@ -16,6 +17,7 @@ mod pydec;
 mod text;
 mod value;
 
+pub(crate) use align::realign;
 pub(crate) use value::{at_cost, both_ways_refusal, holdings, value};
 
 use crate::model::{
@@ -470,6 +472,33 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         findings,
         prices: listed_prices(&file.name, &read.items),
     }
+}
+
+/// The lines (1-based) that ledgermill reads as a posting of a transaction, a `balance` or a
+/// `price`: the only ones `format` may rewrite, so a line inside a multi-line string or a
+/// metadata line never is. `None` when the file is refused or does not parse: then ledgermill
+/// reads nothing of it and a rewrite could not be checked.
+fn amount_lines(file: &SourceFile) -> Option<HashSet<u32>> {
+    if load(file)
+        .findings
+        .iter()
+        .any(|f| f.code == "unsupported-syntax")
+    {
+        return None;
+    }
+    // shortcut: the file is parsed twice (here and in `load`), upgrade if format() gets slow
+    let read = lima::read(&file.content).ok()?;
+    let mut lines = HashSet::new();
+    for item in &read.items {
+        match item {
+            Item::Transaction(tx) => lines.extend(tx.postings.iter().map(|p| p.line)),
+            Item::Balance { line, .. } | Item::Price { line, .. } => {
+                lines.insert(*line);
+            }
+            _ => {}
+        }
+    }
+    Some(lines)
 }
 
 /// The `price` directives as the `prices` table lists them: by date, the same date in the order
