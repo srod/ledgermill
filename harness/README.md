@@ -55,7 +55,7 @@ Each case ends in one verdict:
   we report no error, or that we report `unbalanced-transaction` while hledger accepts. A FAIL is a
   bug in the engine or in the harness; the exit code is 1.
 
-The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, `--cost`, `--value`, holdings,
+The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, format, `--cost`, `--value`, holdings,
 Plainledger's reads and the Beancount reads; the lines before it count each of them: see "Postings and prices", "Cost and value",
 "Holdings" and "Beancount prices, cost, value and holdings").
 
@@ -113,6 +113,23 @@ A case is not asked these when hledger rejects it, when it fails the first compa
 with a price, a lot or a label is refused, so the journals that have one live in `spec/hledger/probes/refused/`). A
 difference is a FAIL: `postings: [3].number: hledger="1.50" ours="1.5"`, `prices: [0].rate.quantity: ...`. The summary
 has a line each (`hledger postings: ...`, `hledger prices: ...`), and the fuzzer asks both of every valid journal.
+
+### Format
+
+Every hledger case (any journal, also one hledger rejects or we refuse; Beancount files are left out, PLA-360) is run through
+`format(name, content)` of the wasm (`spec/hledger/format.md`), file by file, and must satisfy (`compareFormat` in `lib.ts`):
+
+- formatting again changes nothing (`format(format(x)) === format(x)`);
+- the formatted text equals the original once all whitespace is removed (`sameWithoutWhitespace`);
+- hledger reads the same: the original and the formatted files are written to a temp dir under the same basenames (one
+  subdirectory per file, so the set and the order of a pair are kept) and `hledger print -O json` is run on both, compared
+  with the same projection and `firstDiff` as above, source lines included (lines never move). When hledger rejects the
+  original it must reject the formatted files with the same first error (file and line; with no position, the same message).
+
+A difference is a FAIL (`format: ...`). The summary line `hledger format: N pass, N fail (N changed, N returned unchanged)`
+counts the cases whose text the formatter changed and those it gave back as they were (already aligned, nothing to align, or
+its own safety check refused): a formatter that silently does nothing shows as `0 changed`. The fuzzer asks the same of every
+journal, `--graph` included.
 
 ### Cost and value
 

@@ -1,6 +1,7 @@
 // Shared by compare.ts, fuzz.ts and real.ts: run hledger and our wasm on the same files and diff
 // typed values.
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
@@ -537,6 +538,63 @@ async function compareBeancountCase(path: string): Promise<{ verdict: Verdict; a
   if (postingsDiff) return no({ status: "FAIL", note: `postings: ${postingsDiff}` });
   if (rejection) return no({ status: "PASS", note: "both fail, same first error, same lists" });
   return { verdict: { status: "PASS", note: "" }, agreed: true, ours };
+}
+
+// ───────────── format ─────────────
+/** `a` and `b` are the same text once every whitespace character is removed. */
+export const sameWithoutWhitespace = (a: string, b: string): boolean => a.replace(/\s+/g, "") === b.replace(/\s+/g, "");
+
+/** What `format()` did to the files of a case: the verdict, and whether any file changed (else it came back as it went in). */
+export type FormatCheck = { verdict: Verdict; changed: boolean };
+
+/**
+ * Format each hledger file (`format(name, content)` of the wasm) and check that: formatting again changes nothing, the
+ * text differs only in whitespace, and hledger reads the same transactions (source lines included) from the formatted
+ * files as from the originals, or rejects both with the same first error. Both sets are written to a temp dir under
+ * the same basenames (one subdirectory per file, so that a file given twice stays twice).
+ */
+export async function compareFormat(paths: string[]): Promise<FormatCheck> {
+  const originals = paths.map((path) => readFileSync(path, "utf8"));
+  const fail = (note: string, changed = true): FormatCheck => ({ verdict: { status: "FAIL", note }, changed });
+  let formatted: string[];
+  try {
+    formatted = paths.map((path, i) => wasm.format(path, originals[i]));
+  } catch (error) {
+    return fail(`format threw: ${error}`, false);
+  }
+  const changed = formatted.some((text, i) => text !== originals[i]);
+  for (const [i, path] of paths.entries()) {
+    const name = basename(path);
+    const again = wasm.format(path, formatted[i]);
+    if (again !== formatted[i]) return fail(`${name}: format is not idempotent`, changed);
+    if (!sameWithoutWhitespace(originals[i] as string, formatted[i] as string)) return fail(`${name}: more than whitespace changed`, changed);
+  }
+  const dir = mkdtempSync(join(tmpdir(), "ledgermill-format-"));
+  try {
+    const write = (kind: string, texts: string[]) =>
+      texts.map((text, i) => {
+        const folder = join(dir, kind, String(i));
+        mkdirSync(folder, { recursive: true });
+        const file = join(folder, basename(paths[i] as string));
+        writeFileSync(file, text);
+        return file;
+      });
+    const [before, after] = [await runHledger(write("original", originals)), await runHledger(write("formatted", formatted))];
+    const clean = (message: string) => message.replaceAll(dir, "");
+    let verdict: Verdict = { status: "PASS", note: "" };
+    if (before.ok && after.ok) {
+      const diff = firstDiff(withBasenames(before.transactions), withBasenames(after.transactions));
+      if (diff) verdict = { status: "FAIL", note: `hledger reads other transactions (hledger=original, ours=formatted) ${diff}` };
+    } else if (!before.ok && !after.ok) {
+      const [x, y] = [before.first ?? clean(before.message), after.first ?? clean(after.message)];
+      if (JSON.stringify(x) !== JSON.stringify(y)) verdict = { status: "FAIL", note: `first error moved: ${JSON.stringify(x)} became ${JSON.stringify(y)}` };
+    } else {
+      verdict = { status: "FAIL", note: `hledger ${before.ok ? "accepts the original, rejects the formatted" : "rejects the original, accepts the formatted"}: ${before.ok ? clean((after as { message: string }).message) : clean(before.message)}` };
+    }
+    return { verdict, changed };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 // ───────────── the verdict ─────────────
@@ -1475,6 +1533,8 @@ export type Comparison = {
   plainledger: PlainledgerVerdict | null;
   /** Beancount only: the holdings questions, against bean-query's units and holdings queries. */
   beanHoldings?: { question: BeanHoldingQuestion; verdict: Verdict }[];
+  /** hledger only: what `format()` did to the files (`compareFormat`); null for Beancount. */
+  formatCheck?: FormatCheck | null;
   /** Beancount cases fill `prices`, `cost`, `values` and `beanHoldings`; absent for hledger. */
   format?: "beancount";
 };
@@ -1490,8 +1550,10 @@ export async function compareAll(
   queries?: Query[],
   { plainledger = false, holdings = false }: { plainledger?: boolean; holdings?: boolean | HoldingQuestion[] } = {},
 ): Promise<Comparison> {
+  // Asked of every hledger case, whatever the other comparisons say: formatting must hold for a journal hledger rejects too.
+  const formatCheck = paths.some(isBeancountPath) ? null : await compareFormat(paths);
   const { verdict: raw, agreed, ours } = await compareRaw(paths, ignorePlaces);
-  if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null };
+  if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null, formatCheck };
   const [only] = paths;
   if (only !== undefined && paths.length === 1 && isBeancountPath(only))
     return compareBeancountReads(only, ours, raw, { queries, holdings });
@@ -1506,7 +1568,7 @@ export async function compareAll(
   if (holdings)
     for (const question of holdings === true ? holdingQuestions(paths.map((p) => readFileSync(p, "utf8"))) : holdings)
       held.push({ question, verdict: await compareHoldings(paths, question, cache) });
-  return { raw, cost, values, postings, prices, holdings: held, plainledger: plainledger ? await comparePlainledger(paths, cache) : null };
+  return { raw, cost, values, postings, prices, holdings: held, plainledger: plainledger ? await comparePlainledger(paths, cache) : null, formatCheck };
 }
 
 /** The worst verdict, with its note told apart by what was compared. */
@@ -1515,6 +1577,7 @@ export function summarize(c: Comparison): Verdict {
     c.raw,
     ...(c.postings ? [{ ...c.postings, note: c.postings.note && `postings: ${c.postings.note}` }] : []),
     ...(c.prices ? [{ ...c.prices, note: c.prices.note && `prices: ${c.prices.note}` }] : []),
+    ...(c.formatCheck ? [{ ...c.formatCheck.verdict, note: c.formatCheck.verdict.note && `format: ${c.formatCheck.verdict.note}` }] : []),
     ...(c.cost ? [{ ...c.cost, note: c.cost.note && `cost: ${c.cost.note}` }] : []),
     ...c.values.map(({ query, verdict }) => ({
       ...verdict,
@@ -1548,6 +1611,10 @@ const total = (...ts: Counts[]): Counts => ({
   SKIP: ts.reduce((n, t) => n + t.SKIP, 0),
 });
 
+/** `N pass, N fail (N changed, N returned unchanged)`: unchanged files include the ones the formatter's safety check gave back. */
+export const formatLine = (t: Tallies): string =>
+  `${t.format.PASS} pass, ${t.format.FAIL} fail (${t.formatted.changed} changed, ${t.formatted.unchanged} returned unchanged)`;
+
 /** The tallies of what a hledger case compared besides the raw comparison. */
 export type Tallies = {
   cost: Counts;
@@ -1556,6 +1623,9 @@ export type Tallies = {
   prices: Counts;
   holdings: Counts;
   plainledger: Counts;
+  /** `format()` on hledger files: the verdicts, and how many cases it changed or returned as they were. */
+  format: Counts;
+  formatted: { changed: number; unchanged: number };
   /** What a Beancount case compared: `Ledger::at_cost()`, `value()`, `prices()` and `holdings()` against bean-query. */
   beancount: { cost: Counts; value: Counts; prices: Counts; holdings: Counts };
 };
@@ -1566,6 +1636,8 @@ export const tallies = (): Tallies => ({
   prices: counts(),
   holdings: counts(),
   plainledger: counts(),
+  format: counts(),
+  formatted: { changed: 0, unchanged: 0 },
   beancount: { cost: counts(), value: counts(), prices: counts(), holdings: counts() },
 });
 
@@ -1585,6 +1657,10 @@ export function tally(c: Comparison, t: Tallies): void {
   if (c.prices) t.prices[c.prices.status]++;
   for (const { verdict } of c.holdings) t.holdings[verdict.status]++;
   if (c.plainledger) t.plainledger[c.plainledger.verdict.status]++;
+  if (c.formatCheck) {
+    t.format[c.formatCheck.verdict.status]++;
+    t.formatted[c.formatCheck.changed ? "changed" : "unchanged"]++;
+  }
 }
 
 /**
@@ -1621,6 +1697,7 @@ export async function runCases(
   const { hledger: h, beancount: b } = totals;
   if (h.PASS + h.FAIL + h.SKIP > 0 && b.PASS + b.FAIL + b.SKIP > 0) console.log(`\nhledger:   ${countsLine(h)}\nbeancount: ${countsLine(b)}`);
   console.log(`\nhledger postings: ${countsLine(t.postings)}\nhledger prices:   ${countsLine(t.prices)}`);
+  console.log(`hledger format:   ${formatLine(t)}`);
   console.log(`hledger --cost:  ${countsLine(t.cost)}\nhledger --value: ${countsLine(t.value)} (one per date and commodity asked)`);
   console.log(`hledger holdings: ${countsLine(t.holdings)} (one per end date and commodity asked)`);
   console.log(`Plainledger's reads: ${countsLine(t.plainledger)} (journals of the app corpus)`);
@@ -1632,7 +1709,7 @@ export async function runCases(
   }
   if (changes.length > 0)
     console.log(`\nPlainledger's figures that change with real postings only (expected; a virtual posting on a tracked account):\n${changes.map((c) => `  ${c}`).join("\n")}`);
-  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, b2.cost, b2.value, b2.prices, b2.holdings);
+  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, t.format, b2.cost, b2.value, b2.prices, b2.holdings);
   console.log(`\n${all.PASS} pass, ${all.FAIL} fail, ${all.SKIP} skip`);
   if (all.FAIL > 0) process.exitCode = 1;
 }

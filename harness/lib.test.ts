@@ -1,6 +1,6 @@
 // bun test harness/lib.test.ts (needs the wasm built into pkg/, like the harness itself)
 import { expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,6 +8,8 @@ import {
   beanHoldingQuestions,
   beanValueQueries,
   compareAll,
+  compareFormat,
+  sameWithoutWhitespace,
   compareBeanCost,
   compareBeanHoldings,
   compareBeanPrices,
@@ -686,4 +688,29 @@ test("the Beancount read comparisons can be called alone", async () => {
   expect((await compareBeanHoldings(path, { through: "2026-01-09", commodity: "EUR" })).status).toBe("PASS");
   expect((await compareBeanPrices(path, [])).note).toContain("length bean-query=");
   expect((await compareBeanCost(path, [])).status).toBe("FAIL");
+}, 60_000);
+
+test("sameWithoutWhitespace ignores every kind of blank and nothing else", () => {
+  expect(sameWithoutWhitespace("a  b\t1\r\n", " a b 1")).toBe(true);
+  expect(sameWithoutWhitespace("a b", "ab ")).toBe(true);
+  expect(sameWithoutWhitespace("a b", "a c")).toBe(false);
+  expect(sameWithoutWhitespace("1,5", "1.5")).toBe(false);
+});
+
+test("compareFormat passes a journal it realigns, one it leaves alone and one hledger rejects", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ledgermill-test-"));
+  const write = (name: string, text: string) => {
+    const path = join(dir, name);
+    writeFileSync(path, text);
+    return path;
+  };
+  const misaligned = await compareFormat([write("a.journal", "2026-01-01 t\n  expenses:food  1.50 EUR\n  assets:cash:bank   -1.50 EUR\n")]);
+  expect(misaligned).toEqual({ verdict: pass, changed: true });
+  const aligned = await compareFormat([write("b.journal", "2026-01-01 t\n    a   1 EUR\n    b  -1 EUR\n")]);
+  expect(aligned).toEqual({ verdict: pass, changed: false });
+  const rejected = await compareFormat([write("c.journal", "2026-01-01 t\n  a   1 EUR\n  b  -2 EUR\n")]);
+  expect(rejected.verdict).toEqual(pass);
+  mkdirSync(join(dir, "again"));
+  const pair = await compareFormat([write("d.journal", "2026-01-01 t\n  a   1 EUR\n  b\n"), write("again/d.journal", "2026-01-02 t\n  a   1 EUR\n  b\n")]);
+  expect(pair.verdict).toEqual(pass);
 }, 60_000);

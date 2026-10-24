@@ -5,7 +5,7 @@
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
 // inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
 // numbers, so that assertions often hold) and big numbers. Journals sometimes have `P` lines. Each
-// journal is compared raw, under `--cost` and under one or two random `--value=DATE,COMM`.
+// journal is compared raw, formatted (`format()` must keep what hledger reads), under `--cost` and under one or two random `--value=DATE,COMM`.
 // With `--graph`: dense random networks of prices (9 to 11 commodities, 1 to 16 `P` lines) valued
 // by two random `--value` runs each, raw and `--cost` too. Each journal is also asked two `holdings()` questions
 // (no end date, and one end date; a random valuation commodity). `--save DIR` writes the journals that fail
@@ -17,7 +17,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Comparison, compareAll, type HoldingQuestion, type Query, summarize, tally, tallies } from "./lib.ts";
+import { type Comparison, compareAll, formatLine, type HoldingQuestion, type Query, summarize, tally, tallies } from "./lib.ts";
 
 const saveAt = process.argv.indexOf("--save");
 const saveDir = saveAt < 0 ? null : (process.argv[saveAt + 1] ?? null);
@@ -533,9 +533,9 @@ if (beancount) {
   const b = t.beancount;
   console.log(`  prices: ${counts(b.prices)}\n  cost: ${counts(b.cost)}\n  value: ${counts(b.value)}\n  holdings: ${counts(b.holdings)}`);
 } else {
-  console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}\n  holdings: ${counts(t.holdings)}`);
+  console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  format: ${formatLine(t)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}\n  holdings: ${counts(t.holdings)}`);
 }
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
 const b = t.beancount;
-if (raw.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0) process.exitCode = 1;
+if (raw.FAIL + t.format.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0) process.exitCode = 1;
