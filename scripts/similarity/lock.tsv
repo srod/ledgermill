@@ -1,0 +1,11 @@
+# Pinned inputs of the similarity check. Tab-separated: slug, kind, licence, sha256, url.
+# kind "jar" is a tool we run; kind "tar" is an upstream source archive we compare against.
+# A checksum mismatch aborts the run. Hackage checksums come from the all-cabal-hashes
+# metadata, the crates.io one (rustledger) was cross-checked there, and GitHub archives and
+# the JPlag jar are pinned to the SHA-256 of their first download (2026-10-25).
+jplag-6.3.0	jar	GPL-3.0	5f2c21e8b88ed77134effcb3a5a3ab13d188f6a3e16d401387f7479e92db9aa2	https://github.com/jplag/JPlag/releases/download/v6.3.0/jplag-6.3.0-jar-with-dependencies.jar
+rustledger-0.24.0	tar	GPL-3.0-only	0624377cf985722ae367747d586931e746a4c7c09bb962474cf73320d6e5d1ff	https://github.com/rustledger/rustledger/archive/refs/tags/v0.24.0.tar.gz
+hledger-lib-1.52.4	tar	GPL-3.0-or-later	c709c4b7f0c1882e22ec47c1f31e5c5746bf2126cb998f6036a09937fb1be6cd	https://hackage.haskell.org/package/hledger-lib-1.52.4/hledger-lib-1.52.4.tar.gz
+hledger-1.52.4	tar	GPL-3.0-or-later	7bd1d3968ba28d33d81780e4ed07b1286f3b54fffec3bc4d44770b0934ae9158	https://hackage.haskell.org/package/hledger-1.52.4/hledger-1.52.4.tar.gz
+beancount-3.2.3	tar	GPL-2.0-only	a2fb438ac895410ab24ab27d1837d4592738fc99b333ad946e1ce78cb10e4def	https://github.com/beancount/beancount/archive/refs/tags/3.2.3.tar.gz
+ledger-3.4.1	tar	BSD-3-Clause	1cf012cdc8445cab0efc445064ef9b2d3f46ed0165dae803c40fe3d2b23fdaad	https://github.com/ledger/ledger/archive/refs/tags/v3.4.1.tar.gz

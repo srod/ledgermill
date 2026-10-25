@@ -3,3 +3,4 @@
 /harness/results*.jsonl
 /pkg
 *.wasm
+__pycache__/
