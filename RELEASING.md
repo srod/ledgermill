@@ -26,8 +26,11 @@ or published by an agent: the owner runs steps 4 and 5.
    mismatch).
 4. **Publish, in this order.** Each crate must be visible on crates.io before the next one
    publishes.
-   1. `ledgermill-beancount-parser`, from `srod/beancount-parser-lima` at its pinned commit;
-   2. `ledgermill-beancount-booking`, from `srod/limabean-booking` at its pinned commit;
+   1. `ledgermill-beancount-parser`: `cargo publish` in a checkout of `srod/beancount-parser-lima`
+      at the commit `crates/ledgermill/Cargo.toml` pins (branch `ledgermill`);
+   2. `ledgermill-beancount-booking`: the same in `srod/limabean-booking`. Only needed again when
+      a fork changes: bump its version, pin the new commit and its exact version (`=X.Y.Z`) in
+      `crates/ledgermill/Cargo.toml`;
    3. `cargo publish -p ledgermill`;
    4. `cargo publish -p ledgermill-wasm`;
    5. `crates/ledgermill-wasm/build.sh && npm publish ./pkg`.

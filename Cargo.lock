@@ -49,25 +49,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
-name = "beancount-parser-lima"
-version = "0.16.3"
-source = "git+https://github.com/srod/beancount-parser-lima?rev=cac6939619536557c72a7fe91a346eb69199f3c5#cac6939619536557c72a7fe91a346eb69199f3c5"
-dependencies = [
- "ariadne",
- "chumsky",
- "either",
- "glob",
- "itertools",
- "lazy_format",
- "logos",
- "rust_decimal",
- "strum",
- "strum_macros",
- "time",
- "unescaper",
-]
-
-[[package]]
 name = "borsh"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,8 +243,8 @@ checksum = "e479e99b287d578ed5f6cd4c92cdf48db219088adb9c5b14f7c155b71dfba792"
 name = "ledgermill"
 version = "0.1.0"
 dependencies = [
- "beancount-parser-lima",
- "limabean-booking",
+ "ledgermill-beancount-booking",
+ "ledgermill-beancount-parser",
  "num-bigint",
  "num-integer",
  "num-traits",
@@ -271,6 +252,37 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "ledgermill-beancount-booking"
+version = "0.10.5"
+source = "git+https://github.com/srod/limabean-booking?rev=00ffbda3b29c6486281748bcdb1d2f4bf307aa03#00ffbda3b29c6486281748bcdb1d2f4bf307aa03"
+dependencies = [
+ "hashbrown 0.15.5",
+ "rust_decimal",
+ "strum_macros",
+ "time",
+ "tracing",
+]
+
+[[package]]
+name = "ledgermill-beancount-parser"
+version = "0.16.3"
+source = "git+https://github.com/srod/beancount-parser-lima?rev=266980b6149d7d229c45b181141321f588ec2c5b#266980b6149d7d229c45b181141321f588ec2c5b"
+dependencies = [
+ "ariadne",
+ "chumsky",
+ "either",
+ "glob",
+ "itertools",
+ "lazy_format",
+ "logos",
+ "rust_decimal",
+ "strum",
+ "strum_macros",
+ "time",
+ "unescaper",
 ]
 
 [[package]]
@@ -288,18 +300,6 @@ name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
-
-[[package]]
-name = "limabean-booking"
-version = "0.10.5"
-source = "git+https://github.com/srod/limabean-booking?rev=1984ed762ba38acb65881cd5e579830c5c930a43#1984ed762ba38acb65881cd5e579830c5c930a43"
-dependencies = [
- "hashbrown 0.15.5",
- "rust_decimal",
- "strum_macros",
- "time",
- "tracing",
-]
 
 [[package]]
 name = "logos"

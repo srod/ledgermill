@@ -14,9 +14,10 @@ categories = ["finance", "parser-implementations"]
 include = ["src/**/*.rs", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
 
 [dependencies]
-# Forks without GPL files, pinned by commit. Their types stay inside src/beancount/lima.rs.
-beancount-parser-lima = { git = "https://github.com/srod/beancount-parser-lima", rev = "cac6939619536557c72a7fe91a346eb69199f3c5", version = "0.16" }
-limabean-booking = { git = "https://github.com/srod/limabean-booking", rev = "1984ed762ba38acb65881cd5e579830c5c930a43", version = "0.10", default-features = false, features = ["rust-decimal"] }
+# Our forks without GPL files, pinned by commit, published on crates.io under our names (the
+# published crate takes them from there, by version). Their types stay inside src/beancount/lima.rs.
+beancount-parser-lima = { package = "ledgermill-beancount-parser", git = "https://github.com/srod/beancount-parser-lima", rev = "266980b6149d7d229c45b181141321f588ec2c5b", version = "=0.16.3" }
+limabean-booking = { package = "ledgermill-beancount-booking", git = "https://github.com/srod/limabean-booking", rev = "00ffbda3b29c6486281748bcdb1d2f4bf307aa03", version = "=0.10.5", default-features = false, features = ["rust-decimal"] }
 num-bigint = "0.5"
 num-integer = "0.1"
 num-traits = "0.2"
