@@ -1,0 +1,129 @@
+# The release gate (RELEASING.md step 1). Run it by hand on the commit to release; a v* tag runs it too.
+# Push CI (ci.yml) keeps the smaller fuzz counts; this one runs the release-size checks.
+name: Release gate
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  WASM_BINDGEN_VERSION: 0.2.129
+
+jobs:
+  wasm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache wasm-bindgen-cli
+        id: wasm-bindgen-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/wasm-bindgen
+          key: wasm-bindgen-cli-${{ env.WASM_BINDGEN_VERSION }}-${{ runner.os }}
+      - name: Install wasm-bindgen-cli
+        if: steps.wasm-bindgen-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked wasm-bindgen-cli@${{ env.WASM_BINDGEN_VERSION }}
+      # Also checks that package.json and Cargo.toml agree on the version.
+      - run: crates/ledgermill-wasm/build.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg
+          path: pkg/
+          if-no-files-found: error
+
+  # Random journals: 5,000 per kind, in shards of 500 with seeds of their own.
+  fuzz:
+    needs: wasm
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [hledger, graph, beancount]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: pkg
+          path: pkg/
+      - uses: ./.github/actions/reference-tools
+      - name: 500 random journals
+        env:
+          KIND: ${{ matrix.kind }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          flags=()
+          [ "$KIND" = hledger ] || flags=("--$KIND")
+          seed=$(( GITHUB_RUN_NUMBER * 100 + SHARD ))
+          echo "seed $seed" | tee -a "$GITHUB_STEP_SUMMARY"
+          bun harness/fuzz.ts "${flags[@]}" 500 "$seed" --save fuzz-failures
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-failures-${{ matrix.kind }}-${{ matrix.shard }}
+          path: fuzz-failures/
+          if-no-files-found: ignore
+
+  # The corpus, the harness's own tests (every interface method compared: interface.test.ts) and the stress test.
+  corpus:
+    needs: wasm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: pkg
+          path: pkg/
+      - uses: ./.github/actions/reference-tools
+      - run: bun test harness/
+      - run: bun harness/compare.ts --quiet
+      - run: bun harness/stress.ts
+
+  # Fails when a metric is more than 20% slower than the last published @ledgermill/wasm.
+  bench:
+    needs: wasm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: pkg
+          path: pkg/
+      - uses: oven-sh/setup-bun@v2
+      - run: bun harness/bench.ts --against-npm latest
+
+  similarity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ledgermill-similarity
+          key: similarity-${{ hashFiles('scripts/similarity/lock.tsv', 'scripts/similarity/run.sh') }}
+      - run: scripts/similarity/run.sh
+
+  package:
+    needs: wasm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: pkg
+          path: pkg/
+      - name: What the npm package ships
+        run: cd pkg && npm pack --dry-run
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: What the crates ship
+        run: |
+          cargo package --list --allow-dirty -p ledgermill
+          cargo package --list --allow-dirty -p ledgermill-wasm

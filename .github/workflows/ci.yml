@@ -99,7 +99,7 @@ jobs:
         run: pip install beancount==3.2.3 beanquery==0.2.0
       - name: Check the Beancount versions
         run: bean-query --version | grep -Fx "beanquery 0.2.0, beancount 3.2.3"
-      - run: bun test harness/lib.test.ts
+      - run: bun test harness/
       - run: bun harness/compare.ts --quiet
       - name: Random journals
         run: bun harness/fuzz.ts 1000 "$GITHUB_RUN_NUMBER"

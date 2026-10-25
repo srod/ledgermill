@@ -44,6 +44,14 @@ bun harness/bench.ts [--runs N] [--against DIR | --against-npm VERSION]   # desk
 bun harness/device-bench/server.ts   # the phone bench, for the release gate: harness/device-bench/README.md
 ```
 
+`harness/interface.test.ts` fails when the wasm exports a function or a `Ledger` method that the comparison never calls,
+so every method of the interface is compared with the reference tools.
+
+The release gate (`.github/workflows/release-gate.yml`, run by hand before a release, see `RELEASING.md`) runs 5,000 of
+each kind of random journal (hledger, `--graph`, `--beancount`) in shards of 500 with seeds of their own, the corpus, the
+harness's own checks, the stress test, the desktop bench against the last published package, the similarity check
+(`scripts/similarity/`) and what the packages would ship.
+
 ## Read the results
 
 Each case ends in one verdict:

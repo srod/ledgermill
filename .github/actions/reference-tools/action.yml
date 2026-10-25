@@ -1,0 +1,42 @@
+name: Reference tools
+description: Bun, hledger and Beancount at the versions the spec notes record (binaries only, never read).
+
+inputs:
+  hledger-version:
+    description: hledger version
+    default: "1.52.4"
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+    - name: Cache hledger
+      id: hledger-cache
+      uses: actions/cache@v6
+      with:
+        path: ~/hledger-bin
+        key: hledger-${{ inputs.hledger-version }}-linux-x64
+    - name: Download hledger (reference tool, binary only)
+      if: steps.hledger-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        HLEDGER_VERSION: ${{ inputs.hledger-version }}
+      run: |
+        mkdir -p ~/hledger-bin
+        curl -fsSL "https://github.com/simonmichael/hledger/releases/download/${HLEDGER_VERSION}/hledger-linux-x64.tar.gz" \
+          | tar -xz -C ~/hledger-bin hledger
+    - name: Put hledger on PATH
+      shell: bash
+      run: echo "$HOME/hledger-bin" >> "$GITHUB_PATH"
+    - name: Check the hledger version
+      shell: bash
+      run: hledger --version | grep -F "hledger ${{ inputs.hledger-version }}"
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+    - name: Install Beancount (reference tools)
+      shell: bash
+      run: pip install beancount==3.2.3 beanquery==0.2.0
+    - name: Check the Beancount versions
+      shell: bash
+      run: bean-query --version | grep -Fx "beanquery 0.2.0, beancount 3.2.3"
