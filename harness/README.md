@@ -358,7 +358,8 @@ Comparing a build with itself (`--against pkg`) passes, with ratios near 1.0. CI
 
 All journals are written by us and safe to publish.
 
-- `journals/prototype/`: probe journals from our earlier prototype.
+- `journals/prototype/`: probe journals written for our retired TypeScript prototype; they are test inputs
+  like the others, and the prototype is no reference.
 - `journals/app/`: test journals of our first user, a personal finance app, published with its
   author's approval.
 - `../spec/hledger/probes/`: the probe journals behind each spec note.

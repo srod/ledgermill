@@ -4,9 +4,35 @@ Ledger engines for plain-text accounting: one for hledger journals, one for Bean
 They are written in Rust, compile to WebAssembly for browsers, and are built to be embedded in
 native apps later. They compute with exact decimals and answer through a typed interface.
 
-**Status: early work.** Nothing is released yet. The first goal is to give the same answers as
-hledger 1.52.4 and Beancount 3.2.3 for everything its first user, a personal finance app, reads from a
-journal.
+**Status: version 0.1.0.** It gives the same answers as hledger 1.52.4 and Beancount 3.2.3 (beanquery 0.2.0)
+for everything its first user, a personal finance app, reads from a journal; what it refuses is listed in
+[spec/hledger/syntax.md](spec/hledger/syntax.md) and [spec/README.md](spec/README.md). See
+[CHANGELOG.md](CHANGELOG.md).
+
+```sh
+npm install @ledgermill/wasm   # WebAssembly and its JS glue
+cargo add ledgermill           # the Rust core
+```
+
+```js
+import init, { load, format } from "@ledgermill/wasm";
+
+await init(); // browsers; in Bun or Node pass the .wasm bytes: initSync({ module: bytes })
+
+const ledger = load(JSON.stringify([{ name: "main.journal", content: journalText }]));
+try {
+  const findings = JSON.parse(ledger.check()); // [] when the journal is fine
+  const postings = JSON.parse(ledger.postings());
+  const holdings = JSON.parse(ledger.holdings(JSON.stringify({ commodity: "EUR", today: "2026-10-25" })));
+} finally {
+  ledger.free(); // the ledger lives in wasm memory
+}
+
+const tidy = format("main.journal", journalText); // whitespace only
+```
+
+Every answer is a JSON string. `atCost()`, `value(date, commodity)` and `holdings(query)` throw an `Error`
+whose message is the finding as JSON when ledgermill cannot answer as the reference tool does.
 
 ## What it does
 

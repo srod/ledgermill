@@ -1,5 +1,9 @@
 # PROTOTYPE: observed behaviour of native `hledger print -O json` (1.52.4)
 
+> **History, not a reference.** These are the notes of our retired TypeScript prototype. The Rust
+> engine is what ships, and the other notes in this directory, checked by the harness, are the
+> spec; where they disagree with this file, they win.
+
 Clean-room notes. Everything here was learned by running the native `hledger`
 binary on journals we wrote (`probes/`) and on our first user's test journals.
 No hledger source code was read. Probe file names are given as evidence; rerun

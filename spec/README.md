@@ -34,8 +34,11 @@ Each note has:
   it for directive lines (`hledger/directive-forms.txt`, 200 of them), and `hledger/check-vs-print.sh` compares
   `hledger check` with `print` on the whole corpus.
 - `hledger/probes/refused/` holds the hledger probes ledgermill refuses (not run by the harness).
-- `hledger/prototype-observations.md` – the notes of our earlier TypeScript prototype, kept as a
-  starting point. They are our own text, written from running hledger. Its valuation sections (`--cost`, `--value=DATE,COMM`) are superseded by value-prices, value-arithmetic and cost.
+- `hledger/prototype-observations.md` – history: the notes of our earlier TypeScript prototype, which is retired and is
+  no reference for anything. The reference tools are hledger and Beancount themselves; the Rust engine and the harness are what
+  we build on and check against. The notes are our own text, written from running hledger, and are kept only to show where
+  the work started. Where they differ from a note in this directory, this directory is right. Their valuation sections
+  (`--cost`, `--value=DATE,COMM`) are superseded by value-prices, value-arithmetic and cost.
 
 - `beancount/` – notes on Beancount. The commands use `beancount/show.sh`, which prints what
   `bean-check` says and, from `bean-query -f csv`, one row per transaction and one per posting
