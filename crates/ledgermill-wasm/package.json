@@ -1,9 +1,21 @@
 {
   "name": "@ledgermill/wasm",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "ledgermill ledger engines compiled to WebAssembly, with their wasm-bindgen glue.",
+  "keywords": [
+    "ledger",
+    "accounting",
+    "hledger",
+    "beancount",
+    "wasm",
+    "webassembly",
+    "plain-text-accounting"
+  ],
   "license": "MIT OR Apache-2.0",
+  "homepage": "https://github.com/srod/ledgermill#readme",
+  "bugs": {
+    "url": "https://github.com/srod/ledgermill/issues"
+  },
   "repository": "github:srod/ledgermill",
   "type": "module",
   "main": "./ledgermill_wasm.js",
@@ -15,6 +27,17 @@
     },
     "./ledgermill_wasm_bg.wasm": "./ledgermill_wasm_bg.wasm"
   },
-  "files": ["ledgermill_wasm.js", "ledgermill_wasm.d.ts", "ledgermill_wasm_bg.wasm", "ledgermill_wasm_bg.wasm.d.ts"],
-  "sideEffects": false
+  "files": [
+    "ledgermill_wasm.js",
+    "ledgermill_wasm.d.ts",
+    "ledgermill_wasm_bg.wasm",
+    "ledgermill_wasm_bg.wasm.d.ts",
+    "README.md",
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
 }
