@@ -15,6 +15,9 @@ lto = true
 codegen-units = 1
 strip = true
 
+[workspace.lints.rust]
+missing_docs = "deny"
+
 # Adopted from the Apollo Rust handbook; see AGENTS.md "Rust style".
 [workspace.lints.clippy]
 unwrap_used = "deny"

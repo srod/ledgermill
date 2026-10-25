@@ -42,7 +42,7 @@ the mechanical ones are enforced by `[workspace.lints]` in `Cargo.toml`.
 - **Comments say why**, not what. `TODO`s name an issue: `// TODO(#12): ...`.
 - **Tests**: through the public interface only, named after the behaviour they check. One test
   per journal comparing the whole result is fine.
-- **Before 0.1.0** every public item gets a doc comment (`missing_docs` will be turned on).
+- **Every public item gets a doc comment**; `missing_docs` is denied in `Cargo.toml`.
 
 ## Checks before you finish
 

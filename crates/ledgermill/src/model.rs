@@ -6,23 +6,34 @@ use serde::{Deserialize, Serialize};
 /// One source file handed to `load`. Files are processed in the order given.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceFile {
+    /// The file name. It is reported back in every `file` field, and its extension decides the
+    /// format: `.beancount` and `.bean` are Beancount, anything else is hledger.
     pub name: String,
+    /// The whole text of the file.
     pub content: String,
 }
 
+/// A transaction's status. In JSON it is `""`, `"!"` or `"*"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Status {
+    /// No mark. Beancount: any flag other than `*` and `!`, including the `P` of padding.
     #[serde(rename = "")]
     Unmarked,
+    /// Marked `!`.
     #[serde(rename = "!")]
     Pending,
+    /// Marked `*`; a Beancount `txn` counts as cleared.
     #[serde(rename = "*")]
     Cleared,
 }
 
+/// Where a transaction starts.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Source {
+    /// The file, as given to `load`.
     pub file: String,
+    /// The line of the transaction's header, from 1. A Beancount padding transaction sits on the
+    /// line of its `pad`.
     pub line: u32,
 }
 
@@ -31,8 +42,11 @@ pub struct Source {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PostingKind {
+    /// An ordinary posting; always the case for Beancount.
     Regular,
+    /// `(account)`: never balanced.
     Virtual,
+    /// `[account]`: balanced among the other `[account]` postings of its transaction.
     BalancedVirtual,
 }
 
@@ -40,7 +54,9 @@ pub enum PostingKind {
 /// `"-12.50"`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Quantity {
+    /// The commodity; `""` when the amount has none.
     pub commodity: String,
+    /// The exact decimal string, with a point as decimal mark.
     pub quantity: String,
 }
 
@@ -109,25 +125,43 @@ pub struct Holding {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Cost {
-    Unit { amount: Quantity },
-    Total { amount: Quantity },
+    /// `@`: the price of one unit.
+    Unit {
+        /// The price of one unit.
+        amount: Quantity,
+    },
+    /// `@@`: the price of the whole amount (hledger only).
+    Total {
+        /// The price of the whole amount.
+        amount: Quantity,
+    },
 }
 
 /// A lot annotation: `{cost}` (a total `{{T}}` is reported per unit), `[date]` and `(label)`.
 /// `cost` is `None` for `{}` or when only a date or label is written.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Lot {
+    /// The cost of one unit of the lot.
     pub cost: Option<Quantity>,
+    /// The lot's date, `YYYY-MM-DD`.
     pub date: Option<String>,
+    /// The lot's label.
     pub label: Option<String>,
 }
 
+/// An amount of one commodity on a posting, with the price and lot it was written or booked with.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Amount {
+    /// The commodity; `""` when the amount has none.
     pub commodity: String,
+    /// The exact decimal string, with a point as decimal mark and the places as written or worked
+    /// out. hledger: rounded half to even to ten places when it has more.
     pub quantity: String,
+    /// The `@` or `@@` price, written or inferred. Beancount: the `@` price, as a unit price.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost: Option<Cost>,
+    /// The lot annotation. Beancount: the cost the posting was booked against (`{}`), with its
+    /// date and label.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lot: Option<Lot>,
 }
@@ -139,9 +173,14 @@ pub struct Amount {
 /// amount.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Posting {
+    /// The account name, after aliases; for a virtual posting without its `()` or `[]` (see `kind`).
     pub account: String,
+    /// Whether the posting is real or virtual.
     pub kind: PostingKind,
+    /// The posting's comment, trimmed; empty when it has none, and always empty for Beancount.
     pub comment: String,
+    /// The amounts of the posting. hledger: one per commodity, an elided posting getting the
+    /// amounts that balance its transaction (the list can be empty). Beancount: exactly one.
     pub amounts: Vec<Amount>,
     /// The posting's own flag (Beancount), e.g. `"!"`. Absent when the posting has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -166,6 +205,7 @@ pub struct Posting {
 pub struct Transaction {
     /// `YYYY-MM-DD`
     pub date: String,
+    /// The transaction's status.
     pub status: Status,
     /// The exact transaction flag, one character (Beancount only); `txn` reads as `*`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -173,9 +213,14 @@ pub struct Transaction {
     /// The payee when the header has two strings (Beancount only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payee: Option<String>,
+    /// The description of the header; for Beancount the narration.
     pub description: String,
+    /// The comment of the header and of the comment lines under it, trimmed; empty when there is none.
     pub comment: String,
+    /// The file and line the transaction starts at.
     pub source: Source,
+    /// The postings, in the order written (Beancount: grouped by currency, as the reference lists
+    /// them).
     pub postings: Vec<Posting>,
 }
 
@@ -217,21 +262,35 @@ pub struct FlatPosting {
     pub line: u32,
 }
 
+/// How serious a finding is. In JSON it is `"error"` or `"warning"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// The reference tool rejects this input, or ledgermill cannot read it.
     Error,
+    /// Read and set aside; it does not change the verdict.
     Warning,
 }
 
+/// A problem found in a ledger, or something ledgermill read and set aside: what `Ledger::check`
+/// lists. The `code` is stable; `spec/README.md` lists the codes and their `details`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Finding {
+    /// The stable code, e.g. `parse-error` or `unsupported-syntax`. Match on this, not on `message`.
     pub code: String,
+    /// Whether it makes the ledger invalid.
     pub severity: Severity,
+    /// The file, as given to `load`.
     pub file: String,
+    /// The line it is reported on, from 1; `0` for a problem of the whole file (a Beancount push
+    /// that is never popped).
     pub line: u32,
+    /// The column, from 1 (a tab counts to the next multiple of eight), when the finding points
+    /// inside the line; for example a failed hledger assertion, at its first `=`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub column: Option<u32>,
+    /// Facts about this finding as JSON; which ones depends on the `code` (the account, the
+    /// commodity, the construct refused...).
     pub details: serde_json::Value,
     /// Short English sentence, our own words.
     pub message: String,
