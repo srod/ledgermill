@@ -127,7 +127,9 @@ fn same_lot(a: &Lot, b: &Lot) -> bool {
 /// What every account holds, by currency, as the walk goes on.
 #[derive(Default)]
 struct Sums {
-    units: BTreeMap<(String, String), Num>,
+    /// By account, then currency: ordered like (account, currency) pairs, and a posting of a pair
+    /// already seen looks it up without copying its names.
+    units: BTreeMap<String, BTreeMap<String, Num>>,
     /// Units held in lots with a cost: account, currency, lot.
     lots: Vec<(String, String, Lot, Num)>,
 }
@@ -135,10 +137,18 @@ struct Sums {
 impl Sums {
     fn apply(&mut self, postings: &[Posted]) {
         for p in postings {
-            let sum = self
-                .units
-                .entry((p.account.clone(), p.currency.clone()))
-                .or_insert_with(Num::zero);
+            if !self.units.contains_key(&p.account) {
+                self.units.insert(p.account.clone(), BTreeMap::new());
+            }
+            let Some(currencies) = self.units.get_mut(&p.account) else {
+                continue;
+            };
+            if !currencies.contains_key(&p.currency) {
+                currencies.insert(p.currency.clone(), Num::zero());
+            }
+            let Some(sum) = currencies.get_mut(&p.currency) else {
+                continue;
+            };
             *sum = sum.add(&p.units);
             let Some(lot) = &p.lot else { continue };
             let held = self.lots.iter_mut().find(|(account, currency, other, _)| {
@@ -160,8 +170,9 @@ impl Sums {
     fn total(&self, root: &str, currency: &str) -> Num {
         self.units
             .iter()
-            .filter(|((account, c), _)| c == currency && within(account, root))
-            .fold(Num::zero(), |sum, (_, units)| sum.add(units))
+            .filter(|(account, _)| within(account, root))
+            .filter_map(|(_, held)| held.get(currency))
+            .fold(Num::zero(), |sum, units| sum.add(units))
     }
 
     /// Whether `root` or anything below it holds `currency` in a lot with a cost.
@@ -513,37 +524,47 @@ fn open_and_close(entries: &[Entry], problems: &mut Vec<Problem>) {
 
 /// Step 6.2: the accounts that transactions, pads, notes and documents name. A `balance` was
 /// looked at in step 5, and a padding transaction names what its pad names.
-fn accounts_used(entries: &[Entry], accounts: &Accounts, problems: &mut Vec<Problem>) {
-    let mut check = |names: &[&str], date: Day, line: u32, until_close: bool| {
-        let mut seen: Vec<&str> = Vec::new();
-        for name in names {
-            if seen.contains(name) {
-                continue;
+fn accounts_used<'a>(entries: &[Entry<'a>], accounts: &Accounts, problems: &mut Vec<Problem>) {
+    // One buffer for every call: the accounts of the entry that were already looked at.
+    let mut seen: Vec<&str> = Vec::new();
+    let mut check =
+        |names: &mut dyn Iterator<Item = &'a str>, date: Day, line: u32, until_close| {
+            seen.clear();
+            for name in names {
+                if seen.contains(&name) {
+                    continue;
+                }
+                seen.push(name);
+                if let Some(why) = accounts.inactive(name, date, until_close) {
+                    problems.push(not_open(name, &why, line));
+                }
             }
-            seen.push(name);
-            if let Some(why) = accounts.inactive(name, date, until_close) {
-                problems.push(not_open(name, &why, line));
-            }
-        }
-    };
+        };
     for entry in entries {
         match entry {
-            Entry::Transaction(kept, 0) => {
-                let names: Vec<&str> = kept.postings.iter().map(|p| p.account.as_str()).collect();
-                check(&names, kept.date, kept.line, true);
-            }
+            Entry::Transaction(kept, 0) => check(
+                &mut kept.postings.iter().map(|p| p.account.as_str()),
+                kept.date,
+                kept.line,
+                true,
+            ),
             Entry::Directive(
                 Item::Pad {
                     account, source, ..
                 },
                 date,
                 line,
-            ) => check(&[account, source], *date, *line, true),
+            ) => check(
+                &mut [account.as_str(), source.as_str()].into_iter(),
+                *date,
+                *line,
+                true,
+            ),
             Entry::Directive(
                 Item::Note { account, .. } | Item::Document { account, .. },
                 date,
                 line,
-            ) => check(&[account], *date, *line, false),
+            ) => check(&mut std::iter::once(account.as_str()), *date, *line, false),
             _ => {}
         }
     }

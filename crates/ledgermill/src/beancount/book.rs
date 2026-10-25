@@ -7,6 +7,7 @@
 use super::lima::{Books, Feed, FeedCost};
 use super::plain::{BookFailure, Day, Lot, RawPosting, RawPrice, RawTransaction};
 use super::pydec::Num as Decimal;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// A posting after booking: one row of the postings table.
@@ -153,11 +154,13 @@ fn weight_of(p: &RawPosting) -> Result<(String, Decimal), BookFailure> {
 /// Work out the one cost (on a posting that adds a lot) or price that is left to balancing, as
 /// the figure that makes the other postings of its currency add up to zero
 /// (spec/beancount/inferred-cost-and-price.md). Returns the transaction with it filled in.
-fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailure> {
-    let mut out = tx.clone();
+fn infer<'t>(
+    books: &Books,
+    tx: &'t RawTransaction,
+) -> Result<Cow<'t, RawTransaction>, BookFailure> {
     // The lots of an AVERAGE account are not tracked, and `book` refuses them anyway.
     if tx.postings.iter().any(|p| books.averages(&p.account)) {
-        return Ok(out);
+        return Ok(Cow::Borrowed(tx));
     }
     let wanted: Vec<usize> = tx
         .postings
@@ -176,7 +179,7 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
         .map(|(i, _)| i)
         .collect();
     let Some(&at) = wanted.first() else {
-        return Ok(out);
+        return Ok(Cow::Borrowed(tx));
     };
     if wanted.len() > 1 {
         return Err(BookFailure::OnPosting("too-many-missing-numbers", at));
@@ -250,6 +253,7 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
     } else {
         sum.negated().div(units).ok_or(BookFailure::TooPrecise)?
     };
+    let mut out = tx.clone();
     let slot = &mut out.postings[at];
     if is_cost {
         if value.is_negative() {
@@ -266,7 +270,7 @@ fn infer(books: &Books, tx: &RawTransaction) -> Result<RawTransaction, BookFailu
         }
         price.currency = Some(group);
     }
-    Ok(out)
+    Ok(Cow::Owned(out))
 }
 
 /// Lines of the postings with zero units and a cost written per unit (`0 BTC {10 EUR}`): the
@@ -304,7 +308,7 @@ pub(super) fn book(
         .filter(|(_, p)| open_cost(p) && p.units.as_ref().is_some_and(Decimal::is_zero))
         .map(|(i, _)| i)
         .collect();
-    let tx = &filled;
+    let tx = filled.as_ref();
     if tx.postings.iter().all(is_auto) {
         // Nothing to balance: a lone elided posting vanishes, two cannot be told apart.
         return match tx.postings.len() {

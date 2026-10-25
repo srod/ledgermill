@@ -402,17 +402,19 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                                 "The postings do not add up to zero.",
                             ));
                         }
+                        let postings = booked.postings.iter().map(posting).collect();
+                        // The checks take what the postings hold; nothing is copied for them.
                         kept.push(check::Kept {
                             date: tx.date,
                             line: tx.line,
                             postings: booked
                                 .postings
-                                .iter()
+                                .into_iter()
                                 .map(|p| check::Posted {
-                                    account: p.account.clone(),
-                                    currency: p.currency.clone(),
-                                    units: p.units.clone(),
-                                    lot: p.lot.clone(),
+                                    account: p.account,
+                                    currency: p.currency,
+                                    units: p.units,
+                                    lot: p.lot,
                                 })
                                 .collect(),
                         });
@@ -427,7 +429,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                                 file: file.name.clone(),
                                 line: tx.line,
                             },
-                            postings: booked.postings.iter().map(posting).collect(),
+                            postings,
                         });
                     }
                 }
