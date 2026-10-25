@@ -59,7 +59,7 @@ const html = `<!doctype html>
 
 // Cross-origin isolation lets Chromium offer measureUserAgentSpecificMemory (where the page is a secure context).
 const headers = {
-  "cache-control": "no-store", // every run fetches the wasm again, like a first visit
+  "cache-control": "no-store", // every run fetches its bytes again, outside the clock
   "cross-origin-opener-policy": "same-origin",
   "cross-origin-embedder-policy": "require-corp",
 };

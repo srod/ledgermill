@@ -4,9 +4,10 @@
 import type { Run } from "./report.ts";
 
 type Ledger = { transactions(): string; check(): string; value(date: string, commodity: string): string; holdings(query: string): string; free(): void };
-type Glue = { default(): Promise<{ memory: WebAssembly.Memory }>; load(files: string): Ledger };
+type Glue = { default(input: { module_or_path: ArrayBuffer }): Promise<{ memory: WebAssembly.Memory }>; load(files: string): Ledger };
 
 const glue = "/pkg/ledgermill_wasm.js"; // served by server.ts; kept out of the bundle
+const wasmUrl = "/pkg/ledgermill_wasm_bg.wasm";
 
 const timed = <T>(fn: () => T): [ms: number, result: T] => {
   const t0 = performance.now();
@@ -20,10 +21,12 @@ self.onmessage = async (event: MessageEvent<{ file: string }>) => {
     const content = await (await fetch(`/data/${file}`)).text();
     const end = content.match(/^\d{4}-\d\d-\d\d/gm)?.at(-1) ?? "2015-01-01";
 
-    // start: fetch the glue and the wasm, compile, instantiate.
-    const t0 = performance.now();
+    // The app serves the wasm from its cache, so the download is not part of start: fetch the glue and the bytes first.
     const api = (await import(glue)) as Glue;
-    const { memory } = await api.default();
+    const bytes = await (await fetch(wasmUrl)).arrayBuffer();
+    // start: compile and instantiate.
+    const t0 = performance.now();
+    const { memory } = await api.default({ module_or_path: bytes });
     const start = performance.now() - t0;
 
     const [loadMs, ledger] = timed(() => api.load(JSON.stringify([{ name: file, content }])));

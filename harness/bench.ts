@@ -3,7 +3,7 @@
 // warm-up. With --against (a previous @ledgermill/wasm package directory) or --against-npm (fetched with
 // `npm pack`), the two builds run interleaved in this process, each as its own module instance, and the bench
 // fails (exit 1) when a metric of the current build (pkg/) is more than 20% slower than the previous one.
-import { appendFileSync, mkdtempSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { calls, type Build, formats, type Ledger, importBuild, load, makeCase, PKG, start, time } from "./engine.ts";
@@ -32,6 +32,7 @@ function previousDir(): string | null {
   if (against !== undefined) return resolve(against);
   if (againstNpm === undefined) return null;
   const tmp = mkdtempSync(join(tmpdir(), "ledgermill-bench-"));
+  process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
   const spec = `@ledgermill/wasm@${againstNpm}`;
   const pack = Bun.spawnSync(["npm", "pack", spec, "--pack-destination", tmp], { cwd: tmp });
   if (!pack.success) {

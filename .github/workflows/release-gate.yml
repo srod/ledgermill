@@ -33,6 +33,13 @@ jobs:
         run: cargo install --locked wasm-bindgen-cli@${{ env.WASM_BINDGEN_VERSION }}
       # Also checks that package.json and Cargo.toml agree on the version.
       - run: crates/ledgermill-wasm/build.sh
+      - name: Size budget (as in ci.yml)
+        run: |
+          sudo apt-get install -y --no-install-recommends brotli
+          budget=$(sed -n 's/^  WASM_SIZE_BUDGET: //p' .github/workflows/ci.yml)
+          size=$(brotli -q 11 -c pkg/ledgermill_wasm_bg.wasm | wc -c)
+          echo "wasm size, brotli -q 11: $size bytes (budget $budget)" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ -n "$budget" ] && [ "$size" -le "$budget" ]
       - uses: actions/upload-artifact@v7
         with:
           name: pkg

@@ -35,7 +35,8 @@ or published by an agent: the owner runs steps 4 and 5.
    4. `cargo publish -p ledgermill-wasm`;
    5. `crates/ledgermill-wasm/build.sh && npm publish ./pkg`.
 
-   Try each `cargo publish` with `--dry-run` first. (`cargo publish -p ledgermill-wasm --dry-run`
-   only works once `ledgermill` is on crates.io.)
+   Try each `cargo publish` with `--dry-run` first. A dry run resolves the dependencies from
+   crates.io, so `-p ledgermill` only works once both forks are published, and `-p ledgermill-wasm`
+   once `ledgermill` is.
 5. **Tag and release.** `git tag v0.1.0` on the released commit, push the tag, and create the
    GitHub release for `v0.1.0` with the CHANGELOG entry as its text.

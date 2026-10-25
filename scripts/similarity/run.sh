@@ -155,7 +155,7 @@ if ! "$VPY" -c "import sys, importlib.metadata as m; sys.exit(m.version('copydet
 fi
 "$VPY" "$HERE/copydetect_scores.py" "$TMP/cd/new" "$TMP/cd/ref" "$TMP/copydetect.json" \
   >"$TMP/copydetect.log" 2>&1 ||
-  die "copydetect failed ($(tail -n 1 "$TMP/copydetect.log" | cut -c1-60)); its log is withheld because it can quote source"
+  die "copydetect failed; its log is withheld because it can quote source"
 
 python3 "$HERE/report.py" --jplag "$TMP/jplag.jplag" --ours "$TMP/ours.tsv" --copydetect "$TMP/copydetect.json" \
   --fail "$FAIL_AT" --warn "$WARN_AT" \

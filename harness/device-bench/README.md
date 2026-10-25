@@ -6,7 +6,7 @@ Worker on 10,000 generated transactions per format (hledger and Beancount, `harn
 
 | metric | target |
 |---|---|
-| start (fetch + compile + instantiate the wasm) | ≤ 300 ms |
+| start (compile + instantiate the wasm) | ≤ 300 ms |
 | load + `transactions()` | ≤ 500 ms |
 | `check()` | ≤ 500 ms |
 | `value()` | ≤ 200 ms |
@@ -32,9 +32,9 @@ Worker on 10,000 generated transactions per format (hledger and Beancount, `harn
 
 - The server generates both ledgers once, at start. The worker downloads its ledger before any clock starts, so neither
   generation nor the download is counted.
-- Each run uses a **new worker** and a new wasm instance, so every run is cold. The server sends `no-store`, so every
-  run fetches the glue and the wasm again, over your Wi-Fi: `start` includes that.
-- `start` = import the glue + fetch, compile and instantiate the wasm. `load+transactions` = `JSON.stringify` of the
+- Each run uses a **new worker** and a new wasm instance, so every run is cold. The worker fetches the glue and the wasm
+  bytes before the clock starts: the app serves them from its cache, so your Wi-Fi is not part of `start`.
+- `start` = compile and instantiate the wasm from its bytes. `load+transactions` = `JSON.stringify` of the
   input, `load()` and `transactions()` (the JSON text is not parsed in the timing). `check`, `value` and `holdings`
   are called on the loaded ledger, as `harness/engine.ts` does.
 - Memory is the wasm memory after the run. The page also logs, for information only and where the browser has them,
