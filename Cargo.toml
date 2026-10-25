@@ -7,7 +7,11 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/srod/ledgermill"
-publish = false
+homepage = "https://github.com/srod/ledgermill"
+readme = "README.md"
+# Lowest compiler checked: `cargo +1.88.0 check --workspace --locked` (the `time` crate needs 1.88).
+rust-version = "1.88"
+keywords = ["ledger", "accounting", "hledger", "beancount", "wasm"]
 
 [profile.release]
 opt-level = "s"

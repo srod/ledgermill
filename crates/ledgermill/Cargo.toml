@@ -5,7 +5,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-publish.workspace = true
+homepage.workspace = true
+readme.workspace = true
+rust-version.workspace = true
+keywords.workspace = true
+categories = ["finance", "parser-implementations"]
+# The integration tests read ../../spec, so they cannot run from the packaged crate.
+include = ["src/**/*.rs", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
 
 [dependencies]
 # Forks without GPL files, pinned by commit. Their types stay inside src/beancount/lima.rs.
