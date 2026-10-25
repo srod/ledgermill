@@ -16,7 +16,7 @@ include = ["src/**/*.rs", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
 [dependencies]
 # Our forks without GPL files, pinned by commit, published on crates.io under our names (the
 # published crate takes them from there, by version). Their types stay inside src/beancount/lima.rs.
-beancount-parser-lima = { package = "ledgermill-beancount-parser", git = "https://github.com/srod/beancount-parser-lima", rev = "266980b6149d7d229c45b181141321f588ec2c5b", version = "=0.16.3" }
+beancount-parser-lima = { package = "ledgermill-beancount-parser", git = "https://github.com/srod/beancount-parser-lima", rev = "b4ffc56e37ce82e1f4155f7848c9cf8cc217b468", version = "=0.16.3" }
 limabean-booking = { package = "ledgermill-beancount-booking", git = "https://github.com/srod/limabean-booking", rev = "00ffbda3b29c6486281748bcdb1d2f4bf307aa03", version = "=0.10.5", default-features = false, features = ["rust-decimal"] }
 num-bigint = "0.5"
 num-integer = "0.1"
