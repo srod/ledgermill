@@ -51,6 +51,12 @@ macro_rules! day {
     }};
 }
 
+/// The text of an account or a currency. `to_string` goes through `Display`, which is slow
+/// for one copy of a string per posting.
+fn owned(name: &impl AsRef<str>) -> String {
+    name.as_ref().to_owned()
+}
+
 fn flag_char(flag: parser::Flag) -> char {
     match flag {
         parser::Flag::Asterisk => '*',
@@ -105,7 +111,7 @@ fn posting(
             Some(RawCost {
                 per_unit,
                 total,
-                currency: spec.currency().map(|c| c.item().to_string()),
+                currency: spec.currency().map(|c| owned(c.item())),
                 date: spec.date().map(|d| day!(d)),
                 label: spec.label().map(|l| (*l.item()).to_string()),
                 merge: spec.merge(),
@@ -121,7 +127,7 @@ fn posting(
                 RawPrice {
                     number: Some(literal(value).ok_or("number-expression")?),
                     total,
-                    currency: Some(currency.to_string()),
+                    currency: Some(owned(currency)),
                 }
             }
             parser::PriceSpec::BareAmount(s) => {
@@ -153,11 +159,11 @@ fn posting(
         return Err("inferred-price");
     }
     Ok(RawPosting {
-        account: p.account().item().to_string(),
+        account: owned(p.account().item()),
         flag: p.flag().map(|f| flag_char(*f.item())),
         line: line_of(starts, p.span().start),
         units,
-        currency: p.currency().map(|c| c.item().to_string()),
+        currency: p.currency().map(|c| owned(c.item())),
         cost,
         price,
     })
@@ -678,6 +684,97 @@ impl Books {
                     && p.units.is_sign_negative() != negative
             })
         })
+    }
+
+    /// Book the postings of a transaction that has no cost and no price, without the booking
+    /// crate: every posting has its units and currency, except for at most one that has nothing
+    /// and then every other posting is in one currency. The crate would give each posting as
+    /// written (the elided one takes the currency of the others and what is left to balance, or
+    /// nothing when that is within half the finest place written), and add the units to what each
+    /// account holds; this does the same. `None` when the transaction is not of that shape or
+    /// the crate would refuse a number, and the crate then takes it.
+    pub(super) fn book_plain(&mut self, postings: &[RawPosting]) -> Option<Vec<Row>> {
+        let mut elided = None;
+        let mut first: Option<&str> = None;
+        let mut several = false;
+        // Every number as the crate would be given it: nothing is changed before all are known.
+        let mut units = Vec::with_capacity(postings.len());
+        let mut sum = rust_decimal::Decimal::ZERO;
+        // The finest place written, which sets what is too small to leave over.
+        let mut places: Option<u32> = None;
+        for (i, p) in postings.iter().enumerate() {
+            if p.cost.is_some() || p.price.is_some() || self.averages(&p.account) {
+                return None;
+            }
+            match (&p.units, &p.currency) {
+                (Some(written), Some(own)) => {
+                    let d = to_decimal(written)?;
+                    sum = sum.checked_add(d)?;
+                    if d.scale() > 0 {
+                        places = Some(places.map_or(d.scale(), |finest| finest.min(d.scale())));
+                    }
+                    units.push(d);
+                    match first {
+                        Some(other) if other != own => several = true,
+                        _ => first = Some(own),
+                    }
+                }
+                (None, None) if elided.is_none() => {
+                    elided = Some(i);
+                    units.push(rust_decimal::Decimal::ZERO);
+                }
+                _ => return None,
+            }
+        }
+        if let Some(at) = elided {
+            // The elided posting needs one currency to take, from at least one other posting.
+            if several || first.is_none() {
+                return None;
+            }
+            let beyond = match places {
+                Some(places) => {
+                    let half = rust_decimal::Decimal::new(5, 1);
+                    sum.abs() >= rust_decimal::Decimal::new(1, places).checked_mul(half)?
+                }
+                None => !sum.is_zero(),
+            };
+            let left = if beyond {
+                -sum
+            } else {
+                rust_decimal::Decimal::ZERO
+            };
+            *units.get_mut(at)? = left;
+        }
+        let mut rows = Vec::with_capacity(postings.len());
+        for (origin, (p, units)) in postings.iter().zip(units).enumerate() {
+            let own = p.currency.as_deref().or(first).unwrap_or_default();
+            let method =
+                booking_method(self.method_of(&p.account)).unwrap_or(booking::Booking::Strict);
+            if !self.inventory.contains_key(p.account.as_str()) {
+                self.inventory
+                    .insert(Arc::from(p.account.as_str()), booking::Positions::default());
+            }
+            if let Some(positions) = self.inventory.get_mut(p.account.as_str()) {
+                // The currency is shared with the position that holds it, when there is one.
+                let shared = positions
+                    .iter()
+                    .find(|held| &*held.currency == own)
+                    .map(|held| held.currency.clone());
+                positions.accumulate(
+                    units,
+                    shared.unwrap_or_else(|| Arc::from(own)),
+                    None,
+                    method,
+                );
+            }
+            rows.push(Row {
+                origin,
+                units: number(units),
+                currency: own.to_string(),
+                lot: None,
+            });
+        }
+        Some(rows)
     }
 
     /// Book one transaction's postings; on success the inventory moves on.

@@ -5,7 +5,7 @@
 //! The lot matching itself is the booking crate's (through `lima.rs`); the figures are ours.
 
 use super::lima::{Books, Feed, FeedCost};
-use super::plain::{BookFailure, Day, Lot, RawPosting, RawPrice, RawTransaction};
+use super::plain::{BookFailure, Day, Lot, RawPosting, RawPrice, RawTransaction, Row};
 use super::pydec::Num as Decimal;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -293,35 +293,16 @@ pub(super) fn zero_units_at_cost(tx: &RawTransaction) -> impl Iterator<Item = u3
         .map(|p| p.line)
 }
 
-pub(super) fn book(
+/// The rows, the postings fed to the crate and where each comes from.
+type Crate = (Vec<Row>, Vec<Feed>, Vec<usize>);
+
+/// What the booking crate makes of a transaction: the rows, the postings it was fed and, for each,
+/// the posting as written it comes from.
+fn through_the_crate(
     books: &mut Books,
     date: Day,
     tx: &RawTransaction,
-) -> Result<Booked, BookFailure> {
-    let filled = infer(books, tx)?;
-    // The reference does not list a posting of zero units whose cost was left to work out (such a
-    // transaction is always rejected, as nothing balances the payment: inferred-cost-and-price.md).
-    let empty_lots: Vec<usize> = tx
-        .postings
-        .iter()
-        .enumerate()
-        .filter(|(_, p)| open_cost(p) && p.units.as_ref().is_some_and(Decimal::is_zero))
-        .map(|(i, _)| i)
-        .collect();
-    let tx = filled.as_ref();
-    if tx.postings.iter().all(is_auto) {
-        // Nothing to balance: a lone elided posting vanishes, two cannot be told apart.
-        return match tx.postings.len() {
-            0 | 1 => Ok(Booked {
-                postings: Vec::new(),
-                residuals: Vec::new(),
-            }),
-            _ => Err(BookFailure::OnPosting(
-                "ambiguous-auto-posting",
-                last_auto(&tx.postings),
-            )),
-        };
-    }
+) -> Result<Crate, BookFailure> {
     let mut feeds: Vec<Feed> = tx.postings.iter().map(feed_of).collect::<Result<_, _>>()?;
     // Which posting as written each fed posting comes from.
     let mut origins: Vec<usize> = (0..feeds.len()).collect();
@@ -363,6 +344,44 @@ pub(super) fn book(
         }
         other => other,
     })?;
+    Ok((rows, feeds, origins))
+}
+
+pub(super) fn book(
+    books: &mut Books,
+    date: Day,
+    tx: &RawTransaction,
+) -> Result<Booked, BookFailure> {
+    let filled = infer(books, tx)?;
+    // The reference does not list a posting of zero units whose cost was left to work out (such a
+    // transaction is always rejected, as nothing balances the payment: inferred-cost-and-price.md).
+    let empty_lots: Vec<usize> = tx
+        .postings
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| open_cost(p) && p.units.as_ref().is_some_and(Decimal::is_zero))
+        .map(|(i, _)| i)
+        .collect();
+    let tx = filled.as_ref();
+    if tx.postings.iter().all(is_auto) {
+        // Nothing to balance: a lone elided posting vanishes, two cannot be told apart.
+        return match tx.postings.len() {
+            0 | 1 => Ok(Booked {
+                postings: Vec::new(),
+                residuals: Vec::new(),
+            }),
+            _ => Err(BookFailure::OnPosting(
+                "ambiguous-auto-posting",
+                last_auto(&tx.postings),
+            )),
+        };
+    }
+    // A transaction of plain postings is booked without the crate.
+    let (rows, feeds, origins) = match books.book_plain(&tx.postings) {
+        // No feeds: such postings have no price, and each is the posting as written.
+        Some(rows) => (rows, Vec::new(), Vec::new()),
+        None => through_the_crate(books, date, tx)?,
+    };
 
     // Weights, by the currency they balance in.
     struct Slot {
@@ -379,17 +398,17 @@ pub(super) fn book(
     let mut slots: Vec<Slot> = rows
         .into_iter()
         .map(|row| {
-            let origin = origins[row.origin];
+            let origin = origins.get(row.origin).copied().unwrap_or(row.origin);
             let raw = &tx.postings[origin];
-            let feed = &feeds[row.origin];
+            let price = feeds.get(row.origin).and_then(|feed| feed.price.as_ref());
             let elided = raw.units.is_none() && raw.cost.is_none() && raw.price.is_none();
-            let group = weight_currency(&row.currency, row.lot.as_ref(), feed.price.as_ref());
+            let group = weight_currency(&row.currency, row.lot.as_ref(), price);
             Slot {
                 origin,
                 units: row.units,
                 currency: row.currency,
                 lot: row.lot,
-                price: feed.price.clone(),
+                price: price.cloned(),
                 group,
                 elided,
                 negative_zero: false,
