@@ -4,3 +4,4 @@
 /pkg
 *.wasm
 __pycache__/
+/harness/device-bench/results.jsonl
