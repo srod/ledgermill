@@ -290,7 +290,9 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
         .booking_method()
         .map_or(Method::Strict, |m| method(*m.item()));
     let mut items = Vec::new();
-    for directive in &success.directives {
+    // By value: each directive is freed once converted, so the parse result and the items are
+    // never both whole in memory (that was the peak on a big ledger).
+    for directive in success.directives {
         let line = line_of(&starts, directive.span().start);
         match directive.variant() {
             parser::DirectiveVariant::Transaction(t) => {
