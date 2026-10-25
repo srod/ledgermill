@@ -41,6 +41,7 @@ bun harness/real.ts FILE...       # your own journals (several files: each alone
 bun test harness/                 # the harness's own checks
 bun harness/stress.ts [N]         # N (default 100,000) generated transactions per format through every call of the wasm
 bun harness/bench.ts [--runs N] [--against DIR | --against-npm VERSION]   # desktop timing bench, see below
+bun harness/device-bench/server.ts   # the phone bench, for the release gate: harness/device-bench/README.md
 ```
 
 ## Read the results
