@@ -107,6 +107,8 @@ jobs:
         run: bun harness/fuzz.ts --graph 300 "$GITHUB_RUN_NUMBER"
       - name: Random Beancount journals
         run: bun harness/fuzz.ts --beancount 150 "$GITHUB_RUN_NUMBER"
+      - name: Stress test (100,000 transactions per format)
+        run: bun harness/stress.ts
 
   ios:
     runs-on: macos-latest
