@@ -2,6 +2,7 @@
 //! the parser sees them (it would read the filesystem for `include`, and a few number
 //! expressions would make it panic).
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 /// Byte offsets where each line starts.
@@ -142,6 +143,28 @@ fn option_name(line: &str) -> Option<String> {
     rest.get(start..end).map(str::to_string)
 }
 
+/// Whether a line can be skipped by `prescan`'s number checks without looking at its code: it
+/// has none of the characters that make an expression or a partial cost, and no run of digits
+/// long enough to refuse. Strings and comments only ever remove characters from the code, so
+/// what holds for the whole line holds for the code too (the converse need not hold).
+fn plainly_fine(raw: &str) -> bool {
+    let mut run = 0usize;
+    for b in raw.bytes() {
+        if matches!(b, b'(' | b')' | b'/' | b'*' | b'#') {
+            return false;
+        }
+        if b.is_ascii_digit() || (run > 0 && (b == b',' || b == b'.')) {
+            run += 1;
+            if run > MAX_NUMBER_CHARS {
+                return false;
+            }
+        } else {
+            run = 0;
+        }
+    }
+    true
+}
+
 /// Lines to refuse, found without the parser.
 pub(super) fn prescan(text: &str) -> Vec<Refusal> {
     let mut out = Vec::new();
@@ -163,6 +186,8 @@ pub(super) fn prescan(text: &str) -> Vec<Refusal> {
                 Some(name) if HARMLESS_OPTIONS.contains(&name.as_str()) => {}
                 name => out.push(refuse("option", name)),
             }
+        } else if plainly_fine(raw) {
+            // Nothing to refuse: the checks below would find nothing.
         } else if raw.starts_with([' ', '\t']) {
             // A posting's flag may be `*`; it is not an operator.
             let code = merge_marker_removed(&code_of(raw));
@@ -320,30 +345,50 @@ fn single_braces(line: &str) -> String {
 /// An indented line of two or more tags and links, `  #a ^b`: the parser reads one per line.
 /// They change nothing ledgermill reports, so the line becomes a comment.
 fn is_tag_line(line: &str) -> bool {
+    // The first token has to be a tag or a link.
+    if !line.trim_start().starts_with(['#', '^']) {
+        return false;
+    }
     let code = line.split(';').next().unwrap_or("");
-    let tokens: Vec<&str> = code.split_whitespace().collect();
-    tokens.len() >= 2
-        && tokens
-            .iter()
-            .all(|t| t.len() > 1 && t.starts_with(['#', '^']))
+    let mut count = 0;
+    for token in code.split_whitespace() {
+        if !(token.len() > 1 && token.starts_with(['#', '^'])) {
+            return false;
+        }
+        count += 1;
+    }
+    count >= 2
 }
 
 /// `5.` as `5`: the reference reads a number that ends in a dot, the parser does not.
 ///
 /// On a directive line (`strict`) only a dot followed by a space or the end counts: a currency
 /// such as `X1.Y` has a dot after a digit too.
-fn trailing_dots_dropped(line: &str, strict: bool) -> String {
-    let mut out = String::with_capacity(line.len());
+fn trailing_dots_dropped(line: &str, strict: bool) -> Cow<'_, str> {
+    // Most lines have no dot that ends a number: a dot after a digit and before another digit
+    // (`12.50`) never does, so leave those alone without a closer look.
+    let bytes = line.as_bytes();
+    let candidate = bytes.iter().enumerate().any(|(i, &b)| {
+        b == b'.'
+            && i > 0
+            && bytes.get(i - 1).is_some_and(u8::is_ascii_digit)
+            && !bytes.get(i + 1).is_some_and(u8::is_ascii_digit)
+    });
+    if !candidate {
+        return Cow::Borrowed(line);
+    }
+    // Copied only once a dot is dropped: most lines keep every character.
+    let mut out: Option<String> = None;
     let mut in_string = false;
     let mut escaped = false;
     let mut in_comment = false;
     let mut previous = ' ';
-    let mut chars = line.chars().peekable();
-    while let Some(c) = chars.next() {
+    let mut chars = line.char_indices().peekable();
+    while let Some((at, c)) = chars.next() {
         let ends_number = if strict {
-            chars.peek().is_none_or(|next| next.is_whitespace())
+            chars.peek().is_none_or(|(_, next)| next.is_whitespace())
         } else {
-            !chars.peek().is_some_and(char::is_ascii_digit)
+            !chars.peek().is_some_and(|(_, next)| next.is_ascii_digit())
         };
         let skip =
             !in_string && !in_comment && c == '.' && previous.is_ascii_digit() && ends_number;
@@ -360,12 +405,14 @@ fn trailing_dots_dropped(line: &str, strict: bool) -> String {
         } else if c == ';' {
             in_comment = true;
         }
-        if !skip {
+        if skip {
+            out.get_or_insert_with(|| line[..at].to_string());
+        } else if let Some(out) = out.as_mut() {
             out.push(c);
         }
         previous = c;
     }
-    out
+    out.map_or(Cow::Borrowed(line), Cow::Owned)
 }
 
 /// Where the minus sign of a negative tolerance is on a `balance` line (`500 ~ -0.5 EUR`). The
@@ -373,7 +420,7 @@ fn trailing_dots_dropped(line: &str, strict: bool) -> String {
 /// the parser does not read it, so `normalize` drops the sign and `negative_tolerance_lines` says
 /// which lines had one.
 fn negative_tolerance_at(line: &str) -> Option<usize> {
-    if line.starts_with([' ', '\t']) {
+    if line.starts_with([' ', '\t']) || !line.contains('~') {
         return None;
     }
     let code = line.split(';').next()?;
@@ -431,19 +478,25 @@ pub(super) fn margin_errors(text: &str) -> Vec<u32> {
 /// Whether the line leaves a string open (a string that spans lines), given whether one was open
 /// when it began. `;` starts a comment only outside a string.
 fn string_open_after(line: &str, mut open: bool) -> bool {
+    // Nothing can open a string on a line without a quote.
+    if !open && !line.contains('"') {
+        return false;
+    }
     let mut escaped = false;
-    for c in line.chars() {
+    // Bytes, not chars: the three characters that matter are ASCII, which never occur inside a
+    // multi-byte sequence.
+    for c in line.bytes() {
         if open {
             if escaped {
                 escaped = false;
-            } else if c == '\\' {
+            } else if c == b'\\' {
                 escaped = true;
-            } else if c == '"' {
+            } else if c == b'"' {
                 open = false;
             }
-        } else if c == '"' {
+        } else if c == b'"' {
             open = true;
-        } else if c == ';' {
+        } else if c == b';' {
             break;
         }
     }
@@ -501,24 +554,28 @@ pub(super) fn normalize(text: &str) -> String {
         } else {
             header_flag_at(body)
         };
-        let mut line = match at.and_then(|i| Some((body.get(..i)?, body.get(i..)?))) {
-            Some((before, after)) => format!("{before}'{after}"),
-            None => body.to_string(),
+        // Borrowed until a rewrite changes the line.
+        let mut line: Cow<str> = match at.and_then(|i| Some((body.get(..i)?, body.get(i..)?))) {
+            Some((before, after)) => Cow::Owned(format!("{before}'{after}")),
+            None => Cow::Borrowed(body),
         };
-        if line.starts_with([' ', '\t']) && line.contains('{') {
-            line = braces_tidied(&line);
+        let indented = line.starts_with([' ', '\t']);
+        if indented && line.contains('{') {
+            line = Cow::Owned(braces_tidied(&line));
         }
-        if line.starts_with([' ', '\t']) && line.contains("{{") {
-            line = single_braces(&line);
+        if indented && line.contains("{{") {
+            line = Cow::Owned(single_braces(&line));
         }
-        if line.contains('.') {
-            line = trailing_dots_dropped(&line, !line.starts_with([' ', '\t']));
+        if line.contains('.')
+            && let Cow::Owned(dropped) = trailing_dots_dropped(&line, !indented)
+        {
+            line = Cow::Owned(dropped);
         }
-        if line.starts_with([' ', '\t']) && is_tag_line(&line) {
-            line = format!("  ;{line}");
+        if indented && is_tag_line(&line) {
+            line = Cow::Owned(format!("  ;{line}"));
         }
         if let Some(at) = negative_tolerance_at(&line) {
-            line.replace_range(at..=at, " ");
+            line.to_mut().replace_range(at..=at, " ");
         }
         out.push_str(&line);
         out.push_str(end);
