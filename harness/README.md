@@ -38,7 +38,9 @@ bun harness/fuzz.ts [N] [SEED]    # N random journals (default 500); CI runs 1,0
 bun harness/fuzz.ts --graph [N] [SEED]   # N random networks of prices, valued at random dates; CI runs 300
 bun harness/fuzz.ts --beancount [N] [SEED]   # N random Beancount journals with prices, lots and costs; CI runs 150
 bun harness/real.ts FILE...       # your own journals (several files: each alone, then all together)
-bun test harness/lib.test.ts      # the harness's own checks
+bun test harness/                 # the harness's own checks
+bun harness/stress.ts [N]         # N (default 100,000) generated transactions per format through every call of the wasm
+bun harness/bench.ts [--runs N] [--against DIR | --against-npm VERSION]   # desktop timing bench, see below
 ```
 
 ## Read the results
@@ -313,6 +315,44 @@ rates (zero and negative ones too), a transaction with an amount in each commodi
 and now and then a posting with several amounts; each journal is compared raw, under `--cost` and under two
 random `--value` runs. These exercise the choice of the path and the arithmetic of `spec/hledger/value-prices.md`
 and `value-arithmetic.md`.
+
+## Stress test
+
+`bun harness/stress.ts [N]` generates N transactions (default 100,000) per format with `bigjournal.ts` and runs
+them through the wasm in `pkg/`: `load`, `transactions()`, `postings()`, `prices()`, `check()`, `atCost()`, `value()`,
+`holdings()`, `format()` and `free()`. After each step it prints the time and the size of the wasm memory. It does not
+use the reference tools and checks no values.
+
+It fails (exit 1) only on a crash: a wasm trap (`RuntimeError`), an error whose message is not a finding as JSON,
+running out of memory, or the process dying. A refusal (a finding thrown by a call) or a finding from `check()` is printed
+and is fine. CI runs it after the fuzz steps.
+
+`bigjournal.ts` writes the ledgers: `hledgerJournal(N, seed)` and `beancountLedger(N, seed)` give the same text for the
+same seed. It is a personal-finance story (about thirty accounts, EUR, USD, GBP, VWCE and AAPL, prices, purchases at
+`@`, `@@` and lots, sales, balance assertions, comments) written in either syntax. Both must be valid for the
+reference tool; after changing it, check a journal by hand:
+
+```sh
+bun -e 'import { hledgerJournal, beancountLedger } from "./harness/bigjournal.ts"; await Bun.write("/tmp/big.journal", hledgerJournal(10000, 1)); await Bun.write("/tmp/big.beancount", beancountLedger(10000, 1))'
+hledger -f /tmp/big.journal check && bean-check /tmp/big.beancount
+```
+
+## Desktop bench
+
+`bun harness/bench.ts [--runs N] [--against DIR | --against-npm VERSION]` times the wasm in `pkg/` on 10,000
+generated transactions per format (fixed seed): `start` (compile and instantiate from bytes), `load+transactions`,
+`check`, `value`, `holdings`, `postings`, `prices` and `format`. Each metric is the median of N runs (default 7)
+after one warm-up. It prints a Markdown table, and appends it to `$GITHUB_STEP_SUMMARY` when that is set.
+
+With `--against DIR` (a `@ledgermill/wasm` package directory, such as another `pkg/`) or `--against-npm VERSION`
+(`npm pack @ledgermill/wasm@VERSION`, for example `latest`), the previous build runs in the same process, as its own
+module instance, alternating with the current one, so the speed of the machine affects both alike. A metric the previous
+build lacks shows `n/a` and is not compared. With `--against-npm` and no published version (npm answers 404) there is no
+previous release: the current timings are printed and the exit code is 0.
+
+It fails (exit 1) when a metric of the current build is more than 20% slower than the previous one, or when a call of the
+current build throws. A metric also has to be 0.1 ms slower to fail, since a timer cannot tell 0.01 ms from 0.02 ms.
+Comparing a build with itself (`--against pkg`) passes, with ratios near 1.0. CI does not run it on every push.
 
 ## Corpus
 
