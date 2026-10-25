@@ -18,6 +18,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beanFormatLine, type Comparison, compareAll, formatLine, type HoldingQuestion, type Query, summarize, tally, tallies } from "./lib.ts";
+import { rng } from "./rng.ts";
 
 const saveAt = process.argv.indexOf("--save");
 const saveDir = saveAt < 0 ? null : (process.argv[saveAt + 1] ?? null);
@@ -28,18 +29,6 @@ const keep = process.argv.includes("--keep");
 const graph = process.argv.includes("--graph");
 const beancount = process.argv.includes("--beancount");
 
-// xorshift32: the same seed gives the same journals on every machine.
-function rng(start: number): () => number {
-  let s = start >>> 0 || 1;
-  return () => {
-    s ^= s << 13;
-    s >>>= 0;
-    s ^= s >>> 17;
-    s ^= s << 5;
-    s >>>= 0;
-    return s / 4294967296;
-  };
-}
 const r = rng(seed);
 // Its own stream: asking holdings questions must not change the journals a seed gives.
 const rq = rng(seed ^ 0x5bd1e995);
