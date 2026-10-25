@@ -18,14 +18,13 @@ use super::text::{line_of, line_starts};
 use beancount_parser_lima as parser;
 use beancount_parser_lima::Report;
 use limabean_booking as booking;
-use num_bigint::BigInt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 // ───────────── reading ─────────────
 
 fn number(d: rust_decimal::Decimal) -> Number {
-    Number::from_scaled(BigInt::from(d.mantissa()), d.scale())
+    Number::from_scaled_i128(d.mantissa(), d.scale())
 }
 
 /// A number written as a plain literal; anything computed is refused by the caller.
@@ -443,8 +442,7 @@ fn to_decimal(n: &Number) -> Option<rust_decimal::Decimal> {
     } else {
         n.clone()
     };
-    let (mantissa, places) = n.scaled()?;
-    let mantissa = i128::try_from(mantissa).ok()?;
+    let (mantissa, places) = n.scaled_i128()?;
     rust_decimal::Decimal::try_from_i128_with_scale(mantissa, places).ok()
 }
 
