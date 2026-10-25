@@ -23,7 +23,8 @@ This is the maintainer's own assessment, not legal advice. No lawyer has reviewe
    Whether matching a layout would be copying has not been decided by any court.
 3. **AI memorisation.** AI models were trained on public code, likely including GPL ledger
    tools. No court or policy says what happens when a model reproduces memorised code. Our
-   guard is the similarity check before each release.
+   guard is the similarity check before each release. It finds copied runs of about six lines or
+   more, not logic rewritten in another language or with renamed identifiers; a pass is not proof.
 
 We judge the risk low because we copy no expression, keep evidence of where every rule came
 from (spec notes with our own journals), and record exposure.

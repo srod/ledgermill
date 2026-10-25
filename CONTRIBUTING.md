@@ -50,8 +50,9 @@ Agents follow the same rules, and a few more:
 - Every commit containing code an agent wrote carries an `Assisted-by: <tool and model>`
   trailer.
 - A human reviews every agent change before it is merged.
-- Before each release, a script compares our source with the pinned upstream sources and the
-  score is recorded. Nobody reads the upstream tree to do this.
+- Before each release, `scripts/similarity/run.sh` compares our source with the pinned upstream
+  sources, and its last line (the score) is recorded in the release notes. Nobody reads the
+  upstream tree to do this; see `scripts/similarity/README.md`.
 
 ## Sign-off (DCO)
 
