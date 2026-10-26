@@ -1,0 +1,31 @@
+; An elided posting whose amount is not zero but rounds to zero at the places written is kept.
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:C
+
+2026-01-02 * "a residual below half a cent"
+  Assets:A  1.004 EUR
+  Assets:B  -1.00 EUR
+  Assets:C
+
+2026-01-03 * "a negative residual below half a cent"
+  Assets:A  -1.004 EUR
+  Assets:B  1.00 EUR
+  Assets:C
+
+2026-01-04 * "half a cent rounds to the even zero"
+  Assets:A  1.005 EUR
+  Assets:B  -1.00 EUR
+  Assets:C
+
+2026-01-05 * "an exact zero still drops it"
+  Assets:A  1.00 EUR
+  Assets:B  -1.00 EUR
+  Assets:C
+
+2026-01-06 * "only the currency that rounds to zero"
+  Assets:A  1.004 EUR
+  Assets:A  1 USD
+  Assets:B  -1.00 EUR
+  Assets:B  -1 USD
+  Assets:C

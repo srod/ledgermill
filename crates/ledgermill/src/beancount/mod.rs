@@ -147,7 +147,11 @@ fn posting(p: &book::BookedPosting) -> Posting {
         comment: String::new(),
         amounts: vec![Amount {
             commodity: p.currency.clone(),
-            quantity: p.units.to_string(),
+            quantity: if p.negative_zero {
+                format!("-{}", p.units)
+            } else {
+                p.units.to_string()
+            },
             cost: p.price.as_ref().map(|(value, currency)| Cost::Unit {
                 amount: quantity(currency, value),
             }),

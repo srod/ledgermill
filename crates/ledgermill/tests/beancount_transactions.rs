@@ -225,3 +225,40 @@ fn an_elided_posting_is_split_by_currency() {
         ]
     );
 }
+
+#[test]
+fn an_elided_amount_that_rounds_to_zero_is_kept_with_its_sign() {
+    // interpolation-rounds-to-zero: only an exact zero drops the elided posting.
+    let journal =
+        include_str!("../../../spec/beancount/probes/interpolation-rounds-to-zero.beancount");
+    let rows = beancount_rows("z.beancount", journal);
+    let postings = |n: usize| -> Vec<_> {
+        rows[n][5]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| json!([p[0], p[1], p[2]]))
+            .collect()
+    };
+    assert_eq!(
+        postings(0),
+        vec![
+            json!(["Assets:A", "1.004", "EUR"]),
+            json!(["Assets:B", "-1.00", "EUR"]),
+            json!(["Assets:C", "-0.00", "EUR"]),
+        ]
+    );
+    assert_eq!(postings(1)[2], json!(["Assets:C", "0.00", "EUR"]));
+    assert_eq!(postings(2)[2], json!(["Assets:C", "-0.00", "EUR"]));
+    assert_eq!(postings(3).len(), 2);
+    assert_eq!(
+        postings(4),
+        vec![
+            json!(["Assets:A", "1.004", "EUR"]),
+            json!(["Assets:B", "-1.00", "EUR"]),
+            json!(["Assets:C", "-0.00", "EUR"]),
+            json!(["Assets:A", "1", "USD"]),
+            json!(["Assets:B", "-1", "USD"]),
+        ]
+    );
+}

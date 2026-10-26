@@ -28,6 +28,23 @@ each group that is left over (one row per currency, in alphabetical order) and s
 written inside the group. A residual of zero adds no row: a lone elided posting vanishes, and a
 transaction with no postings stays, with none.
 
+Only an **exact** zero drops the row. A residual that is not zero but rounds to zero at the places
+written (below) keeps it, signed: `1.004 EUR` and `-1.00 EUR` leave `-0.00 EUR` for the elided
+posting, `-1.004` and `1.00` leave `0.00`, and `1.005` against `-1.00` rounds half to even to
+`-0.00` (`probes/interpolation-rounds-to-zero.beancount`; in a transaction with two currencies only
+the one that rounds to zero gets the row). The transaction balances: such a residual is within the
+tolerance (balancing.md).
+
+```text
+$ spec/beancount/show.sh spec/beancount/probes/interpolation-rounds-to-zero.beancount
+9ffe5f,Assets:C,,-0.00,EUR,,,,,,,interpolation-rounds-to-zero.beancount,9
+59bd3a,Assets:C,,0.00,EUR,,,,,,,interpolation-rounds-to-zero.beancount,14
+d7db49,Assets:C,,-0.00,EUR,,,,,,,interpolation-rounds-to-zero.beancount,19
+7fc52f,Assets:C,,-0.00,EUR,,,,,,,interpolation-rounds-to-zero.beancount,31
+```
+
+(Only the elided postings are shown; transaction `2861db`, an exact zero, has none.)
+
 Places of an elided amount: it is rounded half to even to the fewest decimal places among the
 amounts written in that currency. Integers do not count, nor do the places of a price or a cost
 (`1 STK @ 1.2345 EUR` next to `2.25 EUR` gives two places); trailing zeros do count (`1.50`).

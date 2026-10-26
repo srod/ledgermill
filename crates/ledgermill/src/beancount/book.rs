@@ -16,6 +16,9 @@ pub(super) struct BookedPosting {
     pub flag: Option<char>,
     pub line: u32,
     pub units: Decimal,
+    /// The units are a zero worked out from a negative amount: Decimal keeps that sign and
+    /// prints `-0.00` (an elided posting that rounds to zero, numbers-and-interpolation.md).
+    pub negative_zero: bool,
     pub currency: String,
     pub lot: Option<Lot>,
     /// The price per unit and its currency.
@@ -366,6 +369,8 @@ pub(super) fn book(
         price: Option<(Decimal, String)>,
         group: String,
         elided: bool,
+        negative_zero: bool,
+        exact_zero: bool,
     }
     let mut slots: Vec<Slot> = rows
         .into_iter()
@@ -383,6 +388,8 @@ pub(super) fn book(
                 price: feed.price.clone(),
                 group,
                 elided,
+                negative_zero: false,
+                exact_zero: false,
             }
         })
         .collect();
@@ -417,13 +424,16 @@ pub(super) fn book(
         let value = sum.negated();
         s.units = match places.get(s.group.as_str()) {
             Some(&p) => value.quantized(p),
-            None => value,
+            None => value.clone(),
         };
+        s.negative_zero = s.units.is_zero() && value.is_negative();
+        s.exact_zero = value.is_zero();
         let entry = sums.entry(s.group.clone()).or_insert_with(Decimal::zero);
         *entry = entry.add(&s.units);
     }
-    // An elided posting that comes out zero is not kept.
-    slots.retain(|s| !(s.elided && s.units.is_zero()) && !empty_lots.contains(&s.origin));
+    // An elided posting whose amount is exactly zero is not kept; one that only rounds to zero
+    // stays, as `0.00` or `-0.00` (numbers-and-interpolation.md).
+    slots.retain(|s| !(s.elided && s.exact_zero) && !empty_lots.contains(&s.origin));
 
     // Balance: every currency within half of its last written place; none written means exact.
     let mut residuals: Vec<(String, Decimal)> = Vec::new();
@@ -473,6 +483,7 @@ pub(super) fn book(
                 flag: raw.flag,
                 line: raw.line,
                 units: s.units,
+                negative_zero: s.negative_zero,
                 currency: s.currency,
                 lot: s.lot,
                 price: s.price,
