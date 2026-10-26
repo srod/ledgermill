@@ -509,3 +509,43 @@ fn other_assignments_and_assertions_leave_the_places_of_the_balance_alone() {
         ]
     );
 }
+
+#[test]
+fn a_zero_amount_with_a_total_cost_keeps_its_row() {
+    // post-assign-zero-cost: an assignment over a zero with `@@` lists that zero next to its result.
+    let d = "post-assign-zero-cost.journal";
+    let a = "a zero with a total cost, then an assignment";
+    let b = "the same with a total-balance assertion";
+    let c = "a zero with a unit cost is not kept";
+    let e = "a zero cost amount and another commodity";
+    let f = "every amount zero, the zero with a cost first";
+    let g = "a written zero with places and a total cost is listed as 0";
+    assert_eq!(
+        post_lines(&[probe!("post-assign-zero-cost")]),
+        [
+            format!("2026-01-01 | {a} | a | 0 X | {d}:4"),
+            format!("2026-01-01 | {a} | a | -1.0 X | {d}:5"),
+            format!("2026-01-01 | {a} | a | 0 X | {d}:5"),
+            format!("2026-01-01 | {a} | z | 1.0 X | {d}:6"),
+            format!("2026-01-02 | {b} | b | 0 X | {d}:9"),
+            format!("2026-01-02 | {b} | b | -1 X | {d}:10"),
+            format!("2026-01-02 | {b} | b | 0 X | {d}:10"),
+            format!("2026-01-02 | {b} | z | 1 X | {d}:11"),
+            format!("2026-01-03 | {c} | c | 0 X | {d}:14"),
+            format!("2026-01-03 | {c} | c | -1 X | {d}:15"),
+            format!("2026-01-03 | {c} | z | 1 X | {d}:16"),
+            format!("2026-01-04 | {e} | d | 0 X | {d}:19"),
+            format!("2026-01-04 | {e} | d | 1 Z | {d}:20"),
+            format!("2026-01-04 | {e} | d | -1 Y | {d}:21"),
+            format!("2026-01-04 | {e} | z | -9 USD | {d}:22"),
+            format!("2026-01-04 | {e} | z | 1 Y | {d}:22"),
+            format!("2026-01-04 | {e} | z | -1 Z | {d}:22"),
+            format!("2026-01-05 | {f} | e | 0 X | {d}:25"),
+            format!("2026-01-05 | {f} | e | 0 X | {d}:26"),
+            format!("2026-01-05 | {f} | z | 0 USD | {d}:27"),
+            format!("2026-01-06 | {g} | f | 0 USD | {d}:30"),
+            format!("2026-01-06 | {g} | g | 0 AB | {d}:31"),
+            format!("2026-01-06 | {g} | h | -1.00 AB | {d}:32"),
+        ]
+    );
+}

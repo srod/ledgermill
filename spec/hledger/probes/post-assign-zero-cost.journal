@@ -1,0 +1,32 @@
+; An assignment over an account that holds a zero amount with a cost: the zero keeps its row.
+
+2026-01-01 a zero with a total cost, then an assignment
+    a  0 X @@ 9 USD
+    a  = -1.0 X
+    z
+
+2026-01-02 the same with a total-balance assertion
+    b  0 X @@ 9 USD
+    b  == -1 X
+    z
+
+2026-01-03 a zero with a unit cost is not kept
+    c  0 X @ 9 USD
+    c  = -1 X
+    z
+
+2026-01-04 a zero cost amount and another commodity
+    d  0 X @@ 9 USD
+    d  1 Z
+    d  = -1 Y
+    z
+
+2026-01-05 every amount zero, the zero with a cost first
+    e  0 X @@ 9 USD
+    e  = 0 X
+    z
+
+2026-01-06 a written zero with places and a total cost is listed as 0
+    f  0.00 USD @@ 1.00 AB
+    g  0.0 AB
+    h

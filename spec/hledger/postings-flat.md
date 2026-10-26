@@ -173,6 +173,31 @@ or assertion follows the amount (below). A posting without an amount gets its am
 An assignment (`= 5 X`, `== 0`) is a posting with the amount hledger worked out: `==` over two commodities gives two
 rows (negated balance), a difference of zero gives one row `0` with no commodity (`n 0` in 2026-01-09, `n 0` in
 2026-01-10 whose partner `m` gets `0` too).
+
+**A zero with a total cost keeps its row.** An assignment over an account that holds `0 X @@ 9 USD` gets, next to its
+result, the amount `0 X @@ -9 USD` that takes that cost back (`print -O json` lists it), and the CSV gives it a row of
+its own, `0 X`, after the result. This also holds when every amount of the posting is zero (`e` in
+`post-assign-zero-cost.journal`: two rows `0 X`), and for `==`. A zero with a unit cost (`0 X @ 9 USD`) leaves no
+such amount, so no row. So the rule for a posting's rows is: one row per amount of the posting in
+`print -O json`, zeros left out unless they carry a cost, commodities in code point order; a posting with none left
+gets the one row `0` above. Checked on every journal of the corpus that hledger accepts (1,518 transactions, 0
+exceptions; `/tmp`-only script, not kept).
+
+```text
+$ spec/hledger/show-postings.sh spec/hledger/probes/post-assign-zero-cost.journal
+1 2026-01-01 | "a zero with a total cost, then an assignment" | post-assign-zero-cost.journal:3-6 | a | 0 X
+1 2026-01-01 | "a zero with a total cost, then an assignment" | post-assign-zero-cost.journal:3-6 | a | -1.0 X
+1 2026-01-01 | "a zero with a total cost, then an assignment" | post-assign-zero-cost.journal:3-6 | a | 0 X
+1 2026-01-01 | "a zero with a total cost, then an assignment" | post-assign-zero-cost.journal:3-6 | z | 1.0 X
+3 2026-01-03 | "a zero with a unit cost is not kept" | post-assign-zero-cost.journal:13-16 | c | 0 X
+3 2026-01-03 | "a zero with a unit cost is not kept" | post-assign-zero-cost.journal:13-16 | c | -1 X
+3 2026-01-03 | "a zero with a unit cost is not kept" | post-assign-zero-cost.journal:13-16 | z | 1 X
+5 2026-01-05 | "every amount zero, the zero with a cost first" | post-assign-zero-cost.journal:24-27 | e | 0 X
+5 2026-01-05 | "every amount zero, the zero with a cost first" | post-assign-zero-cost.journal:24-27 | e | 0 X
+5 2026-01-05 | "every amount zero, the zero with a cost first" | post-assign-zero-cost.journal:24-27 | z | 0 USD
+```
+
+(Transactions 2 and 4 of the probe, `==` and a zero cost next to another commodity, follow the same rule.)
 Rows keep the places of the amounts: a sum has the places of its terms ([balancing](balancing.md)); `10 X @ 2.5 EUR`
 leaves `-25.0 EUR` for the elided posting (the precise rule is in the next section).
 

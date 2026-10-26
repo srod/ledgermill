@@ -35,17 +35,21 @@ pub(crate) fn rows(tx: &Transaction, exact: &Exact, lines: &[u32]) -> Vec<FlatPo
 }
 
 /// `(quantity, commodity)` of each row of one posting, commodities in code point order (the empty
-/// one first). Zeros are left out when another amount is not zero; when all are zero (or there
-/// are none) one row `0` is left, with the first named commodity, else none.
+/// one first). Zeros are left out, except a zero with a cost (an assignment over a zero with
+/// `@@` keeps it); when none is left (or there are none) one row `0` is left, with the first
+/// named commodity, else none.
 fn amounts_of(amounts: &[WrittenAmount]) -> Vec<(String, String)> {
     let mut rows: Vec<(String, String)> = amounts
         .iter()
-        .filter(|a| !a.quantity.is_zero())
+        .filter(|a| !a.quantity.is_zero() || a.cost.is_some())
         .map(|a| {
-            (
-                a.quantity.padded_to(a.display_places).to_string(),
-                a.commodity.clone(),
-            )
+            // A zero is always listed as `0`, whatever its places (postings-flat.md).
+            let number = if a.quantity.is_zero() {
+                "0".into()
+            } else {
+                a.quantity.padded_to(a.display_places).to_string()
+            };
+            (number, a.commodity.clone())
         })
         .collect();
     if rows.is_empty() {
