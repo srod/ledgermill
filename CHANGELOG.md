@@ -4,7 +4,7 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.0 – not released yet
+## 0.1.0 – 2026-10-26
 
 The first release. Two ledger engines, one for hledger journals and one for Beancount ledgers,
 in a Rust core that compiles to WebAssembly. They compute with exact decimals, never read a file
@@ -82,16 +82,19 @@ itself does nothing with it.
 
 ### Release gate
 
-Filled in at release time, from the release-gate workflow and the owner's own runs. Nothing below
-has been run yet.
+From the release-gate workflow on commit `fe79e24` (run 40360104607, 2026-10-26) and the owner's
+own runs.
 
-- Random hledger journals (5,000): TBD at release (0 mismatches expected)
-- Random Beancount journals (5,000): TBD at release (0 mismatches expected)
-- Random price networks (5,000): TBD at release (0 mismatches expected)
-- Corpus comparison: TBD at release
-- Every interface method compared: TBD at release
-- Desktop bench: TBD at release (first release: this is the baseline, nothing to compare with)
-- Stress test, 100,000 transactions: TBD at release
-- Similarity check score: TBD at release
-- Real journals: pass – TBD at release (the owner fills this in; no numbers)
-- Device targets: met – TBD at release (the owner fills this in; no numbers, no device names)
+- Random hledger journals (5,000): 0 mismatches (2,287 that hledger accepts, compared on
+  transactions, postings, prices and holdings; the rest rejected by both, 45 skipped)
+- Random Beancount journals (5,000): 0 mismatches (transactions, prices, cost, value and holdings)
+- Random price networks (5,000): 0 mismatches
+- Corpus comparison: 11,797 pass, 0 fail, 30 skip
+- Every interface method compared: yes (`harness/interface.test.ts`)
+- Desktop bench: first release, so this is the baseline (CI runner, 10,000 transactions):
+  load+transactions 80.1 ms (hledger), 118.3 ms (Beancount); start 15.4 ms
+- Stress test, 100,000 transactions: ok, no crash (peak wasm memory 930 MB hledger, 578 MB Beancount)
+- Similarity check score: max 0.102 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
+  8 warn; copydetect max 0.275 (information only)
+- Real journals: pass
+- Device targets: met
