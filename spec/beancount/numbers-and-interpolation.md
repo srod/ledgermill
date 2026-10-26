@@ -49,6 +49,28 @@ Valued, such a posting keeps the sign of its zero: `convert(position, "USD", ...
 is `-0 USD`, and at a rate of `-2` it is `0` (the last transaction of the probe; convert-rates.md, the sign of a zero
 product).
 
+**A sum that reaches zero starts again.** The weights are added in the order the postings are
+written, and the sum keeps the places of its terms (`1.0 + 7` is `8.0`), except that when the sum
+reaches zero on the way, the places of the terms so far are forgotten: `-1 BBB`, then
+`0.5 CCC {2 BBB}` (a weight of `1.0`), then `1 AAA {7 BBB}` give `-7`, not `-7.0`; so do two costs
+that cancel (`1.0` and `-1.00`) before a `7`. A zero reached only by the last term changes nothing,
+and a written `0.000` is a term like any other: its places stay (`0.000` then `7` gives `-7.000`).
+This is about the places of the sum, which become those of the elided amount when no amount written
+in that currency has places (below). `probes/interpolation-sum-through-zero.beancount` (found by
+the fuzzer, seed 140):
+
+```text
+$ spec/beancount/show.sh spec/beancount/probes/interpolation-sum-through-zero.beancount
+0141bb,Equity:O,,-7,BBB,,,,,,,interpolation-sum-through-zero.beancount,12
+248ad9,Equity:O,,-7,BBB,,,,,,,interpolation-sum-through-zero.beancount,18
+1d9ce2,Equity:O,,-3.0,BBB,,,,,,,interpolation-sum-through-zero.beancount,24
+2d4900,Equity:O,,-7.0,BBB,,,,,,,interpolation-sum-through-zero.beancount,30
+388756,Equity:O,,-6.0,BBB,,,,,,,interpolation-sum-through-zero.beancount,36
+```
+
+(Only the elided postings are shown. The fourth reaches zero only at its last term, the fifth
+never does.)
+
 Places of an elided amount: it is rounded half to even to the fewest decimal places among the
 amounts written in that currency. Integers do not count, nor do the places of a price or a cost
 (`1 STK @ 1.2345 EUR` next to `2.25 EUR` gives two places); trailing zeros do count (`1.50`).

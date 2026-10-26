@@ -1,0 +1,36 @@
+; The sum that gives an elided amount starts again when it reaches zero: the places of the terms before are forgotten.
+2026-01-01 open Assets:A
+2026-01-01 open Assets:L1
+2026-01-01 open Assets:L2
+2026-01-01 open Assets:Short
+2026-01-01 open Equity:O
+
+2026-01-02 * "a written integer and a cost cancel, then an integer"
+  Assets:A  -1 BBB
+  Assets:L1  0.5 CCC {2 BBB}
+  Assets:L2  1 AAA {7 BBB}
+  Equity:O
+
+2026-01-03 * "two costs cancel, then a cost of whole units"
+  Assets:L1  0.5 CCC {2 BBB}
+  Assets:Short  -0.25 AAA {4 BBB}
+  Assets:L2  1 DDD {7 BBB}
+  Equity:O
+
+2026-01-04 * "two costs cancel, then a cost with one place"
+  Assets:L1  0.5 CCC {2 BBB}
+  Assets:Short  -0.25 AAA {4 BBB}
+  Assets:L2  1.5 DDD {2 BBB}
+  Equity:O
+
+2026-01-05 * "the zero comes last: nothing is forgotten after it"
+  Assets:L2  1 DDD {7 BBB}
+  Assets:A  -1 BBB
+  Assets:L1  0.5 CCC {2 BBB}
+  Equity:O
+
+2026-01-06 * "control: the sum never reaches zero"
+  Assets:A  -2 BBB
+  Assets:L1  0.5 CCC {2 BBB}
+  Assets:L2  1 AAA {7 BBB}
+  Equity:O

@@ -418,6 +418,11 @@ pub(super) fn book(
         let w = weight(s);
         let sum = sums.entry(s.group.clone()).or_insert_with(Decimal::zero);
         *sum = sum.add(&w);
+        // A sum that reaches zero starts again: the places of the terms before it are forgotten
+        // (numbers-and-interpolation.md, "A sum that reaches zero").
+        if sum.is_zero() {
+            sums.remove(&s.group);
+        }
     }
     for s in slots.iter_mut().filter(|s| s.elided) {
         let sum = sums.get(&s.group).cloned().unwrap_or_else(Decimal::zero);

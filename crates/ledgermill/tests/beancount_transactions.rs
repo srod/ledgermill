@@ -262,3 +262,17 @@ fn an_elided_amount_that_rounds_to_zero_is_kept_with_its_sign() {
         ]
     );
 }
+
+#[test]
+fn a_sum_that_reaches_zero_forgets_the_places_of_its_terms() {
+    // interpolation-sum-through-zero: the elided posting of each transaction is its last row.
+    let journal =
+        include_str!("../../../spec/beancount/probes/interpolation-sum-through-zero.beancount");
+    let rows = beancount_rows("t.beancount", journal);
+    let elided = |n: usize| rows[n][5].as_array().unwrap().last().unwrap()[1].clone();
+    assert_eq!(elided(0), json!("-7"));
+    assert_eq!(elided(1), json!("-7"));
+    assert_eq!(elided(2), json!("-3.0"));
+    assert_eq!(elided(3), json!("-7.0"));
+    assert_eq!(elided(4), json!("-6.0"));
+}
