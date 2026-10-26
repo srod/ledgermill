@@ -1,0 +1,64 @@
+; The inverse rate when a pair is priced several times on one day, a zero among them. Each commodity ZA..ZK is held
+; once and valued in EUR through the inverse of the prices of EUR in it.
+2026-01-01 open Assets:Held
+2026-01-01 open Equity:Other
+
+; a price, then zero, on one day: that day gives no inverse, and there is no other
+2026-01-02 price EUR 4 ZA
+2026-01-02 price EUR 0 ZA
+; zero, then a price: the price counts
+2026-01-02 price EUR 0 ZB
+2026-01-02 price EUR 4 ZB
+; a price, zero, a price: the last one counts
+2026-01-02 price EUR 4 ZC
+2026-01-02 price EUR 0 ZC
+2026-01-02 price EUR 8 ZC
+; zero, a price, zero: no inverse
+2026-01-02 price EUR 0 ZD
+2026-01-02 price EUR 4 ZD
+2026-01-02 price EUR 0 ZD
+; a price, and zero the next day: the price stays the latest inverse
+2026-01-02 price EUR 4 ZE
+2026-01-03 price EUR 0 ZE
+; a price, then a later day with a price and zero: the earlier day's inverse stays
+2026-01-02 price EUR 5 ZF
+2026-01-04 price EUR 4 ZF
+2026-01-04 price EUR 0 ZF
+; a price and zero, then a price on a later day: no rate until that day
+2026-01-02 price EUR 4 ZG
+2026-01-02 price EUR 0 ZG
+2026-01-05 price EUR 8 ZG
+; two prices, then zero, on one day: no inverse
+2026-01-02 price EUR 4 ZI
+2026-01-02 price EUR 8 ZI
+2026-01-02 price EUR 0 ZI
+; written out of date order: on 01-04 the price written last is 4, so it counts from that day
+2026-01-04 price EUR 0 ZJ
+2026-01-02 price EUR 5 ZJ
+2026-01-04 price EUR 4 ZJ
+; out of date order again: on 01-04 the price written last is zero, so 01-02 stays
+2026-01-04 price EUR 4 ZK
+2026-01-02 price EUR 5 ZK
+2026-01-04 price EUR 0 ZK
+
+2026-01-01 * "hold"
+  Assets:Held   1 ZA
+  Assets:Held   1 ZB
+  Assets:Held   1 ZC
+  Assets:Held   1 ZD
+  Assets:Held   1 ZE
+  Assets:Held   1 ZF
+  Assets:Held   1 ZG
+  Assets:Held   1 ZI
+  Assets:Held   1 ZJ
+  Assets:Held   1 ZK
+  Equity:Other -1 ZA
+  Equity:Other -1 ZB
+  Equity:Other -1 ZC
+  Equity:Other -1 ZD
+  Equity:Other -1 ZE
+  Equity:Other -1 ZF
+  Equity:Other -1 ZG
+  Equity:Other -1 ZI
+  Equity:Other -1 ZJ
+  Equity:Other -1 ZK

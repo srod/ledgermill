@@ -26,6 +26,11 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
   the inverse of zero does not exist. Going the other way, an older inverse entry of the pair stays the latest
   one there is (below: `EUR` in `ZER` is `5.0` after the price of zero as before it; `NIL`, priced at zero and
   nothing else, gives `EUR` no rate to `NIL`). A negative price is a negative rate.
+- **A pair priced several times on one day is inverted from the day's last price only,** the one written last.
+  When that one is zero, the day gives no inverse entry at all: an earlier price of the same day does not stand
+  in, and the inverse rate is the one of an earlier day, or none (probes/convert-rate-zero-same-day.beancount: `ZA`,
+  `4` then `0` on 01-02, has no rate; `ZB`, `0` then `4`, is `0.25`; `ZF`, `5` on 01-02 then `4` and `0` on
+  01-04, stays `0.2`). Written out of date order, the last of the day is still the one written last (`ZJ`, `ZK`).
 - **A pair priced both ways builds its rates in two steps,** which shows when an inverse is not exact (3, 7, 11):
   each pair starts with its own prices, then the pairs are visited one after another and each appends the inverses
   of what it holds *at that moment* to the list of the opposite pair. A pair visited first is therefore given
@@ -50,7 +55,7 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
 
 ## Probe
 
-`probes/convert-rate-dates.beancount`, `probes/convert-rate-inverse.beancount`, `probes/convert-rate-both-ways.beancount`, `probes/refused/price-both-ways-zero.beancount`
+`probes/convert-rate-dates.beancount`, `probes/convert-rate-inverse.beancount`, `probes/convert-rate-both-ways.beancount`, `probes/convert-rate-zero-same-day.beancount`, `probes/refused/price-both-ways-zero.beancount`
 
 Command:
 

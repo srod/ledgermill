@@ -78,10 +78,16 @@ impl Rates {
             let Some(((from, to), list)) = lists.get(i) else {
                 continue;
             };
+            // Only the last entry of each date is inverted, so a day whose last price is zero gives
+            // no inverse at all, and an earlier price of that day does not stand in.
+            let last: BTreeMap<&str, &Num> = list
+                .iter()
+                .map(|(date, rate)| (date.as_str(), rate))
+                .collect();
             let (opposite, inverses): (_, Entries) = (
                 (to.clone(), from.clone()),
-                list.iter()
-                    .filter_map(|(date, rate)| one.div(rate).map(|back| (date.clone(), back)))
+                last.into_iter()
+                    .filter_map(|(date, rate)| one.div(rate).map(|back| (date.to_string(), back)))
                     .collect(),
             );
             let j = at(&mut lists, opposite);

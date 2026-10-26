@@ -797,3 +797,69 @@ fn a_kept_negative_zero_keeps_its_sign_when_valued() {
     assert_eq!(last("USD"), "Assets:C -0.00 EUR -> -0.00 USD");
     assert_eq!(last("GBP"), "Assets:C -0.00 EUR -> 0.00 GBP");
 }
+
+#[test]
+fn value_drops_the_inverse_of_a_day_whose_last_price_is_zero() {
+    let ledger = probe!("convert-rate-zero-same-day");
+    let held = |rate: [&str; 10]| -> Vec<String> {
+        ["ZA", "ZB", "ZC", "ZD", "ZE", "ZF", "ZG", "ZI", "ZJ", "ZK"]
+            .iter()
+            .zip(rate)
+            .map(|(c, r)| format!("Assets:Held 1 {c} -> {r}"))
+            .collect()
+    };
+    let cases = [
+        (
+            "2026-01-02",
+            held([
+                "1 ZA",
+                "0.25 EUR",
+                "0.125 EUR",
+                "1 ZD",
+                "0.25 EUR",
+                "0.2 EUR",
+                "1 ZG",
+                "1 ZI",
+                "0.2 EUR",
+                "0.2 EUR",
+            ]),
+        ),
+        (
+            "2026-01-04",
+            held([
+                "1 ZA",
+                "0.25 EUR",
+                "0.125 EUR",
+                "1 ZD",
+                "0.25 EUR",
+                "0.2 EUR",
+                "1 ZG",
+                "1 ZI",
+                "0.25 EUR",
+                "0.2 EUR",
+            ]),
+        ),
+        (
+            "2026-01-05",
+            held([
+                "1 ZA",
+                "0.25 EUR",
+                "0.125 EUR",
+                "1 ZD",
+                "0.25 EUR",
+                "0.2 EUR",
+                "0.125 EUR",
+                "1 ZI",
+                "0.25 EUR",
+                "0.2 EUR",
+            ]),
+        ),
+    ];
+    for (date, expected) in cases {
+        assert_eq!(
+            valued(&ledger, "EUR", date, "Assets:"),
+            expected,
+            "on {date}"
+        );
+    }
+}
