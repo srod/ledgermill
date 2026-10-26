@@ -520,6 +520,18 @@ fn the_amounts_that_zero_other_commodities_keep_the_lot_of_one_posting_and_never
 }
 
 #[test]
+fn a_commodity_a_star_zeroed_keeps_the_lot_of_the_one_posting_below() {
+    // `==*` (or `=*`) moves a sub-account's lot amount onto the account, negated; zeroing the
+    // commodity again gives the lot back, as long as one posting below made it.
+    let probe = include_str!("../../../spec/hledger/probes/assign-star-zeroed-lot.journal");
+    assert_eq!(findings("x.journal", probe), json!([]));
+    assert_eq!(
+        rows("x.journal", probe)[3],
+        "22: a => -3, 2 EUR, 4 X {10 EUR} | c => -3, 2 EUR, 5 X | e => -3, 2 EUR, 4 X {10 EUR}[2026-01-01](l) | g => -1 EUR, 4 X {10 EUR} | z => 9, -5 EUR, -17 X"
+    );
+}
+
+#[test]
 fn a_price_in_the_asserted_amount_is_subtracted_from_the_entries_as_they_are() {
     // Entries are grouped by price: costless first, then by price commodity, total before unit, then by value.
     let probe = include_str!("../../../spec/hledger/probes/assign-cost.journal");

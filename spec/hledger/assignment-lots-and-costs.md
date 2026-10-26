@@ -30,6 +30,11 @@ the lot and loses the price. `{{T}}` makes a per-unit lot of `T` over the quanti
   leaves the balance as it was (and a posting `0 Y` beside a lot still counts as a second posting).
 - The partner posting that takes the balancing amount (`z`) carries the same lot when exactly one
   amount contributed ([elided-amounts](elided-amounts.md)).
+- With a star, a zeroed commodity (`==*` for every commodity but the asserted one, `=*` for those
+  sub-accounts hold) leaves the account's own balance at minus what the sub-accounts hold, and that
+  entry keeps the lot of the one posting below that made it. So `a:b 4 X {10 EUR}` and `a 1 X`,
+  then `a ==* 3` (gives `-5 X`, no lot: two postings) and `a == 2 EUR` gives `4 X {10 EUR}`; with
+  the plain X on a second sub-account instead, `5 X` (probe `assign-star-zeroed-lot`).
 
 **A price in the asserted amount.** The assigned amount then has that price, and the
 balance's old entries for the commodity are subtracted as they are, so the result can hold
@@ -62,7 +67,7 @@ ledgermill may leave a price in the asserted amount of an assignment out of its 
 
 ## Probe
 
-`probes/assign-lots.journal`, `probes/assign-cost.journal`
+`probes/assign-lots.journal`, `probes/assign-cost.journal`, `probes/assign-star-zeroed-lot.journal`
 
 Command:
 

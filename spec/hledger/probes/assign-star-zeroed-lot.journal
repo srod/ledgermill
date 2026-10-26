@@ -1,0 +1,27 @@
+2026-01-01 setup: a lot one level or more below, and the account's own plain X
+    a:b  4 X {10 EUR}
+    a  1 X
+    c:b  4 X {10 EUR}
+    c:d  1 X
+    e:b:c  4 X [2026-01-01] (l) {{40 EUR}}
+    e  1 X
+    g:b  4 X {10 EUR}
+    g  1 EUR
+    z
+
+2026-01-02 ==* zeroes X on the account itself
+    a  ==* 3
+    c  ==* 3
+    e  ==* 3
+    z
+
+2026-01-03 =* zeroes the X the sub-account holds
+    g  =* 3 EUR
+    z
+
+2026-01-04 X is zeroed again: the lot of the one posting below comes back
+    a  == 2 EUR
+    c  == 2 EUR
+    e  == 2 EUR
+    g  == 2 EUR
+    z

@@ -421,13 +421,15 @@ impl Balances {
             let left: Vec<Entry> = if total || is_asserted {
                 // What the account itself holds afterwards: the asserted amount less what the
                 // sub-accounts hold (all of it, for `=` and `==`, which look at no sub-account).
+                // A zeroed commodity keeps the lot of the one posting below that made it
+                // (assignment-lots-and-costs.md); the asserted one never has a lot.
                 difference(target, &groups(&below))
                     .into_iter()
                     .map(|p| Entry {
                         quantity: p.quantity,
                         shown: p.shown,
                         price: p.price,
-                        lot: None,
+                        lot: if is_asserted { None } else { p.lot },
                     })
                     .collect()
             } else if pieces.is_empty() {
@@ -450,7 +452,7 @@ impl Balances {
                             quantity: p.quantity.clone(),
                             shown: p.shown,
                             price: p.price.clone(),
-                            lot: None,
+                            lot: p.lot.clone(),
                         }),
                     }
                 }
