@@ -270,7 +270,7 @@ dependencies = [
 [[package]]
 name = "ledgermill-beancount-parser"
 version = "0.16.3"
-source = "git+https://github.com/srod/beancount-parser-lima?rev=b4ffc56e37ce82e1f4155f7848c9cf8cc217b468#b4ffc56e37ce82e1f4155f7848c9cf8cc217b468"
+source = "git+https://github.com/srod/beancount-parser-lima?rev=7b6300c2344e98282b21eac60278dc3690e87a40#7b6300c2344e98282b21eac60278dc3690e87a40"
 dependencies = [
  "ariadne",
  "chumsky",
