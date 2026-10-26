@@ -29,3 +29,11 @@
   Assets:B  -1.00 EUR
   Assets:B  -1 USD
   Assets:C
+
+2026-01-07 price EUR 2 USD
+2026-01-07 price EUR -2 GBP
+
+2026-01-08 * "a kept -0.00 converts to -0 at a positive rate and to 0 at a negative one"
+  Assets:A  1.004 EUR
+  Assets:B  -1.00 EUR
+  Assets:C

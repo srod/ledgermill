@@ -783,3 +783,17 @@ fn a_zero_price_in_a_pair_priced_both_ways_is_refused_for_value_and_holdings_onl
     let one_way = probe!("convert-rate-inverse");
     assert!(one_way.value("2026-02-02", "EUR").is_ok());
 }
+
+#[test]
+fn a_kept_negative_zero_keeps_its_sign_when_valued() {
+    // interpolation-rounds-to-zero, 2026-01-08: the elided posting is `-0.00 EUR`.
+    let ledger = probe!("interpolation-rounds-to-zero");
+    let last = |commodity: &str| {
+        valued(&ledger, commodity, "2026-01-09", "Assets:C")
+            .last()
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(last("USD"), "Assets:C -0.00 EUR -> -0.00 USD");
+    assert_eq!(last("GBP"), "Assets:C -0.00 EUR -> 0.00 GBP");
+}

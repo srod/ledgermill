@@ -45,6 +45,10 @@ d7db49,Assets:C,,-0.00,EUR,,,,,,,interpolation-rounds-to-zero.beancount,19
 
 (Only the elided postings are shown; transaction `2861db`, an exact zero, has none.)
 
+Valued, such a posting keeps the sign of its zero: `convert(position, "USD", ...)` of `-0.00 EUR` at a rate of `2`
+is `-0 USD`, and at a rate of `-2` it is `0` (the last transaction of the probe; convert-rates.md, the sign of a zero
+product).
+
 Places of an elided amount: it is rounded half to even to the fewest decimal places among the
 amounts written in that currency. Integers do not count, nor do the places of a price or a cost
 (`1 STK @ 1.2345 EUR` next to `2.25 EUR` gives two places); trailing zeros do count (`1.50`).
