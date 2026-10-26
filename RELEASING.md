@@ -1,7 +1,7 @@
 # Releasing
 
-The procedure for a release, in order. Nothing is published until step 4, and nothing is pushed
-or published by an agent: the owner runs steps 4 and 5.
+The procedure for a release, in order. Nothing is published until step 4. Steps 4 and 5 need the
+owner's explicit yes for that release; an agent may run them once it has it.
 
 ## Access needed
 
@@ -27,9 +27,12 @@ or published by an agent: the owner runs steps 4 and 5.
 4. **Publish, in this order.** Each crate must be visible on crates.io before the next one
    publishes.
    1. `ledgermill-beancount-parser`: `cargo publish` in a checkout of `srod/beancount-parser-lima`
-      at the commit `crates/ledgermill/Cargo.toml` pins (branch `ledgermill`);
-   2. `ledgermill-beancount-booking`: the same in `srod/limabean-booking`. Only needed again when
-      a fork changes: bump its version, pin the new commit and its exact version (`=X.Y.Z`) in
+      at the commit `crates/ledgermill/Cargo.toml` pins;
+   2. `ledgermill-beancount-booking`: the same in `srod/limabean-booking`.
+
+      Both forks are on crates.io since 2026-10-26 (parser 0.16.3, booking 0.10.5), so these two
+      are only needed again when a fork changes. A published version can't be replaced: bump the
+      fork's version, publish it, then pin the new commit and its exact version (`=X.Y.Z`) in
       `crates/ledgermill/Cargo.toml`;
    3. `cargo publish -p ledgermill`;
    4. `cargo publish -p ledgermill-wasm`;
