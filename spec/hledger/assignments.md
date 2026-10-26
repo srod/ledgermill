@@ -77,6 +77,13 @@ now `3.5 - 2.5 = 1.0`, so `i = 2` gives `1.0`). The sub-accounts keep their bala
 result is that of `B - (own + sub-accounts)` except in the places when the whole is zero. With `a` -3.00,
 `a:d` 3.00 and `a =* 1 EUR` the amount is `1.00` (`1 - 3.00` is `-2.00`, minus `-3.00`), where
 one step, `1 - 0.00`, would give `1` (probe `assign-inclusive-two-steps`, line 6: `a [1.00 EUR]`, `z [-1.00 EUR]`).
+A priced entry of the asserted commodity in the account or below it (a posting with a price in the
+same transaction, [assignment-processing](assignment-processing.md)) does not change that: the
+price-less part still comes in two steps, over the price-less entries only, and each priced entry
+is negated beside it. With `a` -3.00 and `a:d` 3.00, then `a:d -4.0 X @@ 9 USD` and `a =* 1 X`, the
+amounts are `1.00 X` and `4.0 X @@ 9 USD` (probe `assign-inclusive-two-steps-priced`, lines 8, 18
+and 28; line 38, a whole that is not zero, is the control). An asserted amount with a price is not
+worked out in two steps.
 
 **Other commodities with a star.** `=*` alone (no second `=`) also zeroes the commodities that
 sub-accounts hold, though not those held only by the account itself. For each commodity D other than

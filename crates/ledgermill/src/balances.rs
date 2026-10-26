@@ -393,36 +393,31 @@ impl Balances {
             }
             let own_groups = groups(&own);
             let below_groups = groups(&below);
-            // With a star and no price anywhere, the asserted commodity gets (asserted - the
-            // sub-accounts' sum) - own, which has other places than asserted - (own + sub-accounts)
-            // when the whole is zero (assignments.md).
-            let in_two_steps = inclusive
-                && asserted.cost.is_none()
-                && is_asserted
-                && own_groups
-                    .iter()
-                    .chain(&below_groups)
-                    .all(|g| g.price.is_none());
-            let after_subs = if in_two_steps {
-                match difference(target, &below_groups).as_slice() {
-                    [only] => Some(WrittenAmount {
+            // With a star and a price-less assertion, the price-less part of the asserted commodity
+            // is (asserted - the sub-accounts' price-less sum) - own, which has other places than
+            // asserted - (own + sub-accounts) when that whole is zero; priced entries beside it are
+            // only negated (assignments.md).
+            let in_two_steps = inclusive && asserted.cost.is_none() && is_asserted;
+            // Zero pieces are not listed on the posting, but they still carry their places into
+            // the balance (assignments.md, "Places of the balance after a star").
+            let mut pieces: Vec<Piece> = difference(target, &held);
+            let plain = |pieces: Vec<Piece>| pieces.into_iter().find(|p| p.price.is_none());
+            if in_two_steps
+                && let Some(after_subs) = plain(difference(target, &below_groups))
+                && let Some(two_steps) = plain(difference(
+                    Some(&WrittenAmount {
                         commodity: commodity.clone(),
-                        display_places: only.quantity.places().max(only.shown),
-                        quantity: only.quantity.clone(),
+                        display_places: after_subs.quantity.places().max(after_subs.shown),
+                        quantity: after_subs.quantity,
                         cost: None,
                         lot: None,
                     }),
-                    _ => None,
-                }
-            } else {
-                None
-            };
-            // Zero pieces are not listed on the posting, but they still carry their places into
-            // the balance (assignments.md, "Places of the balance after a star").
-            let pieces: Vec<Piece> = match &after_subs {
-                Some(left) => difference(Some(left), &own_groups),
-                None => difference(target, &held),
-            };
+                    &own_groups,
+                ))
+                && let Some(slot) = pieces.iter_mut().find(|p| p.price.is_none())
+            {
+                *slot = two_steps;
+            }
             let left: Vec<Entry> = if total || is_asserted {
                 // What the account itself holds afterwards: the asserted amount less what the
                 // sub-accounts hold (all of it, for `=` and `==`, which look at no sub-account).

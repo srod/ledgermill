@@ -1,0 +1,41 @@
+; A star assignment in a transaction that also holds a priced amount of the asserted commodity:
+; the price-less part still comes in two steps, the priced entries are only negated.
+2026-01-01 the whole is zero: a holds -3.00, a:d 3.00
+  a     -3.00 X
+  a:d    3.00 X
+  z
+
+2026-01-02 a priced posting to the sub-account (total price), then the star: 1.00, not 1
+  a:d  -4.0 X @@ 9 USD
+  a  =* 1 X
+  z
+
+2026-01-03 the whole is zero again
+  b     -3.00 X
+  b:d    3.00 X
+  z
+
+2026-01-04 a unit price on the account itself
+  b  -4.0 X @ 2 USD
+  b  =* 1 X
+  z
+
+2026-01-05 the own balance comes from a star with nothing below it
+  c:b  -3.00 X
+  c  =* 0 X
+  z
+
+2026-01-06 the fuzzer's case: -4.00, not -4
+  c:b  -4.0 X @@ 9 USD
+  c  =* -4 X
+  z
+
+2026-01-07 control, a whole that is not zero: the places are those of one step
+  e     -3 X
+  e:d    1.00 X
+  z
+
+2026-01-08 control
+  e:d  -4.0 X @@ 9 USD
+  e  =* 1 X
+  z

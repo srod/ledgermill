@@ -644,3 +644,30 @@ fn a_star_amount_is_asserted_less_the_sub_accounts_less_the_own_balance() {
         ]
     );
 }
+
+#[test]
+fn a_star_amount_keeps_its_two_steps_beside_a_priced_entry() {
+    // A priced amount of the asserted commodity in the same transaction no longer turns the
+    // price-less part into one step (fuzz seed 100, journal 168).
+    let probe =
+        include_str!("../../../spec/hledger/probes/assign-inclusive-two-steps-priced.journal");
+    let rows = rows("x.journal", probe);
+    let assigned: Vec<&str> = rows
+        .iter()
+        .filter(|r| {
+            [" 8:", "18:", "28:", "38:"]
+                .iter()
+                .any(|l| r.starts_with(l.trim()))
+        })
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        assigned,
+        vec![
+            "8: a:d => -4.0 X @@ -9 USD | a => 1.00 X, 4.0 X @@ 9 USD | z => 0 USD, -1.00 X",
+            "18: b => -4.0 X @ 2 USD | b => 1.00 X, 4.0 X @ 2 USD | z => 0 USD, -1.00 X",
+            "28: c:b => -4.0 X @@ -9 USD | c => -4.00 X, 4.0 X @@ 9 USD | z => 0 USD, 4.00 X",
+            "38: e:d => -4.0 X @@ -9 USD | e => 3 X, 4.0 X @@ 9 USD | z => 0 USD, -3 X",
+        ]
+    );
+}
