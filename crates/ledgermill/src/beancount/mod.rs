@@ -24,9 +24,9 @@ use crate::model::{
     Amount, Cost, Finding, FlatPosting, Lot, Posting, PostingKind, PriceDirective, Quantity,
     Severity, Source, SourceFile, Status, Transaction,
 };
+use foldhash::{HashMap, HashSet};
 use plain::{BookFailure, Day, IssueKind, Item, Method, ParseIssue};
 use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet};
 
 /// Files ending in `.beancount` or `.bean` are Beancount.
 pub(crate) fn is_beancount(name: &str) -> bool {
@@ -272,7 +272,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         }
     };
 
-    let mut methods: HashMap<String, Method> = HashMap::new();
+    let mut methods: HashMap<String, Method> = HashMap::default();
     for item in &read.items {
         if let Item::Open {
             account,
@@ -289,7 +289,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     // printed last, after every other check.
     let mut kept: Vec<check::Kept> = Vec::new();
     let mut unbalanced: Vec<Finding> = Vec::new();
-    let mut average_accounts: HashSet<String> = HashSet::new();
+    let mut average_accounts: HashSet<String> = HashSet::default();
     let mut refused = false;
 
     for item in &read.items {
@@ -494,7 +494,7 @@ fn amount_lines(file: &SourceFile) -> Option<HashSet<u32>> {
     }
     // shortcut: the file is parsed twice (here and in `load`), upgrade if format() gets slow
     let read = lima::read(&file.content).ok()?;
-    let mut lines = HashSet::new();
+    let mut lines = HashSet::default();
     for item in &read.items {
         match item {
             Item::Transaction(tx) => lines.extend(tx.postings.iter().map(|p| p.line)),

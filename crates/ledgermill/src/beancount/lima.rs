@@ -17,8 +17,8 @@ use super::pydec::Num as Number;
 use super::text::{line_of, line_starts};
 use beancount_parser_lima as parser;
 use beancount_parser_lima::Report;
+use foldhash::HashMap;
 use limabean_booking as booking;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 // ───────────── reading ─────────────
@@ -657,8 +657,8 @@ fn booking_method(m: Method) -> Option<booking::Booking> {
 impl Books {
     pub(super) fn new(methods: HashMap<String, Method>, default: Method) -> Books {
         Books {
-            inventory: HashMap::new(),
-            costs: HashMap::new(),
+            inventory: HashMap::default(),
+            costs: HashMap::default(),
             methods,
             default,
         }

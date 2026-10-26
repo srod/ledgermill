@@ -7,8 +7,8 @@
 use super::lima::{Books, Feed, FeedCost};
 use super::plain::{BookFailure, Day, Lot, RawPosting, RawPrice, RawTransaction, Row};
 use super::pydec::Num as Decimal;
+use foldhash::HashMap;
 use std::borrow::Cow;
-use std::collections::HashMap;
 
 /// A posting after booking: one row of the postings table.
 #[derive(Debug, Clone)]
@@ -426,7 +426,7 @@ pub(super) fn book(
     };
 
     // Precision of each currency: the fewest places among the amounts written in it.
-    let mut places: HashMap<&str, u32> = HashMap::new();
+    let mut places: HashMap<&str, u32> = HashMap::default();
     for p in &tx.postings {
         if let (Some(units), Some(currency)) = (&p.units, &p.currency)
             && units.places() > 0
@@ -436,7 +436,7 @@ pub(super) fn book(
         }
     }
 
-    let mut sums: HashMap<String, Decimal> = HashMap::new();
+    let mut sums: HashMap<String, Decimal> = HashMap::default();
     for s in slots.iter().filter(|s| !s.elided) {
         let w = weight(s);
         let sum = sums.entry(s.group.clone()).or_insert_with(Decimal::zero);

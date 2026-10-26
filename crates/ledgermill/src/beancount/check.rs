@@ -6,9 +6,10 @@
 
 use super::plain::{Day, Item, Lot};
 use super::pydec::Num;
+use foldhash::{HashMap, HashSet};
 use serde_json::{Value, json};
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 /// One posting of a kept transaction: what an account gained, and the lot it went into.
 pub(super) struct Posted {
@@ -269,8 +270,8 @@ impl Inactive {
 impl<'a> Accounts<'a> {
     fn of(entries: &[Entry<'a>]) -> Accounts<'a> {
         let mut accounts = Accounts {
-            opens: HashMap::new(),
-            closes: HashMap::new(),
+            opens: HashMap::default(),
+            closes: HashMap::default(),
         };
         for entry in entries {
             match entry {
@@ -486,8 +487,8 @@ fn balance_assertions(entries: &[Entry], accounts: &Accounts, problems: &mut Vec
 
 /// Step 6.1: `open` and `close` directives, walking the entries.
 fn open_and_close(entries: &[Entry], problems: &mut Vec<Problem>) {
-    let mut opened: HashSet<&str> = HashSet::new();
-    let mut closed: HashSet<&str> = HashSet::new();
+    let mut opened: HashSet<&str> = HashSet::default();
+    let mut closed: HashSet<&str> = HashSet::default();
     for entry in entries {
         match entry {
             Entry::Directive(Item::Open { account, line, .. }, ..) => {
@@ -592,7 +593,7 @@ fn currencies_allowed(entries: &[Entry], accounts: &Accounts, problems: &mut Vec
 
 /// Step 6.4: assertions on one account, currency and day that differ from the first of them.
 fn duplicate_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
-    let mut first: HashMap<(&str, &str, Day), &Num> = HashMap::new();
+    let mut first: HashMap<(&str, &str, Day), &Num> = HashMap::default();
     for entry in entries {
         let Entry::Directive(
             Item::Balance {
@@ -629,7 +630,7 @@ fn duplicate_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
 
 /// Step 6.5: a `commodity` declared again.
 fn duplicate_commodities(entries: &[Entry], problems: &mut Vec<Problem>) {
-    let mut seen: HashSet<&str> = HashSet::new();
+    let mut seen: HashSet<&str> = HashSet::default();
     for entry in entries {
         if let Entry::Directive(Item::Commodity { currency, line, .. }, ..) = entry
             && !seen.insert(currency)
