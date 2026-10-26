@@ -20,7 +20,7 @@ owner's explicit yes for that release; an agent may run them once it has it.
    - the device bench, `harness/device-bench`, on the owner's phone.
 3. **Fill in the gate.** In [CHANGELOG.md](CHANGELOG.md), replace every `TBD at release` of the
    "Release gate" section with the results of steps 1 and 2, set the heading to
-   `0.1.0 – YYYY-MM-DD`, and commit. Never write a result that was not run. Check that
+   `X.Y.Z – YYYY-MM-DD`, and commit. Never write a result that was not run. Check that
    `[workspace.package] version` in `Cargo.toml` and `version` in
    `crates/ledgermill-wasm/package.json` are the release version (`build.sh` refuses a
    mismatch).
@@ -41,5 +41,5 @@ owner's explicit yes for that release; an agent may run them once it has it.
    Try each `cargo publish` with `--dry-run` first. A dry run resolves the dependencies from
    crates.io, so `-p ledgermill` only works once both forks are published, and `-p ledgermill-wasm`
    once `ledgermill` is.
-5. **Tag and release.** `git tag v0.1.0` on the released commit, push the tag, and create the
-   GitHub release for `v0.1.0` with the CHANGELOG entry as its text.
+5. **Tag and release.** `git tag vX.Y.Z` on the released commit, push the tag, and create the
+   GitHub release for `vX.Y.Z` with the CHANGELOG entry as its text.

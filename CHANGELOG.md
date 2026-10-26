@@ -4,6 +4,30 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 0.1.1 – TBD at release
+
+### Fixed
+
+- hledger: a commodity that `==*` or `=*` zeroed on an account, when one posting with a lot on a
+  sub-account made it, keeps that lot; zeroing it again gives the lot back, as hledger does.
+  0.1.0 dropped it (`a:b 4 X {10 EUR}`, `a 1 X`, `a ==* 3`, then `a == 2 EUR` gave `4 X`, not
+  `4 X {10 EUR}`). Found by the release gate run on the `v0.1.0` tag (random journal, seed 303).
+
+### Release gate
+
+From the release-gate workflow on commit TBD at release (run TBD at release) and the owner's
+own runs.
+
+- Random hledger journals (5,000): TBD at release
+- Random Beancount journals (5,000): TBD at release
+- Random price networks (5,000): TBD at release
+- Corpus comparison: TBD at release
+- Desktop bench against 0.1.0: TBD at release
+- Stress test, 100,000 transactions: TBD at release
+- Similarity check score: TBD at release
+- Real journals: pass
+- Device targets: not run again (the fix changes no timing or memory path)
+
 ## 0.1.0 – 2026-10-26
 
 The first release. Two ledger engines, one for hledger journals and one for Beancount ledgers,
