@@ -37,6 +37,7 @@ bun harness/fuzz.ts [N] [SEED]    # N random journals (default 500); CI runs 1,0
                                   # (--save DIR writes the journals that fail to DIR, with their holdings questions)
 bun harness/fuzz.ts --graph [N] [SEED]   # N random networks of prices, valued at random dates; CI runs 300
 bun harness/fuzz.ts --beancount [N] [SEED]   # N random Beancount journals with prices, lots and costs; CI runs 150
+bun harness/fuzz.ts --multi [N] [SEED]   # N random sets of 2 to 4 files, Beancount and hledger, several ledgers; CI runs 60
 bun harness/real.ts FILE...       # your own journals (several files: each alone, then all together)
 bun test harness/                 # the harness's own checks
 bun harness/stress.ts [N]         # N (default 100,000) generated transactions per format through every call of the wasm
@@ -48,7 +49,7 @@ bun harness/device-bench/server.ts   # the phone bench, for the release gate: ha
 so every method of the interface is compared with the reference tools.
 
 The release gate (`.github/workflows/release-gate.yml`, run by hand before a release, see `RELEASING.md`) runs 5,000 of
-each kind of random journal (hledger, `--graph`, `--beancount`) in shards of 500 with seeds of their own, the corpus, the
+each kind of random journal (hledger, `--graph`, `--beancount`, `--both-ways`, `--multi`) in shards of 500 with seeds of their own, the corpus, the
 harness's own checks, the stress test, the desktop bench against the last published package, the similarity check
 (`scripts/similarity/`) and what the packages would ship.
 
@@ -67,8 +68,8 @@ Each case ends in one verdict:
   bug in the engine or in the harness; the exit code is 1.
 
 The last line is `N pass, N fail, N skip`, over everything compared (raw, postings, prices, format, `--cost`, `--value`, holdings,
-Plainledger's reads and the Beancount reads; the lines before it count each of them: see "Postings and prices", "Cost and value",
-"Holdings" and "Beancount prices, cost, value and holdings").
+Plainledger's reads, the Beancount reads and the sets of several ledgers; the lines before it count each of them: see "Postings and
+prices", "Cost and value", "Holdings", "Beancount prices, cost, value and holdings" and "Several ledgers").
 
 When hledger rejects a journal (exits non-zero), the harness takes the file and line of the **first error**
 from the first line of its stderr and compares them with our **first error-severity finding**
@@ -231,7 +232,8 @@ engine keeps the exact amount (`spec/hledger/holdings.md`, "balance hides an acc
 
 ### Beancount
 
-For a `.beancount` or `.bean` file (a single file; a Beancount pair is not run), the harness:
+For a `.beancount` or `.bean` file on its own (several files, or a Beancount file next to a journal, are a set: see "Several ledgers"),
+the harness:
 
 1. runs `bean-check FILE`. `bean-query` exits 0 even for an invalid journal, so `bean-check`
    decides whether the reference accepts the file (a non-zero exit means it does not);
@@ -325,6 +327,68 @@ and now and then a posting with several amounts; each journal is compared raw, u
 random `--value` runs. These exercise the choice of the path and the arithmetic of `spec/hledger/value-prices.md`
 and `value-arithmetic.md`.
 
+### Several ledgers
+
+A set with more than one ledger (`spec/beancount/several-files.md`) is compared as a set: several Beancount files, or Beancount files
+and hledger files in one `load`. **Each Beancount file is a ledger of its own, and all the hledger files together are one**, wherever
+they sit in the list. Nothing here applies to a set with one ledger (one Beancount file, or hledger files only): it is the case of the
+sections above, unchanged. `compareAll` decides by `isMultiLedger`.
+
+**The reference** is run per ledger, with the pipelines above: `bean-check` and the `bean-query` queries on each Beancount file alone,
+and `hledger` on all the hledger files of the set together, in the order of the list. The harness then merges those results by the rule
+of the note, with an implementation of its own (`mergeOrder`, `splitLists`, `sumHoldingRows`, `expectedFirstError` in `lib.ts`, each with
+a self-test of hand-written values): it never calls the engine. What it compares them with is the wasm loaded with the whole set at once.
+
+- **first error.** When some ledgers are rejected by the reference, the expected first error is that of the rejecting ledger whose error
+  file comes first in the list (a file that is not in the list counts as its ledger's first file; a tie goes to the earlier ledger); it is
+  compared with our first error-severity finding as for one ledger (`compareFirstError`, `compareRejection`), and nothing else is
+  compared. When hledger rejects with no position and another ledger is rejected too, the rank cannot be told: only "both fail" is asked.
+- **transactions.** Each ledger's transactions as the single-file cases project them, stable-sorted together by date and then by the
+  position in the list of the transaction's file (the ledger's own order for the rest), against `transactions()`: the same projection and
+  diff.
+- **`postings()` and `prices()`.** The reference's rows are put in the merged order by the same key (the date, the position of the file).
+  Our list is cut in that order into one list per ledger, and each part is compared as the format does alone: `diffPostings` against
+  `print --location -O csv` for the hledger ledger, the `bean-query` rows for a Beancount file; `diffPrices` against `hledger prices`
+  (two runs), `compareBeanPrices` for a Beancount file. Our order is therefore checked: a part cut in the wrong place differs. `hledger
+  prices` does not name the file of a row; it is told from the `P` lines of the files (`attributePrices`: the rows of a date go to the
+  files that have a `P` of that date, in file order).
+- **`atCost()` and `value()`.** Ours is cut in the order of `transactions()` and each part compared with the answer of its own ledger:
+  `hledger print --cost` or `--value=DATE,COMM` for the hledger ledger, the cost and `convert` queries for a Beancount file (ours as
+  booked line up with the rows). Prices are those of each ledger. The questions are the union of each ledger's own (the hledger ones from
+  its `P` lines, the Beancount ones from its price table, see "Cost and value" and "Beancount prices, cost, value and holdings"), cut down
+  by `thinQueries` to at most four dates (the first, the last and the others spread evenly) and four commodities (EUR and USD first):
+  at most 16 per set.
+- **`holdings()`.** Per ledger, the reference rows that the single-file cases decode: `hledger balance --layout=tidy` runs for the
+  hledger ledger (quantities by value), the units and holdings queries for a Beancount file (exact strings). The rows with the same account and
+  commodity in more than one ledger are **added exactly** (`BigInt` decimals): units, and cost, value and cost value per commodity;
+  a zero sum is left out of a list, a units sum of zero is `0` and a row with nothing left is dropped; the others pass unchanged. Our
+  rows are compared **by value, places ignored**, where a row was summed, and for any hledger row (it gives values only). A row of one
+  Beancount file that passed unchanged is compared **exactly** (places included), unless the text of another ledger mentions its account:
+  that ledger may hold a zero row of it, which hledger does not list and which would change the places of the sum. For summed rows the
+  shape the note promises is checked too (`summedShape`): no zero sum in a list, `0` and not `0.00` for a zero units sum, no row with
+  nothing in it. The questions are the first, middle and last date of the value questions and none, in at most three commodities
+  (`setHoldingQuestions`). A commodity hledger cannot ask for alone (`cur:`, see "Holdings") is left out of every ledger and of ours; the
+  verdict is a SKIP if the rest agrees.
+- **an `unsupported-syntax` finding anywhere in the set** (a Beancount file with a plugin, say): the whole set is a SKIP, as one such
+  file always was. `plugin` is in `EXPECTED_SKIPS` for the probe that does this on purpose.
+
+Not asked of a set: `format()` (every file is formatted in its single-file case) and Plainledger's reads (single files and pairs only).
+
+The summary has a line for the sets: `multi-ledger: N pass, N fail, N skip` (the transactions and the first errors), and one each for
+`postings`, `prices`, `--cost`, `--value` and `holdings`; they are in the total. `compare.ts` runs the sets of `severalSets` (the probes of
+`spec/beancount/probes/several-files/` in several orders, with the hledger file first, in the middle and last; the rejected ones; the
+refused one next to good ones) and `appSets` (Plainledger's own Beancount journals with each other and with its hledger ones, which
+share accounts such as `Assets:Bank`, so that rows are added; all twelve Beancount ones together; all with three journals among them).
+`real.ts` with several files runs each alone and then all together, as a set, whatever the formats.
+
+`bun harness/fuzz.ts --multi [N] [SEED]` writes sets of 2 to 4 files (one Beancount at least, then Beancount or hledger; a hledger
+journal may bring its second file), in a shuffled list order, with the generators above: the hledger accounts take the Beancount
+generator's names and the commodities EUR, USD, XX and YY are in both, the dates overlap, so days tie and rows are added. About half of the
+sets have a rejected ledger (the hledger generator writes invalid journals on purpose), which asks for the first error. Per set: one or
+two `--value` questions and two holdings questions. Same seed, same sets. A FAIL prints the files in list order, and `--save DIR` writes
+them as `multi-SEED-N-I.beancount|journal` (`I` is the position in the list) with `multi-SEED-N.txt` that holds the note and the
+questions; `real.ts` loads them in that order.
+
 ## Stress test
 
 `bun harness/stress.ts [N]` generates N transactions (default 100,000) per format with `bigjournal.ts` and runs
@@ -379,6 +443,7 @@ All journals are written by us and safe to publish.
 - `journals/app/*.beancount`: the Beancount test journals of our first user (12).
 - `../spec/beancount/probes/`: the Beancount probe journals behind each spec note
   (`probes/refused/` holds those ledgermill refuses; they are not run by `compare.ts`).
+- Sets of several ledgers: the `severalSets` and `appSets` lists in `compare.ts` (see "Several ledgers").
 - Multi-file cases: the `pairs`, `fixturePairs` and `specPairs` lists in `compare.ts` (files are loaded
   in the order listed; `specPairs` are probes of `../spec/hledger/probes/`: assertions and assignments, and the
   `rule-file-*` pairs, where a file with a rule is read to its end before the next starts).

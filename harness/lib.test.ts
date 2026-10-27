@@ -61,6 +61,19 @@ import {
   projectFlatPostings,
   projectHledger,
   withoutTrailingZeros,
+  attributePrices,
+  diffSetHoldings,
+  expectedFirstError,
+  isMultiLedger,
+  ledgersOf,
+  manifestIndex,
+  mergeLists,
+  mergeOrder,
+  setHoldingQuestions,
+  splitLists,
+  sumHoldingRows,
+  summedShape,
+  thinQueries,
 } from "./lib.ts";
 
 test("decimalString keeps places and sign exactly", () => {
@@ -798,4 +811,216 @@ test("tally counts a Beancount format check apart from the hledger one, and bean
   tally({ ...base, formatCheck: { verdict: pass, changed: true } }, t);
   expect(beanFormatLine(t)).toBe("2 pass, 1 fail (2 changed, 1 returned unchanged; bean-format: 1 equal, 1 differ by design, 1 no reference)");
   expect(t.format).toEqual({ PASS: 1, FAIL: 0, SKIP: 0, why: {} });
+});
+
+// ───────────── several ledgers ─────────────
+/** A `COMMODITY\0QUANTITY` line, or an `ACCOUNT\0COMMODITY` key. */
+const n = (a: string, b: string): string => `${a}\0${b}`;
+
+test("ledgersOf makes a ledger of each Beancount file and one of all the hledger files, in the order of their first file", () => {
+  expect(ledgersOf(["/x/a.beancount", "/x/h1.journal", "/x/b.bean", "/x/h2.journal"])).toEqual([
+    { format: "beancount", paths: ["/x/a.beancount"] },
+    { format: "hledger", paths: ["/x/h1.journal", "/x/h2.journal"] },
+    { format: "beancount", paths: ["/x/b.bean"] },
+  ]);
+  expect(isMultiLedger(["/x/h1.journal", "/x/h2.journal"])).toBe(false);
+  expect(isMultiLedger(["/x/a.beancount"])).toBe(false);
+  expect(isMultiLedger(["/x/h1.journal", "/x/a.beancount"])).toBe(true);
+  expect(isMultiLedger(["/x/a.beancount", "/y/a.beancount"])).toBe(true);
+});
+
+test("manifestIndex is the first path equal to the file, else the first with its basename", () => {
+  const paths = ["/x/a.beancount", "/x/h.journal", "/y/a.beancount"];
+  expect(manifestIndex("/y/a.beancount", paths)).toBe(2);
+  expect(manifestIndex("other/h.journal", paths)).toBe(1);
+  expect(manifestIndex("a.beancount", paths)).toBe(0);
+  expect(manifestIndex("/x/nothing.journal", paths)).toBe(-1);
+});
+
+test("mergeOrder sorts by date, then by the position of the file, and keeps each ledger's own order otherwise", () => {
+  const first = [{ date: "2026-01-05", file: 0 }, { date: "2026-01-05", file: 0 }, { date: "2026-01-10", file: 0 }];
+  const second = [{ date: "2026-01-03", file: 1 }, { date: "2026-01-05", file: 1 }];
+  expect(mergeOrder([first, second])).toEqual([
+    { ledger: 1, index: 0 },
+    { ledger: 0, index: 0 },
+    { ledger: 0, index: 1 },
+    { ledger: 1, index: 1 },
+    { ledger: 0, index: 2 },
+  ]);
+  // The same files the other way round in the manifest: the shared day swaps.
+  const swapped = [first.map((k) => ({ ...k, file: 1 })), second.map((k) => ({ ...k, file: 0 }))];
+  expect(mergeOrder(swapped)).toEqual([
+    { ledger: 1, index: 0 },
+    { ledger: 1, index: 1 },
+    { ledger: 0, index: 0 },
+    { ledger: 0, index: 1 },
+    { ledger: 0, index: 2 },
+  ]);
+  // Two ledgers with a file in common: the earlier ledger first.
+  expect(mergeOrder([[{ date: "d", file: 2 }], [{ date: "d", file: 2 }]])).toEqual([
+    { ledger: 0, index: 0 },
+    { ledger: 1, index: 0 },
+  ]);
+  expect(mergeOrder([[], []])).toEqual([]);
+});
+
+test("mergeLists and splitLists are each other's inverse, and splitLists refuses a list of another length", () => {
+  const order = [{ ledger: 1, index: 0 }, { ledger: 0, index: 0 }, { ledger: 1, index: 1 }];
+  expect(mergeLists([["a"], ["x", "y"]], order)).toEqual(["x", "a", "y"]);
+  expect(splitLists(["x", "a", "y"], order, 3)).toEqual([["a"], ["x", "y"], []]);
+  expect(splitLists(["x", "a"], order, 2)).toBeNull();
+});
+
+test("expectedFirstError takes the rejection whose file comes first in the manifest, the earlier ledger on a tie", () => {
+  const paths = ["/x/a.beancount", "/x/h.journal", "/x/b.beancount"];
+  const ledgers = ledgersOf(paths);
+  const at = (ledger: number, file: string, line: number) => ({ ledger, format: (ledgers[ledger] as { format: "hledger" | "beancount" }).format, message: `m${ledger}`, first: { file, line } });
+  expect(expectedFirstError([], paths, ledgers)).toBeNull();
+  expect(expectedFirstError([at(2, "b.beancount", 1), at(1, "h.journal", 9)], paths, ledgers)).toEqual(at(1, "h.journal", 9));
+  expect(expectedFirstError([at(1, "h.journal", 9), at(0, "a.beancount", 20)], paths, ledgers)).toEqual(at(0, "a.beancount", 20));
+  // An error in a file of the hledger ledger that is not its first: the rank is the file's.
+  const two = ["/x/h1.journal", "/x/a.beancount", "/x/h2.journal"];
+  const both = ledgersOf(two);
+  const h2 = { ledger: 0, format: "hledger" as const, message: "h", first: { file: "h2.journal", line: 3 } };
+  const bean = { ledger: 1, format: "beancount" as const, message: "b", first: { file: "a.beancount", line: 1 } };
+  expect(expectedFirstError([h2, bean], two, both)).toEqual(bean);
+  // A file the manifest lacks counts as its ledger's first file; on a tie the earlier ledger.
+  const lost = { ledger: 1, format: "beancount" as const, message: "l", first: { file: "elsewhere.beancount", line: 1 } };
+  expect(expectedFirstError([lost, h2], two, both)).toEqual(lost);
+  expect(expectedFirstError([{ ...lost, ledger: 0 }, { ...bean, first: { file: "h1.journal", line: 2 } }], two, both)).toEqual({ ...lost, ledger: 0 });
+  // No position and another rejection: only "both fail" can be asked.
+  const unplaced = { ledger: 0, format: "hledger" as const, message: "u", first: null };
+  expect(expectedFirstError([bean, unplaced], two, both)).toEqual(unplaced);
+  expect(expectedFirstError([unplaced], two, both)).toEqual(unplaced);
+});
+
+const hrow = (units: string, cost: string[] = [], value: string[] = [], costValue: string[] = []) => ({ units, cost, value, costValue });
+
+test("sumHoldingRows adds rows of one account and commodity exactly and passes the others on", () => {
+  const first = new Map([
+    [n("Assets:Stock", "STOCK"), hrow("2.50", [n("EUR", "20.00")], [n("EUR", "22")], [n("EUR", "20.00")])],
+    [n("Assets:Bank", "EUR"), hrow("-20", [n("EUR", "-20")])],
+  ]);
+  const second = new Map([
+    [n("Assets:Stock", "STOCK"), hrow("0.5", [n("EUR", "-5.5"), n("USD", "1")], [n("EUR", "-2")])],
+    [n("Expenses:Food", "EUR"), hrow("3.0")],
+  ]);
+  const { rows, summed } = sumHoldingRows([first, second]);
+  expect([...summed]).toEqual([n("Assets:Stock", "STOCK")]);
+  expect(rows.get(n("Assets:Stock", "STOCK"))).toEqual(hrow("3", [n("EUR", "14.5"), n("USD", "1")], [n("EUR", "20")], [n("EUR", "20")]));
+  expect(rows.get(n("Assets:Bank", "EUR"))).toEqual(hrow("-20", [n("EUR", "-20")]));
+  expect(rows.get(n("Expenses:Food", "EUR"))).toEqual(hrow("3.0"));
+});
+
+test("sumHoldingRows leaves a zero sum out of a list, writes a units sum of zero as 0 and drops a row with nothing left", () => {
+  const key = n("Assets:A", "X");
+  const { rows, summed } = sumHoldingRows([
+    new Map([[key, hrow("1.5", [n("EUR", "3.00")], [n("EUR", "1E-7")])]]),
+    new Map([[key, hrow("-1.50", [n("EUR", "-3")], [n("EUR", "-0.0000001")], [n("USD", "5")])]]),
+  ]);
+  expect(summed.has(key)).toBe(true);
+  expect(rows.get(key)).toEqual(hrow("0", [], [], [n("USD", "5")]));
+  const gone = sumHoldingRows([new Map([[key, hrow("1")]]), new Map([[key, hrow("-1.0")]])]);
+  expect(gone.rows.size).toBe(0);
+  expect(gone.summed.has(key)).toBe(true);
+});
+
+const heldRow = (over: Record<string, unknown> = {}) => ({
+  account: "a",
+  commodity: "X",
+  units: "3",
+  cost: [{ commodity: "EUR", quantity: "14.50" }],
+  value: [],
+  cost_value: [],
+  ...over,
+});
+
+test("summedShape finds a zero sum in a list, a zero units written otherwise and a row with nothing in it, only for summed keys", () => {
+  const summed = new Set([n("a", "X")]);
+  expect(summedShape([heldRow()], summed)).toBeNull();
+  expect(summedShape([heldRow({ cost: [{ commodity: "EUR", quantity: "0.00" }] })], summed)).toBe("a [X] cost: a sum of zero is listed (0.00 EUR)");
+  expect(summedShape([heldRow({ units: "0.0" })], summed)).toBe("a [X] units: a sum of zero is written 0.0, not 0");
+  expect(summedShape([heldRow({ units: "0", cost: [] })], summed)).toBe("a [X]: a row with nothing in it is listed");
+  expect(summedShape([heldRow({ units: "0", cost: [{ commodity: "USD", quantity: "1" }] })], summed)).toBeNull();
+  expect(summedShape([heldRow({ units: "0.0", cost: [] })], new Set())).toBeNull();
+});
+
+test("diffSetHoldings compares exact rows exactly and the others by value", () => {
+  const theirs = new Map([[n("a", "X"), hrow("3.0", [n("EUR", "14.5")])]]);
+  const oursLong = [heldRow({ units: "3.00" })];
+  // Not exact: places do not matter.
+  expect(diffSetHoldings(theirs, oursLong, new Set())).toBeNull();
+  // Exact: places do.
+  expect(diffSetHoldings(theirs, oursLong, new Set([n("a", "X")]))).toBe("a [X] units: reference=3.0 ours=3.00");
+  expect(diffSetHoldings(new Map([[n("a", "X"), hrow("3.00", [n("EUR", "14.50")])]]), oursLong, new Set([n("a", "X")]))).toBeNull();
+  // A row of ours that the reference lacks, and a difference of value.
+  expect(diffSetHoldings(new Map(), oursLong, new Set())).toBe("a [X] units: reference=0 ours=3");
+  expect(diffSetHoldings(theirs, [heldRow({ units: "4" })], new Set())).toBe("a [X] units: reference=3 ours=4");
+});
+
+test("attributePrices gives each row to the first file that still has a P line of its date", () => {
+  const texts = ["P 2026-01-05 X 1 EUR\nP 2026-01-07 X 2 EUR\n", "P 2026-01-05 Y 1 EUR\nP 2026-01-05 X 3 EUR\n"];
+  expect(attributePrices(["2026-01-05", "2026-01-05", "2026-01-05", "2026-01-07"], texts)).toEqual([0, 1, 1, 0]);
+  expect(attributePrices(["2026-01-05", "2026-01-06"], texts)).toBeNull();
+  expect(attributePrices([], texts)).toEqual([]);
+});
+
+test("thinQueries keeps at most four dates, spread, times at most four commodities with EUR and USD first", () => {
+  const q = (date: string, commodity: string) => ({ date, commodity });
+  const few = [q("2026-01-02", "STOCK"), q("2026-01-01", "EUR")];
+  expect(thinQueries(few)).toEqual([q("2026-01-01", "EUR"), q("2026-01-01", "STOCK"), q("2026-01-02", "EUR"), q("2026-01-02", "STOCK")]);
+  const dates = ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07"];
+  const many = [...dates.map((d) => q(d, "C1")), q(dates[0] as string, "C2"), q(dates[0] as string, "USD"), q(dates[0] as string, "C3"), q(dates[0] as string, "C4"), q(dates[0] as string, "EUR")];
+  expect(thinQueries(many).map((x) => x.date)).toEqual(
+    ["2026-01-01", "2026-01-03", "2026-01-05", "2026-01-07"].flatMap((d) => [d, d, d, d]),
+  );
+  expect([...new Set(thinQueries(many).map((x) => x.commodity))]).toEqual(["EUR", "USD", "C1", "C2"]);
+  expect(thinQueries([])).toEqual([]);
+});
+
+test("setHoldingQuestions asks for no end and the first, middle and last date, in at most three commodities", () => {
+  const v = (date: string, commodity: string) => ({ date, commodity });
+  expect(setHoldingQuestions([])).toEqual([{ end: null, commodity: "EUR" }]);
+  expect(setHoldingQuestions([v("2026-01-02", "STOCK"), v("2026-01-04", "USD"), v("2026-01-06", "EUR")])).toEqual(
+    [null, "2026-01-02", "2026-01-04", "2026-01-06"].flatMap((end) => ["EUR", "USD", "STOCK"].map((commodity) => ({ end, commodity }))),
+  );
+});
+
+const SEVERAL = join(import.meta.dir, "../spec/beancount/probes/several-files");
+
+test("compareAll compares sets of several ledgers against the reference, in any order of the manifest", async () => {
+  const [a, b, c] = ["a.beancount", "b.beancount", "c.journal"].map((f) => join(SEVERAL, f)) as [string, string, string];
+  for (const set of [[b, a], [c, a, b], [a, c, b]]) {
+    const result = await compareAll(set, false, undefined, { holdings: true });
+    expect(result.multi).toBe(true);
+    expect(result.raw).toEqual(pass);
+    expect([result.postings, result.prices, result.cost]).toEqual([pass, pass, pass]);
+    expect(result.values.length).toBeGreaterThan(0);
+    expect(result.holdings.length).toBeGreaterThan(0);
+    expect(summarize(result)).toEqual(pass);
+  }
+}, 120_000);
+
+test("compareAll on a set a ledger of which is rejected: the first error is that of the file first in the manifest", async () => {
+  const [ub, uj, uj2, a] = ["unbalanced.beancount", "unbalanced.journal", "unbalanced-2.journal", "a.beancount"].map((f) => join(SEVERAL, f)) as [string, string, string, string];
+  for (const set of [[ub, uj], [uj, ub], [ub, a], [a, uj], [uj, uj2, ub], [ub, uj, uj2]]) {
+    const result = await compareAll(set);
+    expect(result.raw).toEqual({ status: "PASS", note: "both fail, same first error" });
+    expect(result.postings).toBeNull();
+  }
+});
+
+test("compareAll skips a set with a file ledgermill refuses", async () => {
+  const result = await compareAll([join(SEVERAL, "refused.beancount"), join(SEVERAL, "a.beancount")]);
+  expect(result.raw).toEqual({ status: "SKIP", note: "unsupported: plugin" });
+  expect(skipReason(result.raw.note)).toBe("plugin");
+});
+
+test("tally counts a set of several ledgers apart", () => {
+  const t = tallies();
+  const fail = { status: "FAIL", note: "x" } as const;
+  tally({ raw: pass, cost: pass, values: [{ query: { date: "d", commodity: "EUR" }, verdict: fail }], postings: pass, prices: pass, holdings: [{ question: { end: null, commodity: "EUR" }, verdict: pass }], plainledger: null, multi: true }, t);
+  expect(t.multi.cost.PASS + t.multi.postings.PASS + t.multi.prices.PASS + t.multi.holdings.PASS).toBe(4);
+  expect(t.multi.value.FAIL).toBe(1);
+  expect(t.cost.PASS + t.holdings.PASS + t.beancount.cost.PASS).toBe(0);
 });

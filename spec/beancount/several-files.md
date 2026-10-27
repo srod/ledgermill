@@ -85,7 +85,8 @@ For a manifest with more than one ledger:
 
 The merge, check, valuation and holdings rules are tested in `crates/ledgermill/tests/multi_ledger.rs` on
 `probes/several-files/a.beancount`, `b.beancount`, `c.journal` (three ledgers with an account, a commodity and a
-day in common) and the files `unbalanced.*`, `refused.beancount`. Their expected values are what
+day in common) and the files `unbalanced.*`, `refused.beancount`. `d.journal` is a second hledger file, for a manifest that has a Beancount file between two
+hledger files (the harness runs it: `harness/README.md`, "Several ledgers"). Their expected values are what
 `spec/beancount/show.sh`, `show-prices.sh`, `show-holdings.sh` and the hledger `show-*.sh` scripts print for each
 of those files alone, plus the rules above.
 
