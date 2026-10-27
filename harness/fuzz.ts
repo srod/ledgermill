@@ -14,7 +14,7 @@
 // there, with their questions. With `--beancount`: random Beancount journals (price directives among seven
 // commodities, lots, price annotations, plain units of either sign) compared against bean-check and bean-query
 // for their transactions and postings, their prices, their cost and, at several dates and commodities,
-// their value and holdings. With `--both-ways`: Beancount journals of 3 or 4 commodities with up to 9 prices, several pairs
+// their value and holdings; one in five has a digit other than 0-9 (PLA-406). With `--both-ways`: Beancount journals of 3 or 4 commodities with up to 9 prices, several pairs
 // priced in both directions at rates whose inverse is not exact (3, 7, 11, 0.3), a few one way, and plain holdings, compared
 // the same way: the evidence for "a pair priced both ways" in spec/beancount/convert-rates.md. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1. The summary counts the SKIPs by what
@@ -528,6 +528,20 @@ function beanJournal(): { text: string; used: string[] } {
   return { text, used };
 }
 
+// Digits other than 0-9 (Arabic-Indic, Persian, Devanagari, fullwidth, superscript, mathematical): the parser panicked on
+// some (PLA-406). Its own stream, so that the journals a seed gives stay the same.
+const ODD_DIGITS = ["١", "٢", "۴", "०", "１", "２", "¹", "²", "𝟙", "๓"] as const;
+const rd = rng(seed ^ 0x2f6b9c1d);
+
+/** Now and then (one journal in five) one ASCII digit of the text, in a date, a number or a name, becomes another digit. */
+function oddDigits(text: string): string {
+  if (rd() >= 0.2) return text;
+  const at = [...text.matchAll(/[0-9]/g)].map((m) => m.index);
+  const i = at[Math.floor(rd() * at.length)];
+  if (i === undefined) return text;
+  return text.slice(0, i) + (ODD_DIGITS[Math.floor(rd() * ODD_DIGITS.length)] as string) + text.slice(i + 1);
+}
+
 // ───────────── Beancount, pairs priced both ways ─────────────
 // Rates whose inverse is not a short decimal (1/3, 1/7, 1/11, 1/0.3 ...), and a few exact ones (the rule hides on those). No zero:
 // a zero in a pair priced both ways is refused (`price-both-ways`), which is a SKIP and says nothing about the rule.
@@ -618,7 +632,7 @@ for (let k = 0; k < count; k++) {
     used = [...MULTI_COMMODITIES];
   } else {
     const j = bothWays ? bothWaysJournal() : beancount ? beanJournal() : graph ? graphJournal() : journal();
-    files.push({ name: `f${k}.${beancount ? "beancount" : "journal"}`, text: j.text });
+    files.push({ name: `f${k}.${beancount ? "beancount" : "journal"}`, text: beancount && !bothWays ? oddDigits(j.text) : j.text });
     if ("second" in j && j.second !== undefined) files.push({ name: `f${k}b.journal`, text: j.second });
     if ("used" in j) used = j.used;
   }

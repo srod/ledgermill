@@ -26,6 +26,14 @@ All notable changes to ledgermill are written here. The format follows
   (60 per push, 5,000 in the release gate); the summary has a `multi-ledger` line. See
   `harness/README.md`, "Several ledgers".
 
+### Fixed
+
+- A Beancount date or time written with digits other than 0-9 (`٢٠٢٦-01-02`, `time: ١:٢٣`) made the
+  parser panic, a crash in a browser or an app (PLA-406). It is now a `parse-error` on its line, the
+  line bean-check gives, and `format()` returns the file unchanged. The fix is in our parser fork
+  (`ledgermill-beancount-parser` 0.16.4). `fuzz.ts --beancount` now puts such a digit in one journal
+  in five.
+
 ## 0.1.2 – 2026-10-27
 
 ### Fixed
