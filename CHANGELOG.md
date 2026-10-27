@@ -4,7 +4,7 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.1 – TBD at release
+## 0.1.1 – 2026-10-27
 
 ### Fixed
 
@@ -19,16 +19,20 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Release gate
 
-From the release-gate workflow on commit TBD at release (run TBD at release) and the owner's
-own runs.
+From the release-gate workflow on commit `4643b81` (run 40479812101, 2026-10-27), CI on the same
+commit (run 40479812678), and the owner's own runs.
 
-- Random hledger journals (5,000): TBD at release
-- Random Beancount journals (5,000): TBD at release
-- Random price networks (5,000): TBD at release
-- Corpus comparison: TBD at release
-- Desktop bench against 0.1.0 from npm: TBD at release
-- Stress test, 100,000 transactions: TBD at release
-- Similarity check score: TBD at release
+- Random hledger journals (5,000): 0 mismatches (2,232 that hledger accepts; the rest rejected by
+  both, 42 skipped)
+- Random Beancount journals (5,000): 0 mismatches
+- Random price networks (5,000): 0 mismatches
+- Corpus comparison: 11,811 pass, 0 fail, 30 skip
+- Desktop bench against 0.1.0 from npm (CI runner, 10,000 transactions): every operation within
+  0.74–1.06× of 0.1.0 (the 0.74 is `check`, at 0.02 ms); load+transactions 94.5 ms (hledger),
+  134.1 ms (Beancount); start 19.3 ms
+- Stress test, 100,000 transactions: ok, no crash (peak wasm memory 930 MB hledger, 578 MB Beancount)
+- Similarity check score: max 0.102 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
+  8 warn; copydetect max 0.275 (information only)
 - Real journals: pass
 - Device targets: not run again (the fix changes no timing or memory path)
 
