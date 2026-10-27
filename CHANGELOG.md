@@ -4,7 +4,7 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.2 – TBD at release
+## 0.1.2 – 2026-10-27
 
 ### Fixed
 
@@ -15,18 +15,22 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Release gate
 
-From the release-gate workflow on commit TBD at release (run TBD at release), CI on the same
-commit (run TBD at release), and the owner's own runs.
+From the release-gate workflow on commit `f772a9e` (run 40537425419, 2026-10-27), CI on the same
+commit (run 40537426399), and the owner's own runs.
 
-- Random hledger journals (5,000): TBD at release
-- Random Beancount journals (5,000): TBD at release
-- Random price networks (5,000): TBD at release
-- Random Beancount journals with pairs priced both ways (5,000): TBD at release
-- Corpus comparison: TBD at release
-- Desktop bench against 0.1.1: TBD at release
-- Stress test, 100,000 transactions: TBD at release
-- Similarity check score: TBD at release
-- Real journals: TBD at release
+- Random hledger journals (5,000): 0 mismatches (2,236 that hledger accepts; the rest rejected by
+  both, 34 skipped, all `conversion-postings`)
+- Random Beancount journals (5,000): 0 mismatches
+- Random price networks (5,000): 0 mismatches
+- Random Beancount journals with pairs priced both ways (5,000, new in this gate): 0 mismatches
+- Corpus comparison: 11,822 pass, 0 fail, 30 skip
+- Desktop bench against 0.1.1 from npm (CI runner, 10,000 transactions): every operation within
+  0.73–1.11× of 0.1.1 (the 0.73 is `check`, at 0.02 ms; the 1.11 is hledger `holdings`, 9.6 to
+  10.6 ms); load+transactions 92.5 ms (hledger), 132.6 ms (Beancount); start 19.8 ms
+- Stress test, 100,000 transactions: ok, no crash (peak wasm memory 930 MB hledger, 578 MB Beancount)
+- Similarity check score: max 0.102 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
+  8 warn; copydetect max 0.275 (information only)
+- Real journals: pass (21 pass, 0 fail)
 - Device targets: not run again (the fix changes no timing or memory path)
 
 ## 0.1.1 – 2026-10-27
