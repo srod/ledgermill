@@ -84,29 +84,6 @@ fn arithmetic_in_amounts_and_lot_merging_are_refused() {
 }
 
 #[test]
-fn several_beancount_files_or_a_mix_with_hledger_are_refused() {
-    let one = "2026-01-01 open Assets:A\n";
-    let l = load(&[file("a.beancount", one), file("b.beancount", one)]);
-    assert!(l.transactions().is_empty());
-    assert_eq!(l.check().len(), 1);
-    assert_eq!(l.check()[0].code, "unsupported-syntax");
-    assert_eq!(
-        l.check()[0].details["construct"],
-        json!("several-beancount-files")
-    );
-
-    let mixed = load(&[
-        file("a.journal", "2026-01-01 t\n  a  1 EUR\n  b\n"),
-        file("b.beancount", one),
-    ]);
-    assert!(mixed.transactions().is_empty());
-    assert_eq!(
-        mixed.check()[0].details["construct"],
-        json!("mixed-formats")
-    );
-}
-
-#[test]
 fn the_bean_extension_is_beancount_too_and_other_names_go_to_hledger() {
     let journal = "2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n\n2026-01-02 * \"t\"\n  Assets:A  1 EUR\n  Assets:B\n";
     for name in ["a.bean", "A.BEANCOUNT"] {
@@ -116,14 +93,10 @@ fn the_bean_extension_is_beancount_too_and_other_names_go_to_hledger() {
             "{name}"
         );
     }
-    // Not Beancount: the hledger reader gets it, and no Beancount finding appears.
+    // Not Beancount: the hledger reader gets it and reads every dated line as a transaction (`hledger
+    // print` lists the same three).
     let other = load(&[file("a.journal", journal)]);
-    assert!(
-        other
-            .check()
-            .iter()
-            .all(|f| f.details["construct"] != json!("mixed-formats"))
-    );
+    assert_eq!(other.transactions().len(), 3);
 }
 
 #[test]

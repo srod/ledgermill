@@ -1,0 +1,6 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "does not balance"
+  Assets:A   5 EUR
+  Assets:B  -4 EUR

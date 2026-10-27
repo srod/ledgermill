@@ -71,7 +71,15 @@ impl Ledger {
     /// its units times the cost per unit, in the cost's currency, rounded to 28 digits and printed as
     /// `number()` does; the other postings stay whole. Every transaction is answered; the one error is
     /// the first `unsupported-syntax` finding of [`Ledger::check`], when the file had one.
+    ///
+    /// A set of several ledgers (several Beancount files, or hledger and Beancount; see
+    /// [`load`](crate::load)) is answered by each ledger on its own and put in the order of
+    /// [`Ledger::transactions`], so result `i` is for transaction `i`. The error is the first
+    /// ledger's, ledgers being ordered by the position of their first file.
     pub fn at_cost(&self) -> Result<Vec<Transaction>, Finding> {
+        if !self.parts.is_empty() {
+            return self.ask_parts(Ledger::at_cost);
+        }
         if self.beancount {
             return match self.beancount_refusal() {
                 Some(refusal) => Err(refusal),
