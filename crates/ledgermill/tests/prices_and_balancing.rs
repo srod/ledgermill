@@ -265,6 +265,72 @@ fn inferred_prices_follow_hledger() {
 }
 
 #[test]
+fn a_zero_amount_with_a_price_does_not_stop_the_inference() {
+    let probe = include_str!("../../../spec/hledger/probes/inferred-prices-zero-priced.journal");
+    let amounts = |rows: &Value, t: usize| -> Vec<Value> {
+        rows[t][1]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p[2].clone())
+            .collect()
+    };
+    let rows = postings("inferred-prices-zero-priced", probe);
+    assert_eq!(
+        amounts(&rows, 0),
+        vec![
+            json!([unit("X", "0", q("EUR", "4"))]),
+            json!([unit("X", "1", q("EUR", "4"))]),
+            json!([q("EUR", "-4")]),
+        ]
+    );
+    assert_eq!(
+        amounts(&rows, 1),
+        vec![
+            json!([unit("X", "1", q("EUR", "4"))]),
+            json!([unit("X", "0", q("EUR", "4"))]),
+            json!([q("EUR", "-4")]),
+        ]
+    );
+    assert_eq!(
+        amounts(&rows, 2),
+        vec![
+            json!([unit("Z", "0", q("EUR", "3"))]),
+            json!([total("X", "1", q("EUR", "4"))]),
+            json!([q("EUR", "-4")]),
+        ]
+    );
+    assert_eq!(
+        amounts(&rows, 3),
+        vec![
+            json!([unit("EUR", "0", q("X", "0.25"))]),
+            json!([q("X", "1")]),
+            json!([unit("EUR", "-4", q("X", "0.25"))]),
+        ]
+    );
+    // A zero price on a quantity that is not zero, or a zero quantity next to a written price,
+    // leaves the transaction unbalanced, as in hledger.
+    for (name, probe) in [
+        (
+            "inferred-prices-zero-price",
+            include_str!("../../../spec/hledger/probes/inferred-prices-zero-price.journal"),
+        ),
+        (
+            "inferred-prices-zero-priced-and-written",
+            include_str!(
+                "../../../spec/hledger/probes/inferred-prices-zero-priced-and-written.journal"
+            ),
+        ),
+    ] {
+        assert_eq!(
+            findings(name, probe)[0]["code"],
+            json!("unbalanced-transaction"),
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn a_matching_conversion_pair_balances_the_priced_posting_by_quantity() {
     for probe in [
         include_str!("../../../spec/hledger/probes/conversion.journal"),

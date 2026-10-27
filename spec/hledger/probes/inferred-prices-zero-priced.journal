@@ -1,0 +1,19 @@
+2026-01-01 a zero quantity's written price does not stop the inference, and is replaced
+    c  0 X @ 3 EUR
+    a  1 X
+    b  -4 EUR
+
+2026-01-02 the same with a total price, written after the plain one, or as -0
+    a  1 X
+    c  -0 X @@ 0 EUR
+    b  -4 EUR
+
+2026-01-03 a zero quantity in a third commodity keeps its price
+    c  0 Z @ 3 EUR
+    a  1 X
+    b  -4 EUR
+
+2026-01-04 a zero quantity priced in the other commodity: it is a holder of the first one
+    c  0 EUR @ 3 X
+    a  1 X
+    b  -4 EUR

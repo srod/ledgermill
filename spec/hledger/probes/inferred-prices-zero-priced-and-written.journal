@@ -1,0 +1,6 @@
+2026-01-01 a zero quantity priced, and a written price on a quantity that is not zero: no inference
+    c  0 X @ 3 EUR
+    d  2 Y @ 1 EUR
+    e  -2 EUR
+    a  1 X
+    b  -4 EUR

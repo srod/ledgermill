@@ -4,6 +4,14 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- hledger: a price on an amount whose quantity and cost are both zero (`0 X @ 3 EUR`) no longer
+  stops a price from being inferred; that amount takes the inferred price, as hledger does. Such a
+  transaction was refused as unbalanced. Found by a fuzz soak (seed 90006).
+
 ## 0.1.1 – 2026-10-27
 
 ### Fixed

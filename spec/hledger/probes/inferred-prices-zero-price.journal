@@ -1,0 +1,4 @@
+2026-01-01 a zero price on a quantity that is not zero is a written price: no inference
+    c  1 X @ 0 EUR
+    a  1 X
+    b  -4 EUR

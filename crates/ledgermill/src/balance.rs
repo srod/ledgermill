@@ -440,14 +440,16 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
 }
 
 /// Price inference: in a group with no written price, two commodities that do not balance give
-/// the first one a price in the other (inferred-prices.md).
+/// the first one a price in the other (inferred-prices.md). A price on an amount whose quantity
+/// and cost are both zero (`0 X @ 3 EUR`, `0 X @@ 0 EUR`) does not count as written: it does not
+/// stop the inference, and it is replaced when that amount gets the inferred price.
 fn infer_prices(postings: &mut [Draft], members: &[usize]) {
     let has_cost = members.iter().any(|&i| {
-        postings[i]
-            .amounts
-            .iter()
-            .flatten()
-            .any(|a| a.cost.is_some())
+        postings[i].amounts.iter().flatten().any(|a| {
+            a.cost
+                .as_ref()
+                .is_some_and(|c| !(a.quantity.is_zero() && cost_value(a, c).is_zero()))
+        })
     });
     if has_cost {
         return;
