@@ -1745,14 +1745,67 @@ export function summarize(c: Comparison): Verdict {
 
 const JOBS = 8;
 
-type Counts = { PASS: number; FAIL: number; SKIP: number };
-const counts = (): Counts => ({ PASS: 0, FAIL: 0, SKIP: 0 });
-const countsLine = (t: Counts) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
-const total = (...ts: Counts[]): Counts => ({
-  PASS: ts.reduce((n, t) => n + t.PASS, 0),
-  FAIL: ts.reduce((n, t) => n + t.FAIL, 0),
-  SKIP: ts.reduce((n, t) => n + t.SKIP, 0),
-});
+/** Verdicts by status, and the SKIPs by why (`skipReason`). */
+export type Counts = { PASS: number; FAIL: number; SKIP: number; why: Record<string, number> };
+export const counts = (): Counts => ({ PASS: 0, FAIL: 0, SKIP: 0, why: {} });
+
+/**
+ * What a SKIP's note says was refused: the construct of an `unsupported-syntax` refusal, `document`, or `cur`. The note
+ * may carry `summarize`'s prefix (`value=DATE,COMM: `).
+ */
+export function skipReason(note: string): string {
+  const m = /(?:^|: )(?:unsupported: |unsupported-syntax )(\S+)/.exec(note);
+  if (m) return m[1] as string;
+  if (/(?:^|: )ignored: document/.test(note)) return "document";
+  if (/(?:^|: )cur: /.test(note)) return "cur";
+  return note === "" ? "?" : note;
+}
+
+/**
+ * The refusals the corpus and the fuzzers are known to meet (spec/README.md lists what ledgermill refuses). A SKIP for
+ * anything else is printed as `UNEXPECTED SKIP` and makes the exit code 1: a new refusal must not hide in a count.
+ */
+export const EXPECTED_SKIPS: ReadonlySet<string> = new Set([
+  // Beancount value()/holdings() with a zero price in a pair priced both ways (spec/beancount/convert-rates.md).
+  "price-both-ways",
+  // hledger --cost with conversion pairs next to several priced postings or an assignment (Ledger::at_cost).
+  "cost-conversion-postings",
+  // The harness, not ledgermill: hledger's `cur:` query cannot tell this commodity from another (compareHoldings).
+  "cur",
+  // Beancount `document`: an ignored-syntax warning, bean-check looks at the file (spec/README.md).
+  "document",
+]);
+
+export function count(t: Counts, v: Verdict): void {
+  t[v.status]++;
+  if (v.status !== "SKIP") return;
+  const why = skipReason(v.note);
+  t.why[why] = (t.why[why] ?? 0) + 1;
+}
+
+/** `N pass, N fail, N skip`, then the SKIPs by why: `(price-both-ways 38)`. */
+export const countsLine = (t: Counts) => {
+  const why = Object.entries(t.why).sort(([a], [b]) => a.localeCompare(b));
+  return `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip${why.length ? ` (${why.map(([k, n]) => `${k} ${n}`).join(", ")})` : ""}`;
+};
+
+/** The SKIP reasons of `ts` not in `EXPECTED_SKIPS`, with their counts. */
+export function unexpectedSkips(...ts: Counts[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const t of ts) for (const [k, n] of Object.entries(t.why)) if (!EXPECTED_SKIPS.has(k)) out[k] = (out[k] ?? 0) + n;
+  return out;
+}
+
+const total = (...ts: Counts[]): Counts => {
+  const all = counts();
+  for (const t of ts) {
+    all.PASS += t.PASS;
+    all.FAIL += t.FAIL;
+    all.SKIP += t.SKIP;
+    for (const [k, n] of Object.entries(t.why)) all.why[k] = (all.why[k] ?? 0) + n;
+  }
+  return all;
+};
 
 /** `N pass, N fail (N changed, N returned unchanged)`: unchanged files include the ones the formatter's safety check gave back. */
 export const formatLine = (t: Tallies): string =>
@@ -1795,7 +1848,7 @@ export const tallies = (): Tallies => ({
 
 function tallyFormat({ verdict, changed, reference }: FormatCheck, t: Tallies): void {
   const own = reference === undefined ? t : t.beanFormat;
-  own.format[verdict.status]++;
+  count(own.format, verdict);
   own.formatted[changed ? "changed" : "unchanged"]++;
   if (reference !== undefined) t.beanFormat.reference[reference]++;
 }
@@ -1805,18 +1858,18 @@ export function tally(c: Comparison, t: Tallies): void {
   if (c.formatCheck) tallyFormat(c.formatCheck, t);
   if (c.format === "beancount") {
     const b = t.beancount;
-    if (c.cost) b.cost[c.cost.status]++;
-    for (const { verdict } of c.values) b.value[verdict.status]++;
-    if (c.prices) b.prices[c.prices.status]++;
-    for (const { verdict } of c.beanHoldings ?? []) b.holdings[verdict.status]++;
+    if (c.cost) count(b.cost, c.cost);
+    for (const { verdict } of c.values) count(b.value, verdict);
+    if (c.prices) count(b.prices, c.prices);
+    for (const { verdict } of c.beanHoldings ?? []) count(b.holdings, verdict);
     return;
   }
-  if (c.cost) t.cost[c.cost.status]++;
-  for (const { verdict } of c.values) t.value[verdict.status]++;
-  if (c.postings) t.postings[c.postings.status]++;
-  if (c.prices) t.prices[c.prices.status]++;
-  for (const { verdict } of c.holdings) t.holdings[verdict.status]++;
-  if (c.plainledger) t.plainledger[c.plainledger.verdict.status]++;
+  if (c.cost) count(t.cost, c.cost);
+  for (const { verdict } of c.values) count(t.value, verdict);
+  if (c.postings) count(t.postings, c.postings);
+  if (c.prices) count(t.prices, c.prices);
+  for (const { verdict } of c.holdings) count(t.holdings, verdict);
+  if (c.plainledger) count(t.plainledger, c.plainledger.verdict);
 }
 
 /**
@@ -1853,7 +1906,7 @@ export async function runCases(
       continue;
     }
     const comparison = comparisons[i] as Comparison;
-    totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"][comparison.raw.status]++;
+    count(totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"], comparison.raw);
     tally(comparison, t);
     if (comparison.plainledger?.changes) changes.push(`${c.name}: ${comparison.plainledger.changes}`);
     const v = summarize(comparison);
@@ -1876,6 +1929,8 @@ export async function runCases(
   if (changes.length > 0)
     console.log(`\nPlainledger's figures that change with real postings only (expected; a virtual posting on a tracked account):\n${changes.map((c) => `  ${c}`).join("\n")}`);
   const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, t.format, t.beanFormat.format, b2.cost, b2.value, b2.prices, b2.holdings);
-  console.log(`\n${all.PASS} pass, ${all.FAIL} fail, ${all.SKIP} skip`);
-  if (all.FAIL > 0) process.exitCode = 1;
+  console.log(`\n${countsLine(all)}`);
+  const unexpected = unexpectedSkips(all);
+  for (const [k, n] of Object.entries(unexpected)) console.log(`UNEXPECTED SKIP ${k} (${n}): a refusal not in EXPECTED_SKIPS (lib.ts)`);
+  if (all.FAIL > 0 || Object.keys(unexpected).length > 0) process.exitCode = 1;
 }

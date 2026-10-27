@@ -5,6 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type Comparison,
+  counts,
+  countsLine,
+  skipReason,
+  unexpectedSkips,
   beanHoldingQuestions,
   beanValueQueries,
   compareAll,
@@ -648,7 +652,7 @@ test("tally adds a Beancount case to its own counts", () => {
   const c: Comparison = {
     raw: pass,
     cost: pass,
-    values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: { status: "SKIP", note: "" } }],
+    values: [{ query: { date: "2026-01-01", commodity: "EUR" }, verdict: { status: "SKIP", note: "unsupported: price-both-ways" } }],
     postings: null,
     prices: pass,
     holdings: [],
@@ -658,13 +662,30 @@ test("tally adds a Beancount case to its own counts", () => {
   };
   tally(c, t);
   expect(t.beancount).toEqual({
-    cost: { PASS: 1, FAIL: 0, SKIP: 0 },
-    value: { PASS: 0, FAIL: 0, SKIP: 1 },
-    prices: { PASS: 1, FAIL: 0, SKIP: 0 },
-    holdings: { PASS: 0, FAIL: 1, SKIP: 0 },
+    cost: { PASS: 1, FAIL: 0, SKIP: 0, why: {} },
+    value: { PASS: 0, FAIL: 0, SKIP: 1, why: { "price-both-ways": 1 } },
+    prices: { PASS: 1, FAIL: 0, SKIP: 0, why: {} },
+    holdings: { PASS: 0, FAIL: 1, SKIP: 0, why: {} },
   });
-  expect(t.cost).toEqual({ PASS: 0, FAIL: 0, SKIP: 0 });
+  expect(t.cost).toEqual(counts());
   expect(summarize(c)).toEqual({ status: "FAIL", note: "holdings through=- in EUR: x" });
+});
+
+test("SKIPs are counted by what was refused, and a refusal not expected is reported", () => {
+  expect(skipReason("unsupported: price-both-ways")).toBe("price-both-ways");
+  expect(skipReason("unsupported: include (hledger fails)")).toBe("include");
+  expect(skipReason("unsupported-syntax price-both-ways")).toBe("price-both-ways");
+  expect(skipReason("ignored: document (we do not look at files): x")).toBe("document");
+  expect(skipReason("cur: cannot tell X from another commodity")).toBe("cur");
+  expect(skipReason("value=2026-01-01,CHF: unsupported: price-both-ways")).toBe("price-both-ways");
+  expect(skipReason("holdings through=- in EUR: unsupported: price-both-ways")).toBe("price-both-ways");
+  const t = counts();
+  t.SKIP = 3;
+  t.why = { "price-both-ways": 2, include: 1 };
+  // `include` stands for any refusal not in EXPECTED_SKIPS.
+  expect(countsLine(t)).toBe("0 pass, 0 fail, 3 skip (include 1, price-both-ways 2)");
+  expect(countsLine(counts())).toBe("0 pass, 0 fail, 0 skip");
+  expect(unexpectedSkips(t)).toEqual({ include: 1 });
 });
 
 // These run bean-query (on PATH, like the rest of the harness) on probes of the spec.
@@ -776,5 +797,5 @@ test("tally counts a Beancount format check apart from the hledger one, and bean
   tally({ ...base, formatCheck: { verdict: { status: "FAIL", note: "x" }, changed: true, reference: "none" } }, t);
   tally({ ...base, formatCheck: { verdict: pass, changed: true } }, t);
   expect(beanFormatLine(t)).toBe("2 pass, 1 fail (2 changed, 1 returned unchanged; bean-format: 1 equal, 1 differ by design, 1 no reference)");
-  expect(t.format).toEqual({ PASS: 1, FAIL: 0, SKIP: 0 });
+  expect(t.format).toEqual({ PASS: 1, FAIL: 0, SKIP: 0, why: {} });
 });

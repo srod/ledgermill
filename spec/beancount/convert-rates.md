@@ -46,6 +46,10 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
   below), where the rules above give zero; random journals with such a pair also disagree in other ways. ledgermill
   refuses `value()` and `holdings()` for a ledger that has one: `unsupported-syntax`, construct `price-both-ways`, on the
   line of the zero price. A zero price in a pair priced one way only is the rate of zero described above.
+  The refusal covers the whole ledger, every question and every pair, not only the pair with the zero. That stays:
+  the random journals that disagree also disagree on other pairs, and no probe shows which ones are safe. The
+  fuzzers count these refusals by name (`harness/fuzz.ts --beancount`, `value: … skip (price-both-ways N)`);
+  `--save DIR --save-skipped` keeps the journals to rerun one with `harness/real.ts`.
 - **No chain.** Only a direct or an inverse entry is a rate; going from `CAD` to `EUR` through `USD` is not
   done, although both prices exist. (A cost's currency is the one bridge: convert-positions.md.)
 - An amount that is already in `V` stays as it is; so does one with no rate. The product is rounded to 28

@@ -1,6 +1,6 @@
-// bun harness/fuzz.ts [COUNT] [SEED] [--keep] [--save DIR]
-// bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep] [--save DIR]
-// bun harness/fuzz.ts --beancount [COUNT] [SEED] [--keep] [--save DIR]
+// bun harness/fuzz.ts [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
+// bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
+// bun harness/fuzz.ts --beancount [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
 // Random journals, mostly valid, compared like the corpus: hledger against our wasm. Covers
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
 // inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
@@ -13,11 +13,29 @@
 // commodities, lots, price annotations, plain units of either sign) compared against bean-check and bean-query
 // for their transactions and postings, their prices, their cost and, at several dates and commodities,
 // their value and holdings. Every case must
-// PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1.
+// PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1. The summary counts the SKIPs by what
+// was refused; a SKIP for a refusal not in `EXPECTED_SKIPS` (lib.ts) is printed like a FAIL and fails the run too.
+// `--save-skipped` makes `--save DIR` keep the journals with a SKIP as well, to rerun one with `real.ts`.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beanFormatLine, type Comparison, compareAll, formatLine, type HoldingQuestion, type Query, summarize, tally, tallies } from "./lib.ts";
+import {
+  beanFormatLine,
+  type Comparison,
+  compareAll,
+  count as countVerdict,
+  counts as newCounts,
+  countsLine,
+  EXPECTED_SKIPS,
+  formatLine,
+  type HoldingQuestion,
+  type Query,
+  skipReason,
+  summarize,
+  tallies,
+  tally,
+  unexpectedSkips,
+} from "./lib.ts";
 import { rng } from "./rng.ts";
 
 const saveAt = process.argv.indexOf("--save");
@@ -26,6 +44,7 @@ const args = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && 
 const count = Number(args[0] ?? 500);
 const seed = Number(args[1] ?? 1);
 const keep = process.argv.includes("--keep");
+const saveSkipped = process.argv.includes("--save-skipped");
 const graph = process.argv.includes("--graph");
 const beancount = process.argv.includes("--beancount");
 
@@ -481,7 +500,7 @@ function beanJournal(): { text: string; used: string[] } {
 
 // ───────────── run ─────────────
 const dir = mkdtempSync(join(tmpdir(), "ledgermill-fuzz-"));
-const raw = { PASS: 0, FAIL: 0, SKIP: 0 };
+const raw = newCounts();
 const t = tallies();
 let valid = 0;
 for (let k = 0; k < count; k++) {
@@ -500,13 +519,16 @@ for (let k = 0; k < count; k++) {
   });
   const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(commodities));
   const c: Comparison = await compareAll(paths, false, queries, { holdings: asked });
-  raw[c.raw.status]++;
+  countVerdict(raw, c.raw);
   tally(c, t);
   if (c.raw.status === "PASS" && c.raw.note === "") valid++;
   const v = summarize(c);
-  if (v.status === "FAIL") {
-    const queried = c.values.find((x) => x.verdict.status === "FAIL");
-    console.log(`FAIL fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${j.text}${second ? `--- second file\n${second}` : ""}`);
+  const unexpected = v.status === "SKIP" && !EXPECTED_SKIPS.has(skipReason(v.note));
+  if (v.status === "FAIL" || unexpected) {
+    const queried = c.values.find((x) => x.verdict.status === v.status);
+    console.log(`${unexpected ? "UNEXPECTED SKIP" : "FAIL"} fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${j.text}${second ? `--- second file\n${second}` : ""}`);
+  }
+  if (v.status === "FAIL" || (v.status === "SKIP" && (unexpected || saveSkipped))) {
     if (saveDir) {
       mkdirSync(saveDir, { recursive: true });
       const questions = asked.map((q) => `${q.end ?? "-"},${q.commodity}`).join(" ");
@@ -516,8 +538,8 @@ for (let k = 0; k < count; k++) {
     }
   }
 }
-const counts = (t: { PASS: number; FAIL: number; SKIP: number }) => `${t.PASS} pass, ${t.FAIL} fail, ${t.SKIP} skip`;
-console.log(`fuzz${graph ? " --graph" : ""}${beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${raw.FAIL} fail, ${raw.SKIP} skip`);
+const counts = countsLine;
+console.log(`fuzz${graph ? " --graph" : ""}${beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${countsLine(raw).replace(/^\d+ pass, /, "")}`);
 if (beancount) {
   const b = t.beancount;
   console.log(`  format: ${beanFormatLine(t)}\n  prices: ${counts(b.prices)}\n  cost: ${counts(b.cost)}\n  value: ${counts(b.value)}\n  holdings: ${counts(b.holdings)}`);
@@ -527,4 +549,6 @@ if (beancount) {
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
 const b = t.beancount;
-if (raw.FAIL + t.format.FAIL + t.beanFormat.format.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0) process.exitCode = 1;
+const unexpected = unexpectedSkips(raw, t.format, t.beanFormat.format, t.cost, t.value, t.postings, t.prices, t.holdings, b.cost, b.value, b.prices, b.holdings);
+for (const [k, n] of Object.entries(unexpected)) console.log(`UNEXPECTED SKIP ${k} (${n}): a refusal not in EXPECTED_SKIPS (lib.ts)`);
+if (raw.FAIL + t.format.FAIL + t.beanFormat.format.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0 || Object.keys(unexpected).length > 0) process.exitCode = 1;
