@@ -4,7 +4,7 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.1 – 2026-10-26
+## 0.1.1 – TBD at release
 
 ### Fixed
 
@@ -12,22 +12,23 @@ All notable changes to ledgermill are written here. The format follows
   sub-account made it, keeps that lot; zeroing it again gives the lot back, as hledger does.
   0.1.0 dropped it (`a:b 4 X {10 EUR}`, `a 1 X`, `a ==* 3`, then `a == 2 EUR` gave `4 X`, not
   `4 X {10 EUR}`). Found by the release gate run on the `v0.1.0` tag (random journal, seed 303).
+- hledger `--cost` (`atCost()`): in a transaction with two conversion pairs, one that fits the
+  priced posting and one that does not, and a first plain posting that another repeats, the pair
+  that fits is dropped and the other kept, as hledger does. 0.1.0 kept both (so 7 postings where
+  hledger gives 5, and holdings followed). Found by CI's random journals (seed 21).
 
 ### Release gate
 
-From the release-gate workflow on commit `661dccc` (run 40379928627, 2026-10-26) and the owner's
+From the release-gate workflow on commit TBD at release (run TBD at release) and the owner's
 own runs.
 
-- Random hledger journals (5,000): 0 mismatches (2,217 that hledger accepts; the rest rejected by
-  both, 39 skipped)
-- Random Beancount journals (5,000): 0 mismatches
-- Random price networks (5,000): 0 mismatches
-- Corpus comparison: 11,804 pass, 0 fail, 30 skip
-- Desktop bench against 0.1.0 from npm (CI runner, 10,000 transactions): every operation within
-  0.81–1.05× of 0.1.0; load+transactions 93.7 ms (hledger), 133.2 ms (Beancount); start 19.6 ms
-- Stress test, 100,000 transactions: ok, no crash (peak wasm memory 930 MB hledger, 578 MB Beancount)
-- Similarity check score: max 0.102 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
-  8 warn; copydetect max 0.275 (information only)
+- Random hledger journals (5,000): TBD at release
+- Random Beancount journals (5,000): TBD at release
+- Random price networks (5,000): TBD at release
+- Corpus comparison: TBD at release
+- Desktop bench against 0.1.0 from npm: TBD at release
+- Stress test, 100,000 transactions: TBD at release
+- Similarity check score: TBD at release
 - Real journals: pass
 - Device targets: not run again (the fix changes no timing or memory path)
 
