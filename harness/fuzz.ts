@@ -1,6 +1,7 @@
 // bun harness/fuzz.ts [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
 // bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
 // bun harness/fuzz.ts --beancount [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
+// bun harness/fuzz.ts --both-ways [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
 // Random journals, mostly valid, compared like the corpus: hledger against our wasm. Covers
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
 // inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
@@ -12,7 +13,9 @@
 // there, with their questions. With `--beancount`: random Beancount journals (price directives among seven
 // commodities, lots, price annotations, plain units of either sign) compared against bean-check and bean-query
 // for their transactions and postings, their prices, their cost and, at several dates and commodities,
-// their value and holdings. Every case must
+// their value and holdings. With `--both-ways`: Beancount journals of 3 or 4 commodities with up to 9 prices, several pairs
+// priced in both directions at rates whose inverse is not exact (3, 7, 11, 0.3), a few one way, and plain holdings, compared
+// the same way: the evidence for "a pair priced both ways" in spec/beancount/convert-rates.md. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1. The summary counts the SKIPs by what
 // was refused; a SKIP for a refusal not in `EXPECTED_SKIPS` (lib.ts) is printed like a FAIL and fails the run too.
 // `--save-skipped` makes `--save DIR` keep the journals with a SKIP as well, to rerun one with `real.ts`.
@@ -46,7 +49,8 @@ const seed = Number(args[1] ?? 1);
 const keep = process.argv.includes("--keep");
 const saveSkipped = process.argv.includes("--save-skipped");
 const graph = process.argv.includes("--graph");
-const beancount = process.argv.includes("--beancount");
+const bothWays = process.argv.includes("--both-ways");
+const beancount = bothWays || process.argv.includes("--beancount");
 
 const r = rng(seed);
 // Its own stream: asking holdings questions must not change the journals a seed gives.
@@ -498,13 +502,66 @@ function beanJournal(): { text: string; used: string[] } {
   return { text, used };
 }
 
+// ───────────── Beancount, pairs priced both ways ─────────────
+// Rates whose inverse is not a short decimal (1/3, 1/7, 1/11, 1/0.3 ...), and a few exact ones (the rule hides on those). No zero:
+// a zero in a pair priced both ways is refused (`price-both-ways`), which is a SKIP and says nothing about the rule.
+const BOTH_WAYS_RATES = ["3", "7", "11", "0.3", "13", "6", "0.7", "1.1", "2.5", "1.7", "9", "0.15", "2", "4", "0.5"] as const;
+
+/**
+ * A Beancount journal of 3 or 4 commodities and up to 9 `price` directives: two or three pairs priced in both directions
+ * (one to three prices each way), the others one way. The prices come in any order and on any of six days, the same
+ * day twice now and then. Plain holdings in each commodity are there for `value()` and `holdings()` to value.
+ */
+function bothWaysJournal(): { text: string; used: string[] } {
+  const pool = [...BEAN_COMMODITIES];
+  for (let k = pool.length - 1; k > 0; k--) {
+    const j = int(k + 1);
+    [pool[k], pool[j]] = [pool[j] as string, pool[k] as string];
+  }
+  const used = pool.slice(0, 3 + int(2));
+  const pairs: [string, string][] = [];
+  for (const a of used) for (const b of used) if (a < b) pairs.push([a, b]);
+  for (let k = pairs.length - 1; k > 0; k--) {
+    const j = int(k + 1);
+    [pairs[k], pairs[j]] = [pairs[j] as [string, string], pairs[k] as [string, string]];
+  }
+  const both = 2 + int(2);
+  const prices: string[] = [];
+  pairs.forEach(([a, b], k) => {
+    const way = (from: string, to: string, n: number) => {
+      for (let i = 0; i < n; i++) prices.push(`2026-01-0${1 + int(6)} price ${from} ${pick(BOTH_WAYS_RATES)} ${to}`);
+    };
+    if (k < both) {
+      way(a, b, 1 + int(3));
+      way(b, a, 1 + int(3));
+    } else if (k < both + 2 && chance(0.7)) way(...(chance(0.5) ? [a, b] : [b, a]), 1 + int(2));
+  });
+  for (let k = prices.length - 1; k > 0; k--) {
+    const j = int(k + 1);
+    [prices[k], prices[j]] = [prices[j] as string, prices[k] as string];
+  }
+  let text = 'option "operating_currency" "EUR"\n';
+  for (const a of [...BEAN_ACCOUNTS, "Equity:O"]) text += `2026-01-01 open ${a}\n`;
+  text += `\n${prices.slice(0, 9).join("\n")}\n\n`;
+  for (let k = 0, n = 1 + int(3); k < n; k++) {
+    text += `2026-01-0${1 + int(6)} * "t${k}"\n`;
+    for (const c of used) {
+      if (!chance(0.7)) continue;
+      const units = `${chance(0.2) ? "-" : ""}${pick(BEAN_UNITS)}`;
+      text += `  ${pick(BEAN_ACCOUNTS)}  ${units} ${c}\n  Equity:O  ${units.startsWith("-") ? units.slice(1) : `-${units}`} ${c}\n`;
+    }
+    text += "\n";
+  }
+  return { text, used };
+}
+
 // ───────────── run ─────────────
 const dir = mkdtempSync(join(tmpdir(), "ledgermill-fuzz-"));
 const raw = newCounts();
 const t = tallies();
 let valid = 0;
 for (let k = 0; k < count; k++) {
-  const j = beancount ? beanJournal() : graph ? graphJournal() : journal();
+  const j = bothWays ? bothWaysJournal() : beancount ? beanJournal() : graph ? graphJournal() : journal();
   const second = "second" in j ? j.second : undefined;
   const paths = [join(dir, `f${k}.${beancount ? "beancount" : "journal"}`)];
   writeFileSync(paths[0] as string, j.text);
@@ -532,14 +589,14 @@ for (let k = 0; k < count; k++) {
     if (saveDir) {
       mkdirSync(saveDir, { recursive: true });
       const questions = asked.map((q) => `${q.end ?? "-"},${q.commodity}`).join(" ");
-      const name = join(saveDir, `${beancount ? "bean" : graph ? "graph" : "fuzz"}-${seed}-${k}`);
+      const name = join(saveDir, `${bothWays ? "both" : beancount ? "bean" : graph ? "graph" : "fuzz"}-${seed}-${k}`);
       writeFileSync(`${name}.${beancount ? "beancount" : "journal"}`, `; ${v.note}\n; holdings questions (end,commodity): ${questions}\n${j.text}`);
       if (second !== undefined) writeFileSync(`${name}.second.journal`, second);
     }
   }
 }
 const counts = countsLine;
-console.log(`fuzz${graph ? " --graph" : ""}${beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${countsLine(raw).replace(/^\d+ pass, /, "")}`);
+console.log(`fuzz${graph ? " --graph" : ""}${bothWays ? " --both-ways" : beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${countsLine(raw).replace(/^\d+ pass, /, "")}`);
 if (beancount) {
   const b = t.beancount;
   console.log(`  format: ${beanFormatLine(t)}\n  prices: ${counts(b.prices)}\n  cost: ${counts(b.cost)}\n  value: ${counts(b.value)}\n  holdings: ${counts(b.holdings)}`);
