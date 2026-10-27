@@ -40,7 +40,8 @@ The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a v
   journal tried (500 random ones, three or four commodities, up to nine prices, two or three pairs priced
   both ways at rates like 3, 7, 11, 0.3, in any order and on any of six days; `for s in 1 2 3 4 5; do bun
   harness/fuzz.ts --both-ways 100 $s; done`, 2026-10-27: every `value()` and `holdings()` question equal to
-  bean-query, 0 FAIL, 0 SKIP; a zero price is never generated): the pair with the shortest list of its own prices first, and among equals the pair that appears last in
+  bean-query, 0 FAIL, 0 SKIP; a zero price is never generated): the pair with the shortest list of its own
+  prices first, and among equals the pair that appears last in
   the prices table first. With one price each way that doubles the pair that appears second in the table; the
   earlier probes of this note use inverses that are exact (`4` and `0.25`), which hides it.
 - **A zero price in a pair that is priced both ways is not settled.** With `CCC 4 EUR` on 01-01 and `EUR 0 CCC`
