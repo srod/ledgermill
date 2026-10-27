@@ -1,8 +1,8 @@
-// bun harness/compare.ts [--quiet]
+// bun harness/compare.ts [--quiet] [--only TEXT]
 // Runs hledger (or bean-check and bean-query, for .beancount files) and our wasm on every corpus journal
 // and multi-file pair and diffs typed values.
 import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { runCases } from "./lib.ts";
 
 const ROOT = join(import.meta.dir, "..");
@@ -76,6 +76,62 @@ const specPairs: [string, string][] = [
   ["rule-file-c", "rule-file-a"],
 ];
 
+// Sets of several ledgers (spec/beancount/several-files.md): each Beancount file is a ledger of its own, all the hledger files together
+// are one. Files are loaded in the order listed; the reference runs per ledger and the results are merged (harness/README.md, "Several ledgers").
+const SEVERAL = join(ROOT, "spec/beancount/probes/several-files");
+const severalSets: string[][] = [
+  // Two or three ledgers with an account, a commodity, a price and a day in common, in every position of the hledger file.
+  ["a.beancount", "b.beancount"],
+  ["b.beancount", "a.beancount"],
+  ["a.beancount", "b.beancount", "c.journal"],
+  ["b.beancount", "a.beancount", "c.journal"],
+  ["c.journal", "a.beancount", "b.beancount"],
+  ["c.journal", "b.beancount", "a.beancount"],
+  ["a.beancount", "c.journal", "b.beancount"],
+  ["b.beancount", "c.journal", "a.beancount"],
+  ["a.beancount", "c.journal"],
+  ["c.journal", "a.beancount"],
+  // Hledger files with a Beancount file between them are still one ledger: the shared day goes c, a, d (and P lines of both).
+  ["c.journal", "a.beancount", "d.journal"],
+  ["d.journal", "b.beancount", "c.journal", "a.beancount"],
+  ["a.beancount", "c.journal", "b.beancount", "d.journal"],
+  ["d.journal", "c.journal", "a.beancount"],
+  // Valid on their own, each with its own opens (a root renamed by an option is refused: `rename-a` is not here).
+  ["open-a.beancount", "open-b.beancount"],
+  ["open-a.beancount", "open-b.beancount", "c.journal"],
+  // A ledger the reference rejects: the first error is that of the file first in the manifest.
+  ["unbalanced.beancount", "unbalanced.journal"],
+  ["unbalanced.journal", "unbalanced.beancount"],
+  ["unbalanced.journal", "unbalanced-2.journal", "unbalanced.beancount"],
+  ["unbalanced.beancount", "unbalanced.journal", "unbalanced-2.journal"],
+  ["unbalanced-2.journal", "unbalanced.beancount", "unbalanced.journal"],
+  ["unbalanced.beancount", "a.beancount"],
+  ["a.beancount", "unbalanced.beancount", "b.beancount"],
+  ["a.beancount", "unbalanced.journal"],
+  ["unbalanced.journal", "a.beancount", "c.journal"],
+  // A file ledgermill refuses next to good ones: the set is refused (a SKIP).
+  ["refused.beancount", "a.beancount"],
+  ["a.beancount", "c.journal", "refused.beancount"],
+].map((files) => files.map((f) => join(SEVERAL, f)));
+// Plainledger's own Beancount journals with each other and with its hledger ones (they share Assets:Bank and the like, so rows are added).
+const appSets: string[][] = [
+  ["proj002-price-unit.beancount", "verbatim-price-annotations.beancount"],
+  ["beancount-lot-matrix.beancount", "generated-padding.beancount", "proj008-payee-narration.beancount"],
+  ["valuation-dates.beancount", "valuation-fifo-components.beancount", "valuation-costs.beancount"],
+  ["valuation-precedence.beancount", "valuation-graph.beancount", "valuation-dates.beancount"],
+  ["proj007-flagged-unicode.beancount", "zero-posting.beancount", "proj002-price-unit.beancount"],
+  ["valuation-costs.beancount", "valuation-costs.journal"],
+  ["valuation-dates.journal", "valuation-dates.beancount"],
+  ["valuation-graph.beancount", "valuation-graph.journal"],
+  ["valuation-precedence.beancount", "valuation-precedence.journal", "beancount-lot-matrix.beancount"],
+  ["proj002-price-unit.beancount", "proj002-price-unit.journal", "verbatim-price-annotations.beancount"],
+  ["proj002-price-unit.journal", "proj004-balance-assertion.journal", "proj002-price-unit.beancount"],
+  ["valuation-dates.journal", "valuation-costs.beancount", "valuation-precedence.journal", "valuation-dates.beancount"],
+].map((files) => files.map((f) => join(APP, f)));
+// Every Beancount journal of the app together, with three of its hledger ones in the middle.
+const appBeancount = readdirSync(APP).filter((f) => f.endsWith(".beancount")).sort().map((f) => join(APP, f));
+const appEverything = [...appBeancount.slice(0, 6), join(APP, "valuation-dates.journal"), join(APP, "proj002-price-unit.journal"), join(APP, "valuation-graph.journal"), ...appBeancount.slice(6)];
+
 // The journals of `app` are Plainledger's own test journals: its holdings reads are compared on them too.
 const cases: { name: string; paths: string[]; ignorePlaces?: boolean; plainledger?: boolean; formatOnly?: boolean }[] = [];
 for (const [label, dir, extension] of DIRS)
@@ -99,4 +155,9 @@ for (const [dir, list] of [[PROTOTYPE, pairs], [APP, fixturePairs], [SPEC, specP
       ...(dir === APP ? { plainledger: true } : {}),
     });
 
-await runCases(cases, process.argv.includes("--quiet"));
+for (const paths of [...severalSets, ...appSets, appEverything])
+  cases.push({ name: `set ${paths.map((p) => basename(p)).join("+")}`, paths });
+
+// `--only TEXT` runs the cases whose name has TEXT in it (`--only set` for the sets of several ledgers).
+const only = process.argv[process.argv.indexOf("--only") + 1];
+await runCases(process.argv.includes("--only") ? cases.filter((c) => c.name.includes(only ?? "")) : cases, process.argv.includes("--quiet"));

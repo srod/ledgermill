@@ -258,6 +258,12 @@ function valuesOnly(txs: Transaction[]): Transaction[] {
 const withBasenames = (txs: Transaction[]): Transaction[] =>
   txs.map((t) => ({ ...t, source: { ...t.source, file: basename(t.source.file) } }));
 
+/** The first difference between the reference's transactions and ours (files by basename), by value only with `ignorePlaces`. */
+function diffTransactions(theirs: Transaction[], mine: Transaction[], ignorePlaces: boolean): string | null {
+  const [a, b] = [withBasenames(theirs), withBasenames(mine)];
+  return ignorePlaces ? firstDiff(valuesOnly(a), valuesOnly(b)) : firstDiff(a, b);
+}
+
 const postingBasenames = (rows: FlatPosting[]): FlatPosting[] => rows.map((r) => ({ ...r, file: basename(r.file) }));
 
 // ───────────── Beancount side ─────────────
@@ -765,8 +771,7 @@ async function compareRaw(paths: string[], ignorePlaces: boolean): Promise<{ ver
   if (!ref.ok) return no(compareRejection(ref, errors));
   if (unsupported) return no({ status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` });
   if (errors[0]) return no({ status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, hledger accepts` });
-  const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.transactions)];
-  const diff = ignorePlaces ? firstDiff(valuesOnly(theirs), valuesOnly(mine)) : firstDiff(theirs, mine);
+  const diff = diffTransactions(ref.transactions, ours.transactions, ignorePlaces);
   if (diff) return no({ status: "FAIL", note: diff });
   return { verdict: { status: "PASS", note: ignorePlaces ? "same values (places may differ)" : "" }, agreed: true, ours };
 }
@@ -968,8 +973,7 @@ async function compareDerived(
     if (code === "unsupported-syntax") return { status: "SKIP", note: `unsupported: ${details.construct ?? "?"}` };
     return { status: "FAIL", note: `ours returns ${code} (${message}), hledger accepts` };
   }
-  const [theirs, mine] = [withBasenames(ref.transactions), withBasenames(ours.answer)];
-  const diff = ignorePlaces ? firstDiff(valuesOnly(theirs), valuesOnly(mine)) : firstDiff(theirs, mine);
+  const diff = diffTransactions(ref.transactions, ours.answer, ignorePlaces);
   return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
 }
 
@@ -1037,11 +1041,14 @@ export type Holding = {
 /** An exact decimal: `-12.50` is mantissa -1250, 2 places. */
 type Dec = { m: bigint; p: number };
 
+/** An exact decimal from its text, an exponent (`1E-7`) included: bean-query prints some numbers that way. */
 function parseDecimal(text: string): Dec {
-  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text);
+  const m = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(text);
   if (!m) throw new Error(`not a decimal: ${text}`);
   const fraction = m[3] ?? "";
-  return { m: BigInt(`${m[1]}${m[2]}${fraction}`), p: fraction.length };
+  const places = fraction.length - Number(m[4] ?? 0);
+  const mantissa = BigInt(`${m[1]}${m[2]}${fraction}`);
+  return places >= 0 ? { m: mantissa, p: places } : { m: mantissa * 10n ** BigInt(-places), p: 0 };
 }
 
 /** The sum of exact decimals as a string without trailing zeros (`0` for zero): numbers compared by value. */
@@ -1207,32 +1214,7 @@ export async function compareHoldings(paths: string[], q: HoldingQuestion, cache
   const order = holdingsInOrder(ours.holdings);
   if (order) return { status: "FAIL", note: order };
   try {
-    const base = ["balance", "--layout=tidy", "-O", "json", "--real", "-E", ...(q.end ? ["-e", q.end] : [])];
-    const units = decodeBalance(await cached(cache, paths, base));
-    const all = await journalCommodities(paths, cache);
-    const commodities = new Set([...ours.holdings.map((h) => h.commodity), ...[...units.values()].flatMap((m) => [...m.keys()])]);
-    const skipped = new Set([...commodities].filter((c) => all.some((other) => foldsTogether(c, other))));
-    const theirs = new Map<string, HoldingRow>();
-    const at = (account: string, commodity: string): HoldingRow => {
-      const key = rowKey(account, commodity);
-      return theirs.get(key) ?? (theirs.set(key, emptyRow()), theirs.get(key) as HoldingRow);
-    };
-    for (const [account, sums] of units)
-      for (const [commodity, sum] of sums) if (!skipped.has(commodity)) at(account, commodity).units = sum;
-    const value = `--value=end,${q.commodity}`;
-    for (const commodity of commodities) {
-      if (skipped.has(commodity)) continue;
-      const cur = currencyQuery(commodity);
-      const runs = [
-        ["cost", ["--cost"]],
-        ["value", [value]],
-        ["costValue", ["--cost", value]],
-      ] as const;
-      for (const [field, options] of runs)
-        for (const [account, sums] of decodeBalance(await cached(cache, paths, [...base, ...options, cur])))
-          at(account, commodity)[field] = sortedLines(sums);
-    }
-    for (const [key, row] of theirs) if (isEmptyRow(row)) theirs.delete(key);
+    const { rows: theirs, skipped } = await hledgerHoldingRows(paths, q, cache, ours.holdings.map((h) => h.commodity));
     const mine = oursAsRows(ours.holdings.filter((h) => !skipped.has(h.commodity)));
     const diff = diffHoldingRows(theirs, mine);
     if (diff) return { status: "FAIL", note: diff };
@@ -1240,6 +1222,49 @@ export async function compareHoldings(paths: string[], q: HoldingQuestion, cache
   } catch (error) {
     return { status: "FAIL", note: String(error instanceof Error ? error.message : error) };
   }
+}
+
+/**
+ * What hledger says for a holdings question about `paths`, as rows (see `compareHoldings`): the units of every account, and
+ * for each commodity of `asked` or held, the `--cost`, `--value` and both runs. `skipped` are the commodities whose `cur:`
+ * pattern also matches another one: their rows are left out. `narrow`: ask only for the commodities the journal has (a set
+ * of several ledgers passes the commodities of all of them).
+ */
+async function hledgerHoldingRows(
+  paths: string[],
+  q: HoldingQuestion,
+  cache: RunCache,
+  asked: string[],
+  narrow = false,
+): Promise<{ rows: Map<string, HoldingRow>; skipped: Set<string> }> {
+  const base = ["balance", "--layout=tidy", "-O", "json", "--real", "-E", ...(q.end ? ["-e", q.end] : [])];
+  const units = decodeBalance(await cached(cache, paths, base));
+  const all = await journalCommodities(paths, cache);
+  const held = [...units.values()].flatMap((m) => [...m.keys()]);
+  const commodities = new Set([...asked.filter((c) => !narrow || all.includes(c)), ...held]);
+  const skipped = new Set([...asked, ...held].filter((c) => all.some((other) => foldsTogether(c, other))));
+  const theirs = new Map<string, HoldingRow>();
+  const at = (account: string, commodity: string): HoldingRow => {
+    const key = rowKey(account, commodity);
+    return theirs.get(key) ?? (theirs.set(key, emptyRow()), theirs.get(key) as HoldingRow);
+  };
+  for (const [account, sums] of units)
+    for (const [commodity, sum] of sums) if (!skipped.has(commodity)) at(account, commodity).units = sum;
+  const value = `--value=end,${q.commodity}`;
+  for (const commodity of commodities) {
+    if (skipped.has(commodity)) continue;
+    const cur = currencyQuery(commodity);
+    const runs = [
+      ["cost", ["--cost"]],
+      ["value", [value]],
+      ["costValue", ["--cost", value]],
+    ] as const;
+    for (const [field, options] of runs)
+      for (const [account, sums] of decodeBalance(await cached(cache, paths, [...base, ...options, cur])))
+        at(account, commodity)[field] = sortedLines(sums);
+  }
+  for (const [key, row] of theirs) if (isEmptyRow(row)) theirs.delete(key);
+  return { rows: theirs, skipped };
 }
 
 /** The dates of the transactions of some journal texts (`YYYY-MM-DD`, real dates only), sorted. */
@@ -1501,19 +1526,24 @@ function diffPostingAmounts(rows: string[][], before: Transaction[], after: Tran
 }
 
 /** An answer of ours that is a refusal is a SKIP when it says "not supported", else a FAIL; a crash is a FAIL. */
-function refusal(ours: { refused: Finding } | { thrown: string }): Verdict {
+function refusal(ours: { refused: Finding } | { thrown: string }, reference = "bean-query"): Verdict {
   if ("thrown" in ours) return { status: "FAIL", note: `wasm threw: ${ours.thrown}` };
   const { code, details, message } = ours.refused;
   if (code === "unsupported-syntax") return { status: "SKIP", note: `unsupported: ${details.construct ?? "?"}` };
-  return { status: "FAIL", note: `ours returns ${code} (${message}), bean-query accepts` };
+  return { status: "FAIL", note: `ours returns ${code} (${message}), ${reference} accepts` };
 }
 
 /** `Ledger::at_cost()` against the cost query. */
 export async function compareBeanCost(path: string, booked: Transaction[], runs: BeanRuns = new Map()): Promise<Verdict> {
   const ours = runOursQuery([path], (ledger) => ledger.atCost());
   if (!("answer" in ours)) return refusal(ours);
+  return compareBeanAnswer(path, COST_QUERY, booked, ours.answer, runs);
+}
+
+/** One of ours (`at_cost()` or `value()` for the ledger of `path`) against the rows `query` prints, posting by posting. */
+async function compareBeanAnswer(path: string, query: string, booked: Transaction[], answer: Transaction[], runs: BeanRuns): Promise<Verdict> {
   try {
-    const diff = diffPostingAmounts(await beanRowsCached(runs, path, COST_QUERY), booked, ours.answer);
+    const diff = diffPostingAmounts(await beanRowsCached(runs, path, query), booked, answer);
     return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
   } catch (error) {
     return failed(error);
@@ -1524,12 +1554,7 @@ export async function compareBeanCost(path: string, booked: Transaction[], runs:
 export async function compareBeanValue(path: string, booked: Transaction[], { date, commodity }: Query, runs: BeanRuns = new Map()): Promise<Verdict> {
   const ours = runOursQuery([path], (ledger) => ledger.value(date, commodity));
   if (!("answer" in ours)) return refusal(ours);
-  try {
-    const diff = diffPostingAmounts(await beanRowsCached(runs, path, convertedQuery(date, commodity)), booked, ours.answer);
-    return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
-  } catch (error) {
-    return failed(error);
-  }
+  return compareBeanAnswer(path, convertedQuery(date, commodity), booked, ours.answer, runs);
 }
 
 /** The amounts of a cell of the holdings queries, `(35 USD,20 EUR,3 CHF)` or `()`, as `COMMODITY\0NUMBER` lines in code point order. */
@@ -1581,22 +1606,27 @@ export async function compareBeanHoldings(path: string, q: BeanHoldingQuestion, 
   const order = holdingsInOrder(ours.holdings);
   if (order) return { status: "FAIL", note: order };
   try {
-    const theirs = new Map<string, HoldingRow>();
-    const units = new Map<string, string>();
-    for (const [account, currency, cell] of await beanRowsCached(runs, path, unitsQuery(q.through)))
-      units.set(rowKey(account as string, currency as string), cellUnits(cell as string));
-    for (const row of await beanRowsCached(runs, path, holdingsQuery(q.commodity, q.through))) {
-      const [account, currency, unitsCell, cost, costValue, value] = row as [string, string, string, string, string, string];
-      const key = rowKey(account, currency);
-      if (units.get(key) !== cellUnits(unitsCell)) return { status: "FAIL", note: `${account} [${currency}] units: the two queries disagree` };
-      const mine = { units: cellUnits(unitsCell), cost: decodeCell(cost), value: decodeCell(value), costValue: decodeCell(costValue) };
-      if (!isEmptyRow(mine)) theirs.set(key, mine);
-    }
-    const diff = diffHoldingRows(theirs, oursAsExactRows(ours.holdings), "bean-query");
+    const diff = diffHoldingRows(await beanHoldingRows(path, q, runs), oursAsExactRows(ours.holdings), "bean-query");
     return diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
   } catch (error) {
     return failed(error);
   }
+}
+
+/** What the units query and the holdings query print, as rows, exactly; they must agree on the units. A row with nothing in it is left out. */
+async function beanHoldingRows(path: string, q: BeanHoldingQuestion, runs: BeanRuns): Promise<Map<string, HoldingRow>> {
+  const theirs = new Map<string, HoldingRow>();
+  const units = new Map<string, string>();
+  for (const [account, currency, cell] of await beanRowsCached(runs, path, unitsQuery(q.through)))
+    units.set(rowKey(account as string, currency as string), cellUnits(cell as string));
+  for (const row of await beanRowsCached(runs, path, holdingsQuery(q.commodity, q.through))) {
+    const [account, currency, unitsCell, cost, costValue, value] = row as [string, string, string, string, string, string];
+    const key = rowKey(account, currency);
+    if (units.get(key) !== cellUnits(unitsCell)) throw new Error(`${account} [${currency}] units: the two queries disagree`);
+    const mine = { units: cellUnits(unitsCell), cost: decodeCell(cost), value: decodeCell(value), costValue: decodeCell(costValue) };
+    if (!isEmptyRow(mine)) theirs.set(key, mine);
+  }
+  return theirs;
 }
 
 /**
@@ -1679,6 +1709,8 @@ export type Comparison = {
   formatCheck?: FormatCheck | null;
   /** Beancount cases fill `prices`, `cost`, `values` and `beanHoldings`; absent for hledger. */
   format?: "beancount";
+  /** A set of several ledgers (`compareMulti`): `holdings` and the rest are the set's. */
+  multi?: true;
 };
 
 /**
@@ -1692,9 +1724,10 @@ export async function compareAll(
   queries?: Query[],
   { plainledger = false, holdings = false }: { plainledger?: boolean; holdings?: boolean | HoldingQuestion[] } = {},
 ): Promise<Comparison> {
+  // A set of several ledgers is compared as a set; each file's format is asked of it alone, in the cases for that file.
+  if (isMultiLedger(paths)) return compareMulti(paths, ignorePlaces, queries, holdings);
   // Asked of every case, whatever the other comparisons say: formatting must hold for a journal the reference rejects too.
-  // (Several files with a Beancount one among them are refused: ledgermill loads one Beancount file at a time.)
-  const formatCheck = paths.length > 1 && paths.some(isBeancountPath) ? null : await compareFormat(paths);
+  const formatCheck = await compareFormat(paths);
   const { verdict: raw, agreed, ours } = await compareRaw(paths, ignorePlaces);
   if (!agreed || !ours) return { raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null, formatCheck };
   const [only] = paths;
@@ -1743,6 +1776,424 @@ export function summarize(c: Comparison): Verdict {
   return { status: "PASS", note: c.raw.note };
 }
 
+// ───────────── several ledgers ─────────────
+// A set with more than one ledger (spec/beancount/several-files.md): each Beancount file is a ledger of its own and all the hledger
+// files together are one. The reference runs per ledger, and its results are merged here by the rule of the note: this is the
+// harness's own small implementation of it, never a call of the engine. Ours is the whole set loaded at once.
+
+/** A ledger of a set: one Beancount file, or all the hledger files together. */
+export type SetLedger = { format: "hledger" | "beancount"; paths: string[] };
+
+/** The ledgers of a manifest, in the order of their first file. */
+export function ledgersOf(paths: string[]): SetLedger[] {
+  const out: SetLedger[] = [];
+  let hledger: SetLedger | undefined;
+  for (const path of paths) {
+    if (isBeancountPath(path)) out.push({ format: "beancount", paths: [path] });
+    else if (hledger) hledger.paths.push(path);
+    else out.push((hledger = { format: "hledger", paths: [path] }));
+  }
+  return out;
+}
+
+/** More than one ledger: several Beancount files, or Beancount next to hledger. */
+export const isMultiLedger = (paths: string[]): boolean => ledgersOf(paths).length > 1;
+
+/** The position of a file in the manifest: the first path equal to it, else the first with its basename; -1 when none. */
+export function manifestIndex(file: string, paths: string[]): number {
+  const exact = paths.indexOf(file);
+  return exact >= 0 ? exact : paths.findIndex((p) => basename(p) === basename(file));
+}
+
+/** What the merge sorts an item by: its date, and the position of its file in the manifest. */
+export type MergeKey = { date: string; file: number };
+/** Where an item of the merged list comes from: its ledger, and its place in that ledger's list. */
+export type Origin = { ledger: number; index: number };
+
+/**
+ * The merged order of the lists of several ledgers (each key list in the ledger's own order): a stable sort by date, then
+ * by the manifest position of the file; what is left is the ledger's own order.
+ */
+export function mergeOrder(ledgers: MergeKey[][]): Origin[] {
+  const all = ledgers.flatMap((keys, ledger) => keys.map((key, index) => ({ ...key, ledger, index })));
+  all.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.file - b.file));
+  return all.map(({ ledger, index }) => ({ ledger, index }));
+}
+
+/** The ledgers' lists put in the merged order. */
+export const mergeLists = <T>(lists: T[][], order: Origin[]): T[] => order.map(({ ledger, index }) => (lists[ledger] as T[])[index] as T);
+
+/** The merged list cut back into one list per ledger, each in its own order; null when it is not as long as the order. */
+export function splitLists<T>(merged: T[], order: Origin[], ledgers: number): T[][] | null {
+  if (merged.length !== order.length) return null;
+  const out: T[][] = Array.from({ length: ledgers }, () => []);
+  for (const [i, { ledger }] of order.entries()) (out[ledger] as T[]).push(merged[i] as T);
+  return out;
+}
+
+/** A ledger whose reference rejects it: its message and where its first error is (null when the tool names no position). */
+export type SetRejection = { ledger: number; format: SetLedger["format"]; message: string; first: Position | null };
+
+/**
+ * The first error a set must have when some ledgers are rejected: that of the rejecting ledger whose error file is first in the
+ * manifest, the earlier ledger on a tie. A file that is not in the manifest counts as its ledger's first file. When a rejection
+ * names no position and another ledger is rejected too, the rank cannot be told: that rejection is returned, and only "both fail"
+ * can be asked of it.
+ */
+export function expectedFirstError(rejections: SetRejection[], paths: string[], ledgers: SetLedger[]): SetRejection | null {
+  const unplaced = rejections.length > 1 ? rejections.find((r) => r.first === null) : undefined;
+  if (unplaced) return unplaced;
+  const rank = (r: SetRejection): number => {
+    const at = r.first ? manifestIndex(r.first.file, paths) : -1;
+    return at >= 0 ? at : paths.indexOf((ledgers[r.ledger] as SetLedger).paths[0] as string);
+  };
+  let best: SetRejection | null = null;
+  for (const r of rejections) if (best === null || rank(r) < rank(best) || (rank(r) === rank(best) && r.ledger < best.ledger)) best = r;
+  return best;
+}
+
+const sumLines = (lists: string[][]): string[] => {
+  const parts = new Map<string, Dec[]>();
+  for (const line of lists.flat()) {
+    const [commodity = "", quantity = ""] = line.split("\0");
+    parts.set(commodity, [...(parts.get(commodity) ?? []), parseDecimal(quantity)]);
+  }
+  return [...parts]
+    .map(([commodity, list]) => [commodity, decimalSum(list)] as const)
+    .filter(([, sum]) => sum !== "0")
+    .map(([commodity, sum]) => `${commodity}\0${sum}`)
+    .sort();
+};
+
+/**
+ * The reference rows of several ledgers put together: the rows of one account and commodity that are in more than one ledger are added
+ * exactly (units, and cost, value and cost value per commodity), a zero sum is left out of a list, a units sum of zero is `0` and a row
+ * with nothing left in it is dropped; a row of one ledger passes unchanged. `summed` are the keys that were added.
+ */
+export function sumHoldingRows(perLedger: Map<string, HoldingRow>[]): { rows: Map<string, HoldingRow>; summed: Set<string> } {
+  const rows = new Map<string, HoldingRow>();
+  const summed = new Set<string>();
+  for (const key of new Set(perLedger.flatMap((m) => [...m.keys()]))) {
+    const found = perLedger.flatMap((m) => m.get(key) ?? []);
+    const [only] = found;
+    if (found.length === 1 && only) {
+      rows.set(key, only);
+      continue;
+    }
+    summed.add(key);
+    const row = {
+      units: decimalSum(found.map((r) => parseDecimal(r.units))),
+      cost: sumLines(found.map((r) => r.cost)),
+      value: sumLines(found.map((r) => r.value)),
+      costValue: sumLines(found.map((r) => r.costValue)),
+    };
+    if (!isEmptyRow(row)) rows.set(key, row);
+  }
+  return { rows, summed };
+}
+
+/**
+ * How our rows for summed keys must look: no zero sum in a list, a units sum of zero written `0`, and no row with nothing in it
+ * (the by-value comparison cannot see these). Null when they do.
+ */
+export function summedShape(holdings: Holding[], summed: Set<string>): string | null {
+  const zero = (text: string): boolean => decimalSum([parseDecimal(text)]) === "0";
+  for (const h of holdings) {
+    if (!summed.has(rowKey(h.account, h.commodity))) continue;
+    const at = `${h.account} [${h.commodity}]`;
+    for (const [field, list] of [["cost", h.cost], ["value", h.value], ["cost_value", h.cost_value]] as const) {
+      const hit = list.find((q) => zero(q.quantity));
+      if (hit) return `${at} ${field}: a sum of zero is listed (${hit.quantity} ${hit.commodity})`;
+    }
+    if (zero(h.units) && h.units !== "0") return `${at} units: a sum of zero is written ${h.units}, not 0`;
+    if (zero(h.units) && !h.cost.length && !h.value.length && !h.cost_value.length) return `${at}: a row with nothing in it is listed`;
+  }
+  return null;
+}
+
+/**
+ * Compare our holdings with the summed reference rows. A row compares exactly when it is in `exact` (a row of one Beancount ledger
+ * that passed unchanged); every other row by value, places ignored: that is the rest of the single rows (hledger gives values) and
+ * the summed ones. Rows with nothing in them count as absent on both sides.
+ */
+export function diffSetHoldings(theirs: Map<string, HoldingRow>, ours: Holding[], exact: Set<string>): string | null {
+  const only = (rows: Map<string, HoldingRow>, keep: (key: string) => boolean, map = (row: HoldingRow) => row) =>
+    new Map([...rows].filter(([key]) => keep(key)).map(([key, row]) => [key, map(row)] as const));
+  const isExact = (key: string) => exact.has(key);
+  const byValue = (row: HoldingRow): HoldingRow => ({ units: decimalSum([parseDecimal(row.units)]), cost: sumLines([row.cost]), value: sumLines([row.value]), costValue: sumLines([row.costValue]) });
+  return (
+    diffHoldingRows(only(theirs, isExact), only(oursAsExactRows(ours), isExact), "reference") ??
+    diffHoldingRows(only(theirs, (k) => !isExact(k), byValue), only(oursAsRows(ours), (k) => !isExact(k)), "reference")
+  );
+}
+
+/**
+ * The files of `hledger prices` rows (one per row, as indexes into `texts`), when it does not say: rows of a date are taken in file
+ * order, each file's `P` lines of that date in turn. Null when the files hold fewer `P` lines of a date than there are rows.
+ */
+export function attributePrices(dates: string[], texts: string[]): number[] | null {
+  const left = texts.map((text) => {
+    const byDate = new Map<string, number>();
+    for (const { date } of priceLines([text])) byDate.set(date, (byDate.get(date) ?? 0) + 1);
+    return byDate;
+  });
+  const out: number[] = [];
+  for (const date of dates) {
+    const file = left.findIndex((m) => (m.get(date) ?? 0) > 0);
+    if (file < 0) return null;
+    left[file]?.set(date, (left[file]?.get(date) ?? 0) - 1);
+    out.push(file);
+  }
+  return out;
+}
+
+/** The value questions of a set cut down: at most `maxDates` dates (the first, the last, the rest spread evenly) times at most `maxCommodities` (EUR and USD first). */
+export function thinQueries(queries: Query[], maxDates = 4, maxCommodities = 4): Query[] {
+  const dates = [...new Set(queries.map((q) => q.date))].sort();
+  const kept =
+    dates.length <= maxDates ? dates : [...new Set(Array.from({ length: maxDates }, (_, i) => dates[Math.floor((i * (dates.length - 1)) / (maxDates - 1))] as string))];
+  const found = [...new Set(queries.map((q) => q.commodity))];
+  const commodities = [...["EUR", "USD"].filter((c) => found.includes(c)), ...found.filter((c) => c !== "EUR" && c !== "USD")].slice(0, maxCommodities);
+  return kept.flatMap((date) => commodities.map((commodity) => ({ date, commodity })));
+}
+
+/** The holdings questions of a set: no end and the first, middle and last date of its value questions, in at most three commodities (EUR and USD first). */
+export function setHoldingQuestions(values: Query[]): HoldingQuestion[] {
+  const dates = [...new Set(values.map((v) => v.date))].sort();
+  const ends = [null, ...new Set([dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]].filter((d): d is string => d !== undefined))];
+  const found = [...new Set(values.map((v) => v.commodity))];
+  const commodities = [...["EUR", "USD"].filter((c) => found.includes(c)), ...found.filter((c) => c !== "EUR" && c !== "USD")].slice(0, 3);
+  return ends.flatMap((end) => (commodities.length ? commodities : ["EUR"]).map((commodity) => ({ end, commodity })));
+}
+
+/** One ledger of a set as its reference tool sees it. */
+type LedgerReference = {
+  ledger: SetLedger;
+  texts: string[];
+  reject: { message: string; first: Position | null } | null;
+  /** The transactions (empty when rejected), and for Beancount the flat postings too. */
+  transactions: Transaction[];
+  postings: FlatPosting[];
+  /** The reference runs of this ledger that are asked again for another question. */
+  cache: RunCache;
+  runs: BeanRuns;
+};
+
+async function referenceOf(ledger: SetLedger): Promise<LedgerReference> {
+  const base = { ledger, texts: ledger.paths.map((p) => readFileSync(p, "utf8")), cache: new Map(), runs: new Map() };
+  if (ledger.format === "hledger") {
+    const ref = await runHledger(ledger.paths);
+    return ref.ok
+      ? { ...base, reject: null, transactions: ref.transactions, postings: [] }
+      : { ...base, reject: { message: ref.message, first: ref.first }, transactions: [], postings: [] };
+  }
+  const [path] = ledger.paths as [string];
+  const rejection = await runBeanCheck(path);
+  if (rejection) return { ...base, reject: rejection, transactions: [], postings: [] };
+  return { ...base, reject: null, ...(await queryBeancount(path)) };
+}
+
+const labelOf = (ledger: SetLedger): string => (ledger.format === "hledger" ? ledger.paths.map((p) => basename(p)).join("+") : basename(ledger.paths[0] as string));
+
+/** `postings()` of the set against each ledger's postings, put in the merged order. */
+async function compareSetPostings(paths: string[], refs: LedgerReference[], ours: FlatPosting[]): Promise<Verdict> {
+  try {
+    const lists: (HledgerRow[] | FlatPosting[])[] = [];
+    for (const r of refs) {
+      if (r.ledger.format === "beancount") {
+        lists.push(r.postings);
+        continue;
+      }
+      const csv = await runHledgerText(r.ledger.paths, ["print", "--location", "-O", "csv"]);
+      if (csv.exitCode !== 0) return { status: "FAIL", note: `hledger fails (${csv.stderr.split("\n")[0]}) where plain print passes` };
+      lists.push(decodeHledgerPostings(csv.stdout, r.ledger.paths));
+    }
+    const order = mergeOrder(lists.map((rows) => rows.map((row) => ({ date: row.date, file: manifestIndex(row.file, paths) }))));
+    const parts = splitLists(ours, order, refs.length);
+    if (!parts) return { status: "FAIL", note: `length reference=${order.length} ours=${ours.length}` };
+    for (const [i, r] of refs.entries()) {
+      const diff =
+        r.ledger.format === "beancount"
+          ? firstDiff(postingBasenames(lists[i] as FlatPosting[]), postingBasenames(parts[i] as FlatPosting[]))
+          : diffPostings(lists[i] as HledgerRow[], parts[i] as FlatPosting[]);
+      if (diff) return { status: "FAIL", note: `${labelOf(r.ledger)}: ${diff}` };
+    }
+    return { status: "PASS", note: "" };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/** `prices()` of the set against each ledger's prices, put in the merged order. */
+async function compareSetPrices(paths: string[], refs: LedgerReference[], ours: PriceDirective[]): Promise<Verdict> {
+  try {
+    const keys: MergeKey[][] = [];
+    const hledgerRows = new Map<number, PriceRow[]>();
+    for (const [i, r] of refs.entries()) {
+      if (r.ledger.format === "beancount") {
+        const [path] = r.ledger.paths as [string];
+        const rows = await beanRowsCached(r.runs, path, PRICE_QUERY);
+        keys.push(rows.map((row) => ({ date: row[0] as string, file: paths.indexOf(path) })));
+        continue;
+      }
+      const ref = await runHledgerPrices(r.ledger.paths);
+      if (!ref.ok) return { status: "FAIL", note: `hledger fails (${ref.message}) where plain print passes` };
+      const files = attributePrices(ref.rows.map((row) => row.date), r.texts);
+      if (!files) return { status: "FAIL", note: `cannot tell which file each of hledger's prices is in (${labelOf(r.ledger)})` };
+      hledgerRows.set(i, ref.rows);
+      keys.push(ref.rows.map((row, k) => ({ date: row.date, file: paths.indexOf(r.ledger.paths[files[k] as number] as string) })));
+    }
+    const order = mergeOrder(keys);
+    const parts = splitLists(ours, order, refs.length);
+    if (!parts) return { status: "FAIL", note: `length reference=${order.length} ours=${ours.length}` };
+    for (const [i, r] of refs.entries()) {
+      const part = parts[i] as PriceDirective[];
+      if (r.ledger.format === "beancount") {
+        const verdict = await compareBeanPrices(r.ledger.paths[0] as string, part, r.runs);
+        if (verdict.status !== "PASS") return { ...verdict, note: `${labelOf(r.ledger)}: ${verdict.note}` };
+      } else {
+        const diff = diffPrices(hledgerRows.get(i) as PriceRow[], part, r.ledger.paths, r.texts);
+        if (diff) return { status: "FAIL", note: `${labelOf(r.ledger)}: ${diff}` };
+      }
+    }
+    return { status: "PASS", note: "" };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/**
+ * `at_cost()` or `value()` of the set against each ledger's own answer: ours is cut by the order of `transactions()` and each part
+ * compared with the reference's for its ledger (hledger's `print` with `extra`, bean-query's `query`). `booked` are ours as booked.
+ */
+async function compareSetDerived(
+  refs: LedgerReference[],
+  order: Origin[],
+  booked: Transaction[],
+  paths: string[],
+  extra: string[],
+  query: string,
+  call: (ledger: ReturnType<typeof wasm.load>) => string,
+  ignorePlaces: boolean,
+): Promise<Verdict> {
+  const ours = runOursQuery(paths, call);
+  if (!("answer" in ours)) return refusal(ours, "the reference");
+  const [parts, bookedParts] = [splitLists(ours.answer, order, refs.length), splitLists(booked, order, refs.length)];
+  if (!parts || !bookedParts) return { status: "FAIL", note: `length reference=${order.length} ours=${ours.answer.length}` };
+  for (const [i, r] of refs.entries()) {
+    let verdict: Verdict;
+    if (r.ledger.format === "beancount") verdict = await compareBeanAnswer(r.ledger.paths[0] as string, query, bookedParts[i] as Transaction[], parts[i] as Transaction[], r.runs);
+    else {
+      const ref = await runHledger(r.ledger.paths, extra);
+      const diff = ref.ok ? diffTransactions(ref.transactions, parts[i] as Transaction[], ignorePlaces) : null;
+      verdict = !ref.ok ? { status: "FAIL", note: `hledger fails (${ref.message}) where plain print passes` } : diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
+    }
+    if (verdict.status !== "PASS") return { ...verdict, note: `${labelOf(r.ledger)}: ${verdict.note}` };
+  }
+  return { status: "PASS", note: "" };
+}
+
+/**
+ * `holdings()` of the set against the reference rows of each ledger added up (`sumHoldingRows`). A commodity hledger cannot ask for alone
+ * (`cur:` is case-insensitive) is left out of every ledger and of ours, and the verdict is a SKIP if the rest agrees.
+ */
+async function compareSetHoldings(paths: string[], refs: LedgerReference[], q: HoldingQuestion): Promise<Verdict> {
+  const ours = runOursHoldings(paths, { commodity: q.commodity, end: q.end, today: localToday() });
+  if (!("holdings" in ours)) return refusal(ours, "the reference");
+  const order = holdingsInOrder(ours.holdings);
+  if (order) return { status: "FAIL", note: order };
+  try {
+    const skipped = new Set<string>();
+    let perLedger: Map<string, HoldingRow>[] = [];
+    for (const r of refs) {
+      if (r.ledger.format === "hledger") {
+        const found = await hledgerHoldingRows(r.ledger.paths, q, r.cache, ours.holdings.map((h) => h.commodity), true);
+        for (const c of found.skipped) skipped.add(c);
+        perLedger.push(found.rows);
+      } else {
+        const through = q.end ? previousDay(q.end) : null;
+        perLedger.push(await beanHoldingRows(r.ledger.paths[0] as string, { through, commodity: q.commodity }, r.runs));
+      }
+    }
+    const left = (key: string) => !skipped.has(key.split("\0")[1] as string);
+    perLedger = perLedger.map((rows) => new Map([...rows].filter(([key]) => left(key))));
+    const { rows, summed } = sumHoldingRows(perLedger);
+    // A Beancount row that passed unchanged compares exactly, unless another ledger mentions its account: that ledger may hold a zero
+    // row of it (hledger gives none), and adding that changes the places.
+    const exact = new Set<string>();
+    for (const [i, r] of refs.entries())
+      if (r.ledger.format === "beancount")
+        for (const key of perLedger[i]?.keys() ?? []) {
+          const account = key.split("\0")[0] as string;
+          if (!summed.has(key) && refs.every((o, j) => j === i || !o.texts.some((t) => t.includes(account)))) exact.add(key);
+        }
+    const mine = ours.holdings.filter((h) => !skipped.has(h.commodity));
+    const diff = diffSetHoldings(rows, mine, exact) ?? summedShape(mine, summed);
+    if (diff) return { status: "FAIL", note: diff };
+    return skipped.size ? { status: "SKIP", note: `cur: cannot tell ${[...skipped].join(", ")} from another commodity` } : { status: "PASS", note: "" };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/** The value questions of a set: those of each ledger (hledger's from its `P` lines, Beancount's from its price table), cut down by `thinQueries`. */
+async function setValueQueries(refs: LedgerReference[]): Promise<Query[]> {
+  const all: Query[] = [];
+  const hledgerTexts = refs.filter((r) => r.ledger.format === "hledger").flatMap((r) => r.texts);
+  all.push(...valueQueries(hledgerTexts));
+  for (const r of refs) {
+    if (r.ledger.format !== "beancount") continue;
+    const rows = await beanRowsCached(r.runs, r.ledger.paths[0] as string, PRICE_QUERY).catch(() => [] as string[][]);
+    const [first] = rows;
+    all.push(...beanValueQueries(rows.map((row) => row[0] as string), first ? { from: first[1] as string, to: first[3] as string } : null, r.transactions));
+  }
+  return thinQueries(all);
+}
+
+/**
+ * Compare a set of several ledgers (see "Several ledgers" in the README): the reference per ledger, merged, against the wasm loaded with
+ * the whole set. The first error when some ledger is rejected; else the transactions, `postings()`, `prices()`, `atCost()`, `value()` and
+ * `holdings()`. A set with an `unsupported-syntax` finding is a SKIP.
+ */
+async function compareMulti(
+  paths: string[],
+  ignorePlaces: boolean,
+  queries: Query[] | undefined,
+  holdings: boolean | HoldingQuestion[],
+): Promise<Comparison> {
+  const ledgers = ledgersOf(paths);
+  const refs = await Promise.all(ledgers.map(referenceOf));
+  const ours = runOurs(paths);
+  const stop = (raw: Verdict): Comparison => ({ raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null, multi: true });
+  if ("thrown" in ours) return stop({ status: "FAIL", note: `wasm threw: ${ours.thrown}` });
+  const errors = ours.findings.filter((f) => f.severity === "error");
+  const unsupported = ours.findings.find((f) => f.code === "unsupported-syntax");
+  if (unsupported) return stop({ status: "SKIP", note: `unsupported: ${unsupported.details.construct ?? "?"}` });
+  const rejections = refs.flatMap((r, ledger): SetRejection[] => (r.reject ? [{ ledger, format: r.ledger.format, ...r.reject }] : []));
+  const expected = expectedFirstError(rejections, paths, ledgers);
+  if (expected) return stop(expected.format === "hledger" ? compareRejection(expected, errors) : compareFirstError(expected, errors, ours.findings));
+  if (errors[0]) return stop({ status: "FAIL", note: `ours reports ${errors[0].code} at line ${errors[0].line}, the reference accepts` });
+
+  const order = mergeOrder(refs.map((r) => r.transactions.map((t) => ({ date: t.date, file: manifestIndex(t.source.file, paths) }))));
+  const diff = diffTransactions(mergeLists(refs.map((r) => r.transactions), order), normalizeOurs(ours.transactions), ignorePlaces);
+  if (diff) return stop({ status: "FAIL", note: diff });
+  const raw: Verdict = { status: "PASS", note: ignorePlaces ? "same values (places may differ)" : "" };
+
+  const postings = await compareSetPostings(paths, refs, ours.postings);
+  const prices = await compareSetPrices(paths, refs, ours.prices);
+  const derived = (extra: string[], query: string, call: (ledger: ReturnType<typeof wasm.load>) => string) =>
+    compareSetDerived(refs, order, ours.transactions, paths, extra, query, call, ignorePlaces);
+  const cost = await derived(["--cost"], COST_QUERY, (ledger) => ledger.atCost());
+  const questions = queries ?? (await setValueQueries(refs));
+  const values: Comparison["values"] = [];
+  for (const query of questions)
+    values.push({ query, verdict: await derived([`--value=${query.date},${query.commodity}`], convertedQuery(query.date, query.commodity), (ledger) => ledger.value(query.date, query.commodity)) });
+  const held: Comparison["holdings"] = [];
+  if (holdings)
+    for (const question of holdings === true ? setHoldingQuestions(questions) : holdings) held.push({ question, verdict: await compareSetHoldings(paths, refs, question) });
+  return { raw, cost, values, postings, prices, holdings: held, plainledger: null, multi: true };
+}
+
 const JOBS = 8;
 
 /** Verdicts by status, and the SKIPs by why (`skipReason`). */
@@ -1776,6 +2227,8 @@ export const EXPECTED_SKIPS: ReadonlySet<string> = new Set([
   "cur",
   // Beancount `document`: an ignored-syntax warning, bean-check looks at the file (spec/README.md).
   "document",
+  // The set of spec/beancount/probes/several-files/ with the refused file in it: a refused file refuses its set.
+  "plugin",
 ]);
 
 export function count(t: Counts, v: Verdict): void {
@@ -1834,6 +2287,8 @@ export type Tallies = {
   beanFormat: { format: Counts; formatted: { changed: number; unchanged: number }; reference: Record<BeanFormatReference, number> };
   /** What a Beancount case compared: `Ledger::at_cost()`, `value()`, `prices()` and `holdings()` against bean-query. */
   beancount: { cost: Counts; value: Counts; prices: Counts; holdings: Counts };
+  /** What a set of several ledgers compared besides the transactions and the first error. */
+  multi: { postings: Counts; prices: Counts; cost: Counts; value: Counts; holdings: Counts };
 };
 export const tallies = (): Tallies => ({
   cost: counts(),
@@ -1846,6 +2301,7 @@ export const tallies = (): Tallies => ({
   formatted: { changed: 0, unchanged: 0 },
   beanFormat: { format: counts(), formatted: { changed: 0, unchanged: 0 }, reference: { equal: 0, design: 0, none: 0 } },
   beancount: { cost: counts(), value: counts(), prices: counts(), holdings: counts() },
+  multi: { postings: counts(), prices: counts(), cost: counts(), value: counts(), holdings: counts() },
 });
 
 function tallyFormat({ verdict, changed, reference }: FormatCheck, t: Tallies): void {
@@ -1858,6 +2314,15 @@ function tallyFormat({ verdict, changed, reference }: FormatCheck, t: Tallies): 
 /** Add what a hledger case compared under `--cost`, `--value`, `postings()`, `prices()` and `holdings()` to the tallies. */
 export function tally(c: Comparison, t: Tallies): void {
   if (c.formatCheck) tallyFormat(c.formatCheck, t);
+  if (c.multi) {
+    const m = t.multi;
+    if (c.postings) count(m.postings, c.postings);
+    if (c.prices) count(m.prices, c.prices);
+    if (c.cost) count(m.cost, c.cost);
+    for (const { verdict } of c.values) count(m.value, verdict);
+    for (const { verdict } of c.holdings) count(m.holdings, verdict);
+    return;
+  }
   if (c.format === "beancount") {
     const b = t.beancount;
     if (c.cost) count(b.cost, c.cost);
@@ -1896,7 +2361,7 @@ export async function runCases(
   };
   await Promise.all(Array.from({ length: JOBS }, worker));
 
-  const totals = { hledger: counts(), beancount: counts() };
+  const totals = { hledger: counts(), beancount: counts(), multi: counts() };
   const t = tallies();
   const changes: string[] = [];
   for (const [i, c] of cases.entries()) {
@@ -1908,7 +2373,7 @@ export async function runCases(
       continue;
     }
     const comparison = comparisons[i] as Comparison;
-    count(totals[isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"], comparison.raw);
+    count(totals[comparison.multi ? "multi" : isBeancountPath(c.paths[0] ?? "") ? "beancount" : "hledger"], comparison.raw);
     tally(comparison, t);
     if (comparison.plainledger?.changes) changes.push(`${c.name}: ${comparison.plainledger.changes}`);
     const v = summarize(comparison);
@@ -1928,9 +2393,15 @@ export async function runCases(
     console.log(`beancount value:    ${countsLine(b2.value)} (one per date and commodity asked)`);
     console.log(`beancount holdings: ${countsLine(b2.holdings)} (units and holdings queries, one per date and commodity asked)`);
   }
+  if (totals.multi.PASS + totals.multi.FAIL + totals.multi.SKIP > 0) {
+    const m = t.multi;
+    console.log(`\nmulti-ledger: ${countsLine(totals.multi)} (transactions and first errors of sets of several ledgers)`);
+    console.log(`multi-ledger postings: ${countsLine(m.postings)}\nmulti-ledger prices:   ${countsLine(m.prices)}\nmulti-ledger --cost:   ${countsLine(m.cost)}`);
+    console.log(`multi-ledger --value:  ${countsLine(m.value)} (one per date and commodity asked)\nmulti-ledger holdings: ${countsLine(m.holdings)} (one per end date and commodity asked)`);
+  }
   if (changes.length > 0)
     console.log(`\nPlainledger's figures that change with real postings only (expected; a virtual posting on a tracked account):\n${changes.map((c) => `  ${c}`).join("\n")}`);
-  const all = total(h, b, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, t.format, t.beanFormat.format, b2.cost, b2.value, b2.prices, b2.holdings);
+  const all = total(h, b, totals.multi, t.cost, t.value, t.postings, t.prices, t.holdings, t.plainledger, t.format, t.beanFormat.format, b2.cost, b2.value, b2.prices, b2.holdings, ...Object.values(t.multi));
   console.log(`\n${countsLine(all)}`);
   const unexpected = unexpectedSkips(all);
   for (const [k, n] of Object.entries(unexpected)) console.log(`UNEXPECTED SKIP ${k} (${n}): a refusal not in EXPECTED_SKIPS (lib.ts)`);
