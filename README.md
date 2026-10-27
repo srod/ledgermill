@@ -4,7 +4,7 @@ Ledger engines for plain-text accounting: one for hledger journals, one for Bean
 They are written in Rust, compile to WebAssembly for browsers, and are built to be embedded in
 native apps later. They compute with exact decimals and answer through a typed interface.
 
-**Status: version 0.1.1.** It gives the same answers as hledger 1.52.4 and Beancount 3.2.3 (beanquery 0.2.0)
+**Status: version 0.1.2.** It gives the same answers as hledger 1.52.4 and Beancount 3.2.3 (beanquery 0.2.0)
 for everything its first user, a personal finance app, reads from a journal; what it refuses is listed in
 [spec/hledger/syntax.md](spec/hledger/syntax.md) and [spec/README.md](spec/README.md). See
 [CHANGELOG.md](CHANGELOG.md).

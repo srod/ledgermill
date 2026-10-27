@@ -4,13 +4,30 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.2 – TBD at release
 
 ### Fixed
 
 - hledger: a price on an amount whose quantity and cost are both zero (`0 X @ 3 EUR`) no longer
   stops a price from being inferred; that amount takes the inferred price, as hledger does. Such a
-  transaction was refused as unbalanced. Found by a fuzz soak (seed 90006).
+  transaction was refused as unbalanced since 0.1.0 (`c 0 X @ 3 EUR`, `a 1 X`, `b -4 EUR`;
+  hledger gives `0 X @ 4 EUR` and `1 X @ 4 EUR`). Found by a fuzz soak (seed 90006).
+
+### Release gate
+
+From the release-gate workflow on commit TBD at release (run TBD at release), CI on the same
+commit (run TBD at release), and the owner's own runs.
+
+- Random hledger journals (5,000): TBD at release
+- Random Beancount journals (5,000): TBD at release
+- Random price networks (5,000): TBD at release
+- Random Beancount journals with pairs priced both ways (5,000): TBD at release
+- Corpus comparison: TBD at release
+- Desktop bench against 0.1.1: TBD at release
+- Stress test, 100,000 transactions: TBD at release
+- Similarity check score: TBD at release
+- Real journals: TBD at release
+- Device targets: not run again (the fix changes no timing or memory path)
 
 ## 0.1.1 – 2026-10-27
 
