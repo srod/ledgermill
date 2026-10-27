@@ -2,6 +2,7 @@
 // bun harness/fuzz.ts --graph [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
 // bun harness/fuzz.ts --beancount [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
 // bun harness/fuzz.ts --both-ways [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
+// bun harness/fuzz.ts --multi [COUNT] [SEED] [--keep] [--save DIR] [--save-skipped]
 // Random journals, mostly valid, compared like the corpus: hledger against our wasm. Covers
 // amount forms, decimal marks and digit groups, directives, prices, lots, elided amounts,
 // inferred prices, conversion postings, virtual postings, balance assertions and assignments (small
@@ -19,6 +20,10 @@
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1. The summary counts the SKIPs by what
 // was refused; a SKIP for a refusal not in `EXPECTED_SKIPS` (lib.ts) is printed like a FAIL and fails the run too.
 // `--save-skipped` makes `--save DIR` keep the journals with a SKIP as well, to rerun one with `real.ts`.
+// With `--multi`: sets of 2 to 4 files (at least one Beancount, the rest Beancount or hledger, in a shuffled manifest order) made by
+// the generators above, with the same account and commodity names and overlapping dates, so that days tie and holdings are added. Each
+// set is compared as several ledgers (README, "Several ledgers"). A FAIL prints the files in manifest order; `--save DIR` writes them
+// as `multi-SEED-N-I.beancount|journal` (I is the position in the manifest) with a `multi-SEED-N.txt` that names the questions.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -51,6 +56,7 @@ const saveSkipped = process.argv.includes("--save-skipped");
 const graph = process.argv.includes("--graph");
 const bothWays = process.argv.includes("--both-ways");
 const beancount = bothWays || process.argv.includes("--beancount");
+const multi = process.argv.includes("--multi");
 
 const r = rng(seed);
 // Its own stream: asking holdings questions must not change the journals a seed gives.
@@ -93,7 +99,10 @@ function digits(x: N, style: Style): string {
 }
 
 // ───────────── amounts ─────────────
-const COMMODITIES = ["EUR", "USD", "X", "Y", "$", "AB", '"A B"'] as const;
+// `--multi` names the commodities it shares with Beancount by two letters: Beancount's lexer rejects a one-letter currency right before a
+// closing brace (`{2 X}`), which ledgermill reads (found by this fuzzer; not a matter of several files).
+const [X, Y] = multi ? (["XX", "YY"] as const) : (["X", "Y"] as const);
+const COMMODITIES = ["EUR", "USD", X, Y, "$", "AB", '"A B"'] as const;
 function amount(c: string, x: N, style: Style): string {
   const n = digits(x, style);
   if (c === "$") return x.v < 0n ? `-$${digits(neg(x), style)}` : `$${n}`;
@@ -121,7 +130,23 @@ function fileStyle(): { style: Style; header: string } {
 const ACCOUNTS = ["a", "b", "c:d", "e", "f:g:h", "Assets:Bank Account"] as const;
 const CONVERSION = ["equity:conversion", "equity:trading:x", "equity:trade"] as const;
 const comment = () => (chance(0.15) ? `  ; c${int(9)}` : chance(0.04) ? "  ; date:2026-01-02" : "");
-const line = (account: string, body: string) => `    ${account}${body ? `  ${body}` : ""}${comment()}\n`;
+// With `--multi` the hledger accounts take the names of the Beancount generator's, so that the ledgers of a set share accounts.
+const MULTI_ACCOUNTS: Record<string, string> = {
+  a: "Assets:A",
+  b: "Assets:B",
+  c: "Assets:L2",
+  "c:d": "Assets:C",
+  e: "Assets:A:Sub",
+  "f:g:h": "Assets:L1",
+  "Assets:Bank Account": "Assets:L2:Sub",
+  "a:b": "Assets:L2:Sub",
+  "a:b:c": "Assets:C",
+  "a:d": "Assets:A:Sub",
+  ab: "Assets:L1",
+  z: "Equity:O",
+};
+const accountOf = (account: string): string => (multi ? (MULTI_ACCOUNTS[account] ?? account) : account);
+const line = (account: string, body: string) => `    ${accountOf(account)}${body ? `  ${body}` : ""}${comment()}\n`;
 
 function transaction(style: Style): string {
   const status = pick(["", "* ", "! "]);
@@ -288,7 +313,7 @@ function transaction(style: Style): string {
 
 // ───────────── balance assertions and assignments ─────────────
 const BALANCE_ACCOUNTS = ["a", "a:b", "a:b:c", "a:d", "ab", "c"] as const;
-const BALANCE_COMMODITIES = ["EUR", "USD", "X", ""] as const;
+const BALANCE_COMMODITIES = ["EUR", "USD", X, ""] as const;
 const PLAIN: Style = { mark: ".", group: "" };
 /** A small number, now and then with places, so that sums and assertions meet. */
 function small(): N {
@@ -301,7 +326,7 @@ const assertion = () => `${pick(["=", "==", "=*", "==*"])}${chance(0.5) ? " " : 
 function balanceTransaction(): string {
   let t = `2026-01-0${1 + int(5)} t${int(9)}\n`;
   const dated = () => (chance(0.1) ? `  ; date:2026-01-0${1 + int(5)}` : "");
-  const name = (account: string) => (chance(0.1) ? `(${account})` : account);
+  const name = (account: string) => (chance(0.1) ? `(${accountOf(account)})` : accountOf(account));
   const plain = (account: string, body: string) => `    ${name(account)}  ${body}${dated()}\n`;
   const account = () => pick(BALANCE_ACCOUNTS);
   const c = pick(BALANCE_COMMODITIES);
@@ -334,8 +359,8 @@ function balanceTransaction(): string {
     case 3: {
       // lots and prices on the postings, then an assignment that zeroes them
       const lot = pick(["{10 EUR}", "{{30 EUR}}", "[2026-01-01] (l) {10 EUR}", "@ 3 EUR", "@@ 9 USD"]);
-      t += plain(account(), `${withCommodity("X", small())} ${lot}`);
-      if (chance(0.5)) t += plain(account(), withCommodity("X", small()));
+      t += plain(account(), `${withCommodity(X, small())} ${lot}`);
+      if (chance(0.5)) t += plain(account(), withCommodity(X, small()));
       t += plain(account(), assertion());
       t += plain("z", "");
       break;
@@ -352,7 +377,7 @@ function balanceTransaction(): string {
 }
 
 function balanceJournal(): { text: string; second?: string } {
-  let text = chance(0.3) ? `${priceLines(1 + int(3), ["EUR", "USD", "X"], PLAIN)}\n` : "";
+  let text = chance(0.3) ? `${priceLines(1 + int(3), ["EUR", "USD", X], PLAIN)}\n` : "";
   for (let k = 0, n = 1 + int(5); k < n; k++) text += `${balanceTransaction()}\n`;
   const second = chance(0.2) ? `${balanceTransaction()}\n` : undefined;
   return second === undefined ? { text } : { text, second };
@@ -450,7 +475,8 @@ function graphJournal(): { text: string; used: string[] } {
 }
 
 // ───────────── Beancount ─────────────
-const BEAN_COMMODITIES = ["EUR", "USD", "CHF", "AAA", "BBB", "CCC", "DDD"] as const;
+// `--multi` shares XX and YY with the hledger generator.
+const BEAN_COMMODITIES = multi ? (["EUR", "USD", "XX", "YY", "CHF", "AAA", "BBB"] as const) : (["EUR", "USD", "CHF", "AAA", "BBB", "CCC", "DDD"] as const);
 const BEAN_RATES = ["2", "3", "7", "0.5", "1.25", "0.3333333333", "1000.5", "0", "-4", "1.000", "0.00000000005", "12345.6789", "0.1", "1.1", "0.07", "0.3", "62.2", "35884.57"] as const;
 // No tiny units and no cost of zero: interpolating those next to a cost is not what this asks about.
 const BEAN_UNITS = ["1", "3", "9", "0.9", "2.50", "0.207", "100", "1.5", "2.25", "12345.678", "0.01", "10"] as const;
@@ -555,26 +581,54 @@ function bothWaysJournal(): { text: string; used: string[] } {
   return { text, used };
 }
 
+// ───────────── sets of several ledgers ─────────────
+const MULTI_COMMODITIES = ["EUR", "USD", "XX", "YY"] as const;
+
+/** 2 to 4 files made by the generators above, one Beancount at least, in a shuffled manifest order: the names and the texts. */
+function multiSet(k: number): { name: string; text: string }[] {
+  const n = 2 + int(3);
+  const bean = Array.from({ length: n }, () => chance(0.55));
+  if (!bean.includes(true)) bean[int(n)] = true;
+  const files: { ext: string; text: string }[] = [];
+  for (const isBean of bean) {
+    if (isBean) files.push({ ext: "beancount", text: beanJournal().text });
+    else {
+      const j = journal();
+      files.push({ ext: "journal", text: j.text });
+      if (j.second !== undefined && files.length < 4) files.push({ ext: "journal", text: j.second });
+    }
+  }
+  for (let i = files.length - 1; i > 0; i--) {
+    const m = int(i + 1);
+    [files[i], files[m]] = [files[m] as (typeof files)[number], files[i] as (typeof files)[number]];
+  }
+  return files.map((f, i) => ({ name: `multi${k}-${i}.${f.ext}`, text: f.text }));
+}
+
 // ───────────── run ─────────────
 const dir = mkdtempSync(join(tmpdir(), "ledgermill-fuzz-"));
 const raw = newCounts();
 const t = tallies();
 let valid = 0;
 for (let k = 0; k < count; k++) {
-  const j = bothWays ? bothWaysJournal() : beancount ? beanJournal() : graph ? graphJournal() : journal();
-  const second = "second" in j ? j.second : undefined;
-  const paths = [join(dir, `f${k}.${beancount ? "beancount" : "journal"}`)];
-  writeFileSync(paths[0] as string, j.text);
-  if (second !== undefined) {
-    paths.push(join(dir, `f${k}b.journal`));
-    writeFileSync(paths[1] as string, second);
+  const files: { name: string; text: string }[] = [];
+  let used: string[] = [...COMMODITIES];
+  if (multi) {
+    files.push(...multiSet(k));
+    used = [...MULTI_COMMODITIES];
+  } else {
+    const j = bothWays ? bothWaysJournal() : beancount ? beanJournal() : graph ? graphJournal() : journal();
+    files.push({ name: `f${k}.${beancount ? "beancount" : "journal"}`, text: j.text });
+    if ("second" in j && j.second !== undefined) files.push({ name: `f${k}b.journal`, text: j.second });
+    if ("used" in j) used = j.used;
   }
-  const commodities = "used" in j ? j.used : [...COMMODITIES];
+  const paths = files.map((f) => join(dir, f.name));
+  for (const [i, f] of files.entries()) writeFileSync(paths[i] as string, f.text);
   const asked = Array.from({ length: 2 }, (_, i): HoldingQuestion => {
-    const q = randomQuery(commodities, rq);
+    const q = randomQuery(used, rq);
     return { end: i === 0 ? null : q.date, commodity: q.commodity };
   });
-  const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(commodities));
+  const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(used));
   const c: Comparison = await compareAll(paths, false, queries, { holdings: asked });
   countVerdict(raw, c.raw);
   tally(c, t);
@@ -583,21 +637,33 @@ for (let k = 0; k < count; k++) {
   const unexpected = v.status === "SKIP" && !EXPECTED_SKIPS.has(skipReason(v.note));
   if (v.status === "FAIL" || unexpected) {
     const queried = c.values.find((x) => x.verdict.status === v.status);
-    console.log(`${unexpected ? "UNEXPECTED SKIP" : "FAIL"} fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${j.text}${second ? `--- second file\n${second}` : ""}`);
+    const shown = multi
+      ? files.map((f, i) => `--- ${f.name} (position ${i} in the manifest)\n${f.text}`).join("")
+      : `${files[0]?.text}${files[1] ? `--- second file\n${files[1].text}` : ""}`;
+    console.log(`${unexpected ? "UNEXPECTED SKIP" : "FAIL"} fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${shown}`);
   }
   if (v.status === "FAIL" || (v.status === "SKIP" && (unexpected || saveSkipped))) {
     if (saveDir) {
       mkdirSync(saveDir, { recursive: true });
       const questions = asked.map((q) => `${q.end ?? "-"},${q.commodity}`).join(" ");
-      const name = join(saveDir, `${bothWays ? "both" : beancount ? "bean" : graph ? "graph" : "fuzz"}-${seed}-${k}`);
-      writeFileSync(`${name}.${beancount ? "beancount" : "journal"}`, `; ${v.note}\n; holdings questions (end,commodity): ${questions}\n${j.text}`);
-      if (second !== undefined) writeFileSync(`${name}.second.journal`, second);
+      const name = join(saveDir, `${multi ? "multi" : bothWays ? "both" : beancount ? "bean" : graph ? "graph" : "fuzz"}-${seed}-${k}`);
+      if (multi) {
+        // The manifest order is the order of the indexes; real.ts loads the files as given, so rerun with `real.ts $(ls FILES)`.
+        files.forEach((f, i) => writeFileSync(`${name}-${i}.${f.name.split(".").pop()}`, f.text));
+        writeFileSync(`${name}.txt`, `${v.note}\nholdings questions (end,commodity): ${questions}\nvalue questions: ${queries.map((q) => `${q.date},${q.commodity}`).join(" ")}\nfiles in manifest order: ${files.map((_, i) => i).join(" ")}\n`);
+      } else {
+        writeFileSync(`${name}.${beancount ? "beancount" : "journal"}`, `; ${v.note}\n; holdings questions (end,commodity): ${questions}\n${files[0]?.text}`);
+        if (files[1]) writeFileSync(`${name}.second.journal`, files[1].text);
+      }
     }
   }
 }
 const counts = countsLine;
-console.log(`fuzz${graph ? " --graph" : ""}${bothWays ? " --both-ways" : beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${countsLine(raw).replace(/^\d+ pass, /, "")}`);
-if (beancount) {
+console.log(`fuzz${graph ? " --graph" : ""}${multi ? " --multi" : bothWays ? " --both-ways" : beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${countsLine(raw).replace(/^\d+ pass, /, "")}`);
+if (multi) {
+  const m = t.multi;
+  console.log(`  postings: ${counts(m.postings)}\n  prices: ${counts(m.prices)}\n  --cost: ${counts(m.cost)}\n  --value: ${counts(m.value)}\n  holdings: ${counts(m.holdings)}`);
+} else if (beancount) {
   const b = t.beancount;
   console.log(`  format: ${beanFormatLine(t)}\n  prices: ${counts(b.prices)}\n  cost: ${counts(b.cost)}\n  value: ${counts(b.value)}\n  holdings: ${counts(b.holdings)}`);
 } else {
@@ -606,6 +672,8 @@ if (beancount) {
 if (!keep) rmSync(dir, { recursive: true });
 else console.log(`journals kept in ${dir}`);
 const b = t.beancount;
-const unexpected = unexpectedSkips(raw, t.format, t.beanFormat.format, t.cost, t.value, t.postings, t.prices, t.holdings, b.cost, b.value, b.prices, b.holdings);
+const m = t.multi;
+const unexpected = unexpectedSkips(raw, t.format, t.beanFormat.format, t.cost, t.value, t.postings, t.prices, t.holdings, b.cost, b.value, b.prices, b.holdings, m.postings, m.prices, m.cost, m.value, m.holdings);
 for (const [k, n] of Object.entries(unexpected)) console.log(`UNEXPECTED SKIP ${k} (${n}): a refusal not in EXPECTED_SKIPS (lib.ts)`);
-if (raw.FAIL + t.format.FAIL + t.beanFormat.format.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL > 0 || Object.keys(unexpected).length > 0) process.exitCode = 1;
+const failures = raw.FAIL + t.format.FAIL + t.beanFormat.format.FAIL + t.cost.FAIL + t.value.FAIL + t.postings.FAIL + t.prices.FAIL + t.holdings.FAIL + b.cost.FAIL + b.value.FAIL + b.prices.FAIL + b.holdings.FAIL;
+if (failures + m.postings.FAIL + m.prices.FAIL + m.cost.FAIL + m.value.FAIL + m.holdings.FAIL > 0 || Object.keys(unexpected).length > 0) process.exitCode = 1;

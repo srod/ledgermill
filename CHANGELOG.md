@@ -16,6 +16,15 @@ All notable changes to ledgermill are written here. The format follows
   `holdings()` adds the rows of the same account and commodity. The `several-beancount-files` and
   `mixed-formats` refusals are gone. A set of one ledger answers as before. See
   `spec/beancount/several-files.md`.
+- Harness: sets of several ledgers are compared with the reference (PLA-393). The reference runs per
+  ledger (`bean-check` and `bean-query` on each Beancount file, `hledger` on all the hledger files
+  together) and the harness merges the results by the rule of the note with an implementation of its
+  own; the wasm loaded with the whole set must give the same transactions, `postings()`, `prices()`,
+  `at_cost()`, `value()` and `holdings()` (rows of one account and commodity added by value) and the
+  same first error. `compare.ts` has 40 such sets (the `several-files` probes in every order, the
+  rejected and the refused ones, Plainledger's own journals); `fuzz.ts --multi` writes random sets
+  (60 per push, 5,000 in the release gate); the summary has a `multi-ledger` line. See
+  `harness/README.md`, "Several ledgers".
 
 ## 0.1.2 – 2026-10-27
 
