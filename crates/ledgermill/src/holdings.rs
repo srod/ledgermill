@@ -90,7 +90,91 @@ fn valued<'a>(
     sums.quantities()
 }
 
+/// A quantity of a holding read back to be added; always possible for what `holdings` prints.
+fn read_back(text: &str) -> Result<Decimal, Finding> {
+    Decimal::parse(text).ok_or_else(|| {
+        unsupported_finding(
+            "holdings-sum",
+            "A quantity of a holding could not be read back to be added.",
+            "",
+            0,
+        )
+    })
+}
+
+/// One holding's cells added up over the ledgers of a set: the exact sum of the printed strings,
+/// printed with the places of its most precise term (no rounding: each term was rounded by its
+/// own ledger already). A sum that is exactly zero is `"0"` for the units and left out of a list;
+/// a row left with zero units and no list is not a holding (`None`), as in either engine.
+fn sum_rows(rows: &[Holding]) -> Result<Option<Holding>, Finding> {
+    let Some(first) = rows.first() else {
+        return Ok(None);
+    };
+    let mut units = Decimal::zero();
+    let mut lists: [Sums; 3] = Default::default();
+    for row in rows {
+        units = units.add(&read_back(&row.units)?);
+        for (sums, list) in lists
+            .iter_mut()
+            .zip([&row.cost, &row.value, &row.cost_value])
+        {
+            for q in list {
+                sums.add(&q.commodity, &read_back(&q.quantity)?);
+            }
+        }
+    }
+    let [cost, value, cost_value] = lists.map(|sums| {
+        sums.0
+            .into_iter()
+            .filter(|(_, sum)| !sum.is_zero())
+            .map(|(commodity, sum)| Quantity {
+                commodity,
+                quantity: sum.to_string(),
+            })
+            .collect::<Vec<_>>()
+    });
+    if units.is_zero() && cost.is_empty() && value.is_empty() && cost_value.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Holding {
+        account: first.account.clone(),
+        commodity: first.commodity.clone(),
+        units: if units.is_zero() {
+            "0".to_string()
+        } else {
+            units.to_string()
+        },
+        cost,
+        value,
+        cost_value,
+    }))
+}
+
 impl Ledger {
+    /// The holdings of a set of several ledgers: each ledger's rows, the rows of one account and
+    /// commodity added up (see [`sum_rows`]), the others passed through as they are.
+    fn holdings_of_parts(&self, query: &HoldingsQuery) -> Result<Vec<Holding>, Finding> {
+        let mut groups: BTreeMap<(Vec<String>, String), Vec<Holding>> = BTreeMap::new();
+        for part in &self.parts {
+            for row in part.holdings(query)? {
+                let segments = row.account.split(':').map(str::to_string).collect();
+                groups
+                    .entry((segments, row.commodity.clone()))
+                    .or_default()
+                    .push(row);
+            }
+        }
+        let mut out = Vec::with_capacity(groups.len());
+        for (_, mut rows) in groups {
+            if rows.len() == 1 {
+                out.extend(rows.pop());
+            } else {
+                out.extend(sum_rows(&rows)?);
+            }
+        }
+        Ok(out)
+    }
+
     /// The holdings of every account, per commodity, over the real postings of the ledger:
     /// for hledger, what `balance --layout=tidy --real` gives with `-e end`, with `--cost`,
     /// `--value=end,V` and both, for each commodity, as `spec/hledger/holdings.md` says.
@@ -116,6 +200,19 @@ impl Ledger {
     ///
     /// Filtering by account prefix, symbol aliases and the missing-cost rule are left to the caller.
     ///
+    /// # Several ledgers
+    ///
+    /// A set of several ledgers (see [`load`](crate::load)) is asked per ledger, each with its own
+    /// prices, and the rows of one account and commodity are added: the units exactly, and the
+    /// `cost`, `value` and `cost_value` lists per commodity. The sum is the exact sum of the strings
+    /// the ledgers print, printed with the places of its most precise term and never rounded again
+    /// (each term was rounded by its own engine: ten places for hledger, 28 digits for Beancount). A
+    /// units sum of exactly zero is `"0"`; a commodity whose sum is exactly zero is left out of a list,
+    /// and a row left with zero units and no list is not listed, as in either engine. A row present in
+    /// one ledger only is passed through with its strings unchanged. The order is as above, over the
+    /// union of the rows. The error is the first ledger's, ledgers being ordered by the position of
+    /// their first file.
+    ///
     /// # Beancount
     ///
     /// The sums of the units and holdings queries Plainledger sends
@@ -140,6 +237,9 @@ impl Ledger {
     /// `unsupported-syntax` finding of [`Ledger::check`], if any, or `price-both-ways` (a price of zero in a pair
     /// priced both ways).
     pub fn holdings(&self, query: &HoldingsQuery) -> Result<Vec<Holding>, Finding> {
+        if !self.parts.is_empty() {
+            return self.holdings_of_parts(query);
+        }
         let end = match &query.end {
             None => None,
             Some(text) => Some(Date::from_iso(text).ok_or_else(|| invalid_argument("end", text))?),

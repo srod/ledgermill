@@ -1,0 +1,9 @@
+2026-01-05 c pays on the shared day
+    Assets:Bank       -4 EUR
+    Expenses:Food
+
+2026-01-07 c buys
+    Assets:Stock       4 STOCK @ 10.25 EUR
+    Assets:Bank
+
+P 2026-01-05 STOCK 10.8 EUR

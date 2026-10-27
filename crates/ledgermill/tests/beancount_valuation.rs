@@ -443,23 +443,6 @@ fn a_price_written_as_an_expression_is_refused_by_every_read() {
 }
 
 #[test]
-fn a_set_of_files_that_cannot_be_read_together_is_refused_by_every_read() {
-    let beancount = file("a.beancount", "2026-01-01 open Assets:A\n");
-    let ledger = load(&[
-        beancount.clone(),
-        file("b.beancount", "2026-01-01 open Assets:B\n"),
-    ]);
-    let finding = ledger.value("2026-02-01", "EUR").unwrap_err();
-    assert_eq!(
-        finding.details,
-        json!({ "construct": "several-beancount-files" })
-    );
-    let ledger = load(&[beancount, file("c.journal", "2026-01-01 x\n  a  1\n  b\n")]);
-    let finding = ledger.holdings(&query("EUR", None)).unwrap_err();
-    assert_eq!(finding.details, json!({ "construct": "mixed-formats" }));
-}
-
-#[test]
 fn a_journal_with_a_booking_error_answers_for_the_transactions_it_lists() {
     // Two elided postings: bean-query leaves the transaction out, so there is nothing to value.
     let ledger = only(

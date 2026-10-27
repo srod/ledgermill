@@ -55,6 +55,27 @@ impl Decimal {
         Some(Decimal::new(digits.parse().ok()?, places))
     }
 
+    /// A decimal string as the interface prints one: an optional sign, digits with an optional
+    /// point, and an optional exponent (`1E-7`). `None` for anything else.
+    pub(crate) fn parse(text: &str) -> Option<Decimal> {
+        let (negative, rest) = match text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, text),
+        };
+        let (number, exponent) = match rest.split_once(['E', 'e']) {
+            Some((number, exponent)) => (number, exponent.parse::<i64>().ok()?),
+            None => (rest, 0),
+        };
+        let (int, frac) = number.split_once('.').unwrap_or((number, ""));
+        let digits = format!("{int}{frac}");
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        let value =
+            Decimal::from_digits(&digits, u32::try_from(frac.len()).ok()?)?.with_exponent(exponent);
+        Some(if negative { value.negated() } else { value })
+    }
+
     pub(crate) fn places(&self) -> u32 {
         self.places
     }

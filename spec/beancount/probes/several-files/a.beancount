@@ -1,0 +1,14 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Stock
+2026-01-01 open Equity:Opening
+
+2026-01-05 * "a buys on the shared day"
+  Assets:Stock   2 STOCK {10 EUR}
+  Assets:Bank  -20 EUR
+
+2026-01-10 * "a buys again"
+  Assets:Stock   1 STOCK {12 EUR}
+  Assets:Bank  -12 EUR
+
+2026-01-05 price STOCK 11 EUR
+2026-01-20 price STOCK 13 EUR

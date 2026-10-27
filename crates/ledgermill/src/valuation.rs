@@ -196,7 +196,15 @@ impl Ledger {
     /// goes through its cost's currency when both rates exist. A converted amount has neither cost nor
     /// lot; its quantity prints as `number()` does (exponent included, `-0` for a negative zero). A
     /// position already in `commodity` or with no rate stays whole.
+    ///
+    /// A set of several ledgers (see [`load`](crate::load)) values each ledger on its own, at its own
+    /// prices, and puts the results in the order of [`Ledger::transactions`], so result `i` is for
+    /// transaction `i`. The error is the first ledger's, ledgers being ordered by the position of
+    /// their first file.
     pub fn value(&self, date: &str, commodity: &str) -> Result<Vec<Transaction>, Finding> {
+        if !self.parts.is_empty() {
+            return self.ask_parts(|part| part.value(date, commodity));
+        }
         let Some(date) = Date::from_iso(date) else {
             return Err(Finding {
                 code: "invalid-argument".into(),

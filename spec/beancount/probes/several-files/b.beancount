@@ -1,0 +1,13 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Stock
+2026-01-01 open Expenses:Food
+
+2026-01-05 * "b spends on the shared day"
+  Expenses:Food   3 EUR
+  Assets:Bank    -3 EUR
+
+2026-01-03 * "b buys early"
+  Assets:Stock   5 STOCK {9 EUR}
+  Assets:Bank  -45 EUR
+
+2026-01-05 price STOCK 10.5 EUR
