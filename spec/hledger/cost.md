@@ -186,7 +186,12 @@ the `[conversion]` postings it produces:
    (`-11.85 USD` and `-11.85 AB @ 0.3 EUR`), and the amount of that conversion posting plays no part. A conversion posting
    anywhere else (after the priced posting, or with another posting between) leaves the priced posting out as before.
 
-Then every pair posting is tagged, and `--cost` drops it. So a conversion pair is kept when the transaction
+Then every pair posting is tagged, and `--cost` drops it. When rule 4 keeps the pairs (the anchor is
+repeated) but the priced posting balances by its quantity through the even-run rule, the pair that
+makes it so (the one that fits it, [conversion](conversion.md)) is tagged all the same, and only
+the others stay: with `b 2 Z` first and repeated by `b 2 Y`, a pair `-2 X`, `6 EUR` behind
+`a 2 X @ 3 EUR` goes and a pair `-1 V`, `1 W` stays, whichever comes first
+(`probes/cost-drop-fitting-pair.journal`; found by the random journals, seed 21). So a conversion pair is kept when the transaction
 has nothing but conversion postings, when its only other posting is priced and balances by cost, and when the
 first free posting is a number that another repeats.
 
@@ -199,7 +204,7 @@ no difference); 992 and about 2,100 shapes with one priced posting and conversio
 #### Probe
 
 `probes/cost-drop-pairs.journal`, `probes/cost-drop-anchor.journal`, `probes/cost-drop-priced.journal`,
-`probes/cost-pair-odd-run.journal`; and the
+`probes/cost-pair-odd-run.journal`, `probes/cost-drop-fitting-pair.journal`; and the
 probes of [conversion](conversion.md), `conversion.journal` and `conversion-leading-run.journal`.
 
 #### Command and output

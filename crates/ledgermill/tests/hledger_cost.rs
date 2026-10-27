@@ -107,6 +107,19 @@ fn adjacent_conversion_postings_are_paired_left_to_right_and_the_pairs_go() {
 }
 
 #[test]
+fn a_pair_that_fits_the_priced_posting_goes_even_when_the_anchor_keeps_the_others() {
+    assert_eq!(
+        at_cost(&[probe!("cost-drop-fitting-pair")]),
+        [
+            "2026-01-01  b: Z 2 | a: EUR 6 | equity:conversion: V -1 | equity:conversion: W 1 | b: V 1 | b: W -1 | b: EUR -6 | b: Y 2 | b: Y -2 | b: Z -2",
+            "2026-01-02  b: Z 2 | a: EUR 6 | equity:conversion: V -1 | equity:conversion: W 1 | b: V 1 | b: W -1 | b: EUR -6 | b: Y 2 | b: Y -2 | b: Z -2",
+            "2026-01-03  b: Z 2 | a: EUR 6 | b: V 1 | b: W -1 | b: EUR -6 | b: Y 5 | b: Y -5 | b: Z -2",
+            "2026-01-04  equity:conversion: Q 4 | a: EUR 6 | b: Z 7 | b: V 1 | b: W -1 | b: EUR -6 | b: Q -4 | b: Y 7 | b: Y -7 | b: Z -7",
+        ]
+    );
+}
+
+#[test]
 fn a_pair_stays_when_the_first_free_posting_is_repeated_by_another_number() {
     assert_eq!(
         at_cost(&[probe!("cost-drop-anchor")]),

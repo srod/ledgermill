@@ -1,0 +1,57 @@
+2026-01-01 the anchor is repeated: only the pair that fits the priced posting goes
+    b  2 Z
+    a  2 X @ 3 EUR
+    equity:conversion  -2 X
+    equity:conversion  6 EUR
+    equity:conversion  -1 V
+    equity:conversion  1 W
+    b  1 V
+    b  -1 W
+    b  -6 EUR
+    b  2 Y
+    b  -2 Y
+    b  -2 Z
+
+2026-01-02 the fitting pair second, its amounts the other way round
+    b  2 Z
+    a  2 X @ 3 EUR
+    equity:conversion  -1 V
+    equity:conversion  1 W
+    equity:conversion  6 EUR
+    equity:conversion  -2 X
+    b  1 V
+    b  -1 W
+    b  -6 EUR
+    b  2 Y
+    b  -2 Y
+    b  -2 Z
+
+2026-01-03 the anchor is not repeated: both pairs go, as before
+    b  2 Z
+    a  2 X @ 3 EUR
+    equity:conversion  -2 X
+    equity:conversion  6 EUR
+    equity:conversion  -1 V
+    equity:conversion  1 W
+    b  1 V
+    b  -1 W
+    b  -6 EUR
+    b  5 Y
+    b  -5 Y
+    b  -2 Z
+
+2026-01-04 an odd run opens the transaction: every pair goes
+    equity:conversion  4 Q
+    a  2 X @ 3 EUR
+    equity:conversion  -2 X
+    equity:conversion  6 EUR
+    equity:conversion  -1 V
+    equity:conversion  1 W
+    b  7 Z
+    b  1 V
+    b  -1 W
+    b  -6 EUR
+    b  -4 Q
+    b  7 Y
+    b  -7 Y
+    b  -7 Z

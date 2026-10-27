@@ -1,7 +1,9 @@
 //! `Ledger::at_cost`: every cost replaced by an amount in the cost's commodity, and the
 //! conversion postings dropped. See `spec/hledger/cost.md`.
 
-use crate::balance::{Draft, conversion_exempt, conversion_pairs, priced, within_half_unit};
+use crate::balance::{
+    Draft, conversion_exempt, conversion_pairs, pair_fits, priced, within_half_unit,
+};
 use crate::decimal::{DIVISION_PLACES, Decimal};
 use crate::model::{Finding, Posting, Transaction};
 use crate::posting::{CostKind, WrittenAmount};
@@ -146,26 +148,42 @@ pub(crate) fn plan(drafts: &[Draft], assignment: bool) -> Plan {
         };
     };
     let is_conv = |i: usize| drafts.get(i).is_some_and(|p| p.conversion_account);
-    let tag_pairs = match priced_at.first() {
+    let one = |i: usize| match drafts.get(i).and_then(|p| p.amounts.as_deref()) {
+        Some([a]) => Some(a),
+        _ => None,
+    };
+    // Which pairs get the tag: all of them, or only those that fit the priced posting.
+    let tag_pair: Vec<bool> = match priced_at.first() {
         Some(&k) => {
             let run = (0..k).rev().take_while(|&i| is_conv(i)).count();
             let by_quantity = exempt.get(k).copied().unwrap_or(false);
             if run % 2 == 1 && run == k {
                 // An odd run opens the transaction: balanced by quantity, the pairs are tagged;
                 // not by quantity, nothing is.
-                by_quantity
+                vec![by_quantity; pairs.len()]
             } else {
                 // Behind an odd run that does not open the transaction, the priced posting
-                // can repeat the anchor too.
+                // can repeat the anchor too. A pair that makes the priced posting balance by
+                // its quantity is tagged whatever the anchor; the others follow the anchor.
                 let repeater = (run % 2 == 1).then_some(k);
-                by_quantity || first_free_is_unique(drafts, repeater)
+                let all = first_free_is_unique(drafts, repeater);
+                let fits = |q: usize| {
+                    let (Some(a), Some(x), Some(y)) = (one(k), one(q), one(q + 1)) else {
+                        return false;
+                    };
+                    a.cost.as_ref().is_some_and(|c| pair_fits(a, c, x, y))
+                };
+                pairs
+                    .iter()
+                    .map(|&q| all || (by_quantity && fits(q)))
+                    .collect()
             }
         }
-        None => first_free_is_unique(drafts, None),
+        None => vec![first_free_is_unique(drafts, None); pairs.len()],
     };
     let mut tagged = untagged();
-    if tag_pairs {
-        for i in pairs.iter().flat_map(|&p| [p, p + 1]) {
+    for (&p, _) in pairs.iter().zip(&tag_pair).filter(|(_, t)| **t) {
+        for i in [p, p + 1] {
             if let Some(flag) = tagged.get_mut(i) {
                 *flag = true;
             }

@@ -88,7 +88,12 @@ pub(crate) fn within_half_unit(value: &Decimal, target: &Decimal, places: u32) -
 
 /// A pair goes with a priced posting when its two amounts are the negated quantity and the
 /// cost, in either order, by number only, each read at its own written places.
-fn pair_fits(a: &WrittenAmount, cost: &WrittenCost, x: &WrittenAmount, y: &WrittenAmount) -> bool {
+pub(crate) fn pair_fits(
+    a: &WrittenAmount,
+    cost: &WrittenCost,
+    x: &WrittenAmount,
+    y: &WrittenAmount,
+) -> bool {
     let neg = a.quantity.negated();
     let value = cost_value(a, cost);
     let fits = |q: &WrittenAmount, c: &WrittenAmount| {
