@@ -1,0 +1,2 @@
+include "open-a.beancount"
+include "open-b.beancount"

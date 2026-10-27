@@ -116,6 +116,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [postings](beancount/postings.md) | the flat posting list: row order, lot rows, flags |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
 | [refused](beancount/refused.md) | what ledgermill refuses, and what the reference says |
+| [several-files](beancount/several-files.md) | several Beancount files, or hledger and Beancount, in one `load`: one ledger per Beancount file, the merge order, summed holdings (PLA-393) |
 | [price-table](beancount/price-table.md) | the `prices` table: the `price` directives by date, the numbers as parsed |
 | [convert-rates](beancount/convert-rates.md) | `convert()`: the latest price of a pair on or before the date, inverse prices, zero, no chain |
 | [convert-positions](beancount/convert-positions.md) | `convert()` of a position: the units' rate, else the cost currency as a bridge; `@` and a cost are no rates |
@@ -191,7 +192,9 @@ can differ from hledger's when a partial sum is exactly zero ([assignments](hled
 
 ### Beancount
 
-A `.beancount` or `.bean` file is read on its own (see [refused](beancount/refused.md)).
+Each `.beancount` or `.bean` file is its own ledger, and so is the set of all the hledger files; a `load` with
+several ledgers merges their lists ([several-files](beancount/several-files.md)). `include` is refused
+(see [refused](beancount/refused.md)).
 
 `unsupported-syntax` (error): `details.construct` is one of
 
@@ -202,8 +205,8 @@ A `.beancount` or `.bean` file is read on its own (see [refused](beancount/refus
   cost to work out next to a reduction with an open cost, or with zero units and nothing to pay),
   `cost-partial` (`{# 5 EUR}`, `{2 # EUR}`), `cost-merge` (`{..., *}`), `number-too-precise`;
 - `average-booking` (`details.account`): an account booked with AVERAGE;
-- `several-beancount-files` and `mixed-formats`: reported at line 1 of a file when `load` gets
-  several Beancount files, or Beancount and hledger files together.
+- `holdings-sum` (`holdings()` of several ledgers only; not expected): a quantity two ledgers print
+  for one holding could not be read back to be added.
 
 Any of them leaves the file with no transaction at all.
 

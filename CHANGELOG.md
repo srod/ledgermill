@@ -4,6 +4,19 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- `load` reads several Beancount files, and hledger files together with Beancount files, in one call
+  (PLA-393). Each Beancount file is its own ledger (`include` is still refused) and all the hledger
+  files together are one. `transactions()`, `postings()` and `prices()` are merged by date, then by
+  the position of the item's file in the list; `check()` lists each ledger's findings by the position
+  of their file; `at_cost()` and `value()` are answered per ledger and line up with `transactions()`;
+  `holdings()` adds the rows of the same account and commodity. The `several-beancount-files` and
+  `mixed-formats` refusals are gone. A set of one ledger answers as before. See
+  `spec/beancount/several-files.md`.
+
 ## 0.1.2 – 2026-10-27
 
 ### Fixed
