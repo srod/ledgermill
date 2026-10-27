@@ -83,6 +83,12 @@ its own line at the end of a file without final newline, `unexpected end of file
 depends on how the parser recovers: here the transaction right before the bad line is gone. ledgermill
 returns no transaction for a file with a parse error (spec/README.md).
 
+**Digits other than 0-9** (`check-digits-date`, `check-digits-time`, 2026-10-27). Only ASCII digits are digits. A
+date written with other ones (`٢٠٢٦-01-02`, Arabic-Indic) is `Invalid token: '٢٠٢٦-01-02'` on its line; a
+`time:` metadata value in them (`١:٢٣`) is `Invalid account name: ١:٢٣` on the metadata line, and bean-query
+still lists the transaction. ledgermill gives a `parse-error` on the same line and returns the file unchanged from
+`format()`. (Its parser used to panic on both, PLA-406.)
+
 **Open with a bad booking method.** `Invalid booking method: M` on the `open` line (ledgermill:
 `unsupported-booking-method`, lots-and-booking.md).
 
@@ -124,6 +130,7 @@ ledgermill reports `booking-error` on those lines. Its reasons `cannot-infer-uni
 `probes/check-document-missing.beancount`, `probes/check-document-existing.beancount`,
 `probes/check-commodity-duplicate.beancount`, `probes/check-tags-and-meta.beancount`,
 `probes/check-account-names.beancount`, `probes/check-parse-errors.beancount`,
+`probes/check-digits-date.beancount`, `probes/check-digits-time.beancount`,
 `probes/check-accepted.beancount`, and for the booking lines `probes/booking-line-no-units-currency.beancount`,
 `probes/booking-line-price-without-units.beancount`, `probes/booking-line-units-missing-number.beancount`,
 `probes/booking-line-negative-price.beancount`, `probes/booking-line-second-posting.beancount`,
@@ -152,6 +159,8 @@ spec/beancount/show.sh spec/beancount/probes/check-commodity-duplicate.beancount
 spec/beancount/show.sh spec/beancount/probes/check-tags-and-meta.beancount
 spec/beancount/show.sh spec/beancount/probes/check-account-names.beancount
 spec/beancount/show.sh spec/beancount/probes/check-parse-errors.beancount
+spec/beancount/show.sh spec/beancount/probes/check-digits-date.beancount
+spec/beancount/show.sh spec/beancount/probes/check-digits-time.beancount
 spec/beancount/show.sh spec/beancount/probes/check-accepted.beancount
 spec/beancount/verdicts.sh spec/beancount/probes/booking-line-*.beancount   # the first error of each
 ```
@@ -301,6 +310,19 @@ bean-check: check-parse-errors.beancount:8: ValueError: day is out of range for 
 bean-check: check-parse-errors.beancount:9: Invalid token: 'eur'
 bean-check: check-parse-errors.beancount:14: syntax error, unexpected EOL
 00df30,transaction,10,2026-01-04,*,,after the errors
+```
+
+check-digits-date:
+
+```text
+bean-check: check-digits-date.beancount:3: Invalid token: '٢٠٢٦-01-02'
+```
+
+check-digits-time:
+
+```text
+bean-check: check-digits-time.beancount:5: Invalid account name: ١:٢٣
+b6b532,transaction,4,2026-01-02,*,,a time in other digits
 ```
 
 check-accepted:

@@ -89,6 +89,21 @@ fn a_syntax_error_is_a_parse_error_and_the_first_one_is_in_file_order() {
     assert_eq!(found[0], json!([7, "parse-error"]));
 }
 
+/// A date or time written with non-ASCII digits is a parse error on its line, as in bean-check,
+/// and `format()` returns the file as it was (PLA-406: the parser used to panic).
+#[test]
+fn a_date_or_time_in_non_ascii_digits_is_a_parse_error_on_its_line() {
+    for (name, line) in [("check-digits-date", 3), ("check-digits-time", 5)] {
+        let journal = probe(name);
+        let found = findings("f.beancount", &journal);
+        assert_eq!(found[0]["code"], json!("parse-error"), "{name}");
+        assert_eq!(found[0]["file"], json!("f.beancount"), "{name}");
+        assert_eq!(found[0]["line"], json!(line), "{name}");
+        let formatted = ledgermill::format(&file("f.beancount", &journal));
+        assert_eq!(formatted, journal, "{name}");
+    }
+}
+
 #[test]
 fn a_document_is_read_and_skipped_with_a_warning() {
     let journal = probe("check-document-existing");

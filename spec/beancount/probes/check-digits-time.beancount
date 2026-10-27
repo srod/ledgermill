@@ -1,0 +1,7 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Other
+
+2026-01-02 * "a time in other digits"
+  time: ١:٢٣
+  Assets:Bank  1 EUR
+  Assets:Other

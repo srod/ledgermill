@@ -312,6 +312,8 @@ journal with an `unsupported-syntax` finding: SKIP, and none of this is asked. P
 (`journals/app/*.beancount`) go through the same comparisons, so its holdings, units, prices and cost queries are covered on
 them. `fuzz.ts --beancount` writes random Beancount journals (prices among seven commodities, out of order, twice a day,
 zero and negative, one in 2099 now and then; lots, price annotations and plain units of either sign) and asks all of the above.
+One journal in five has one ASCII digit replaced by another kind of digit (Arabic-Indic, fullwidth, superscript...), which
+both must refuse on the same line (the parser used to panic on such a date, PLA-406).
 
 The fuzzer (`fuzz.ts`) writes random, mostly valid hledger journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
