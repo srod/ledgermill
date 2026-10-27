@@ -1770,6 +1770,8 @@ export const EXPECTED_SKIPS: ReadonlySet<string> = new Set([
   "price-both-ways",
   // hledger --cost with conversion pairs next to several priced postings or an assignment (Ledger::at_cost).
   "cost-conversion-postings",
+  // hledger: a priced posting on a conversion account, or several after an odd run (spec/hledger/conversion.md).
+  "conversion-postings",
   // The harness, not ledgermill: hledger's `cur:` query cannot tell this commodity from another (compareHoldings).
   "cur",
   // Beancount `document`: an ignored-syntax warning, bean-check looks at the file (spec/README.md).
