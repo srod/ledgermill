@@ -21,7 +21,8 @@ pub fn format(name: &str, content: &str) -> String {
 #[wasm_bindgen]
 pub struct Ledger(ledgermill::Ledger);
 
-/// Load `files`, a JSON array of `{ "name", "content" }`, in order.
+/// Load `files`, a JSON array of `{ "name", "content" }`, in order. Each Beancount file is its own
+/// ledger and all the hledger files are one; the answers merge them (see `ledgermill::load`).
 #[wasm_bindgen]
 pub fn load(files: &str) -> Result<Ledger, JsError> {
     let files: Vec<SourceFile> = serde_json::from_str(files)?;

@@ -39,9 +39,8 @@ Also refused, without a probe because nothing needs a reference to confirm it:
   posting, or with zero units. `inferred-cost`: a cost to work out in a transaction that also has
   a reduction with an open cost, or with zero units and nothing to pay. Everything else about
   both is built; see inferred-cost-and-price.md, which lists what stays refused.
-- `several-beancount-files` and `mixed-formats`: more than one Beancount file in one `load`, or
-  Beancount and hledger files together (reported at line 1: of the first Beancount file for a mix,
-  of the second one for several). Only a single root file is read, so an `include` cannot be followed either.
+- `include`: only a single root file is read, so an `include` cannot be followed. Several files in one
+  `load` are not refused any more: each Beancount file is its own ledger (several-files.md).
 
 ## Probe
 

@@ -1,0 +1,8 @@
+option "name_assets" "Actifs"
+
+2026-01-01 open Actifs:Bank
+2026-01-01 open Equity:Opening
+
+2026-01-02 * "a"
+  Actifs:Bank      1 EUR
+  Equity:Opening

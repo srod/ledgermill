@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Equity:Opening
+
+2026-01-03 * "b"
+  Assets:Bank      2 EUR
+  Equity:Opening
