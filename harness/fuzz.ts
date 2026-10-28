@@ -14,7 +14,7 @@
 // there, with their questions. With `--beancount`: random Beancount journals (price directives among seven
 // commodities, lots, price annotations, plain units of either sign) compared against bean-check and bean-query
 // for their transactions and postings, their prices, their cost and, at several dates and commodities,
-// their value and holdings; one in five has a digit other than 0-9 (PLA-406). With `--both-ways`: Beancount journals of 3 or 4 commodities with up to 9 prices, several pairs
+// their value and holdings; one in five has a digit other than 0-9 (PLA-406), three in ten also use the one-letter currency X, which bean-check reads only before a space or a line end, so `{2 X}` is refused by both (PLA-411). With `--both-ways`: Beancount journals of 3 or 4 commodities with up to 9 prices, several pairs
 // priced in both directions at rates whose inverse is not exact (3, 7, 11, 0.3), a few one way, and plain holdings, compared
 // the same way: the evidence for "a pair priced both ways" in spec/beancount/convert-rates.md. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1. The summary counts the SKIPs by what
@@ -99,8 +99,8 @@ function digits(x: N, style: Style): string {
 }
 
 // ───────────── amounts ─────────────
-// `--multi` names the commodities it shares with Beancount by two letters: Beancount's lexer rejects a one-letter currency right before a
-// closing brace (`{2 X}`), which ledgermill reads (found by this fuzzer; not a matter of several files).
+// `--multi` names the commodities it shares with Beancount by two letters: a one-letter currency in a Beancount cost (`{2 X}`) makes
+// bean-check refuse the file, and with X and Y in most files most sets would carry a refused ledger (PLA-411 writes X in `--beancount` only).
 const [X, Y] = multi ? (["XX", "YY"] as const) : (["X", "Y"] as const);
 const COMMODITIES = ["EUR", "USD", X, Y, "$", "AB", '"A B"'] as const;
 function amount(c: string, x: N, style: Style): string {
@@ -490,8 +490,11 @@ const BEAN_LOT_ACCOUNTS = ["Assets:L1", "Assets:L2", "Assets:L2:Sub"] as const;
  * units at a cost never zero or negative (booking errors are not what this asks about).
  */
 function beanJournal(): { text: string; used: string[] } {
-  const used = BEAN_COMMODITIES.filter(() => chance(0.8));
+  const used: string[] = BEAN_COMMODITIES.filter(() => chance(0.8));
   if (used.length < 3) used.push("EUR", "USD", "AAA");
+  // PLA-411: now and then the pool has X, which bean-check reads only before a space or a line end: fine as units or after a
+  // price, refused in a cost (`{3 X}`). Its own stream (like oddDigits), so that the other journals of a seed stay the same.
+  if (!multi && rx() < 0.3) used.push("X");
   const others = (c: string) => used.filter((u) => u !== c);
   let text = 'option "operating_currency" "EUR"\n';
   for (const a of [...BEAN_ACCOUNTS, ...BEAN_LOT_ACCOUNTS, "Equity:O"]) text += `2026-01-01 open ${a}\n`;
@@ -532,6 +535,7 @@ function beanJournal(): { text: string; used: string[] } {
 // some (PLA-406). Its own stream, so that the journals a seed gives stay the same.
 const ODD_DIGITS = ["١", "٢", "۴", "०", "１", "２", "¹", "²", "𝟙", "๓"] as const;
 const rd = rng(seed ^ 0x2f6b9c1d);
+const rx = rng(seed ^ 0x411a3c55);
 
 /** Now and then (one journal in five) one ASCII digit of the text, in a date, a number or a name, becomes another digit. */
 function oddDigits(text: string): string {

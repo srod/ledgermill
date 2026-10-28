@@ -313,7 +313,9 @@ journal with an `unsupported-syntax` finding: SKIP, and none of this is asked. P
 them. `fuzz.ts --beancount` writes random Beancount journals (prices among seven commodities, out of order, twice a day,
 zero and negative, one in 2099 now and then; lots, price annotations and plain units of either sign) and asks all of the above.
 One journal in five has one ASCII digit replaced by another kind of digit (Arabic-Indic, fullwidth, superscript...), which
-both must refuse on the same line (the parser used to panic on such a date, PLA-406).
+both must refuse on the same line (the parser used to panic on such a date, PLA-406). Three journals in ten also have the
+one-letter currency `X`, which bean-check reads only before a space or a line end: fine as units or a price, refused in a cost
+(`{3 X}`), and both must agree (PLA-411). `--multi` keeps `XX` and `YY`, so that its sets do not mostly carry a refused ledger.
 
 The fuzzer (`fuzz.ts`) writes random, mostly valid hledger journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
