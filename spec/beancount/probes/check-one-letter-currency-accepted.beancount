@@ -1,0 +1,24 @@
+; A one-letter currency is read when a space, a tab or the end of the line follows it.
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:Foo-X
+2026-01-01 open Assets:C X
+2026-01-01 commodity X
+
+* X} in a margin comment, and in the next line, a string that spans lines:
+2026-01-02 * "a string with X} in it
+and a second line with X} too" #X ^X
+  Assets:A  1 X
+  Assets:B  -1 X ; X} in a comment
+2026-01-03 P "flags are not currencies"
+  P Assets:A  1 X1
+  Assets:B  -1 X1
+2026-01-04 *
+  Assets:A  1 XB
+  Assets:B  -1 XB
+2026-01-05 *
+  Assets:A  1 X.B
+  Assets:B  -1 X.B
+2026-01-06 *
+  Assets:A	1 X'B {2 X-B}
+  Assets:B	-2 X-B

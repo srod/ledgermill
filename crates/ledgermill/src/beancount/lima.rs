@@ -259,14 +259,26 @@ fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> Pars
 pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     // Offsets from the parser refer to the rewritten text, so lines are counted in it too.
     let negative_tolerance = super::text::negative_tolerance_lines(text);
-    let margin: Vec<ParseIssue> = super::text::margin_errors(text)
+    // Lines the parser reads but the reference does not, found in the text; they join the parser's
+    // errors below so the first one is the first in the file, whichever found it.
+    let mut margin: Vec<ParseIssue> = super::text::margin_errors(text)
         .into_iter()
         .map(|line| ParseIssue {
             line,
             reason: "a lone `*` or `#`, or a tag, at the margin".into(),
             kind: IssueKind::Syntax,
         })
+        .chain(
+            super::text::glued_currency_errors(text)
+                .into_iter()
+                .map(|line| ParseIssue {
+                    line,
+                    reason: "a one-letter currency glued to the next character".into(),
+                    kind: IssueKind::Syntax,
+                }),
+        )
         .collect();
+    margin.sort_by_key(|i| i.line);
     let normalized = super::text::normalize(text);
     let starts = line_starts(&normalized);
     let sources = parser::BeancountSources::from(normalized.as_str());

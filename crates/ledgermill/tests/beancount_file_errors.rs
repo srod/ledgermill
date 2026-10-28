@@ -104,6 +104,42 @@ fn a_date_or_time_in_non_ascii_digits_is_a_parse_error_on_its_line() {
     }
 }
 
+/// A currency of one capital letter is only read when a space, a tab or the end of the line follows
+/// it; anything else glued to it is a parse error on its line, as in bean-check (PLA-411).
+#[test]
+fn a_one_letter_currency_glued_to_the_next_character_is_a_parse_error_on_its_line() {
+    for (name, line) in [
+        ("check-one-letter-currency-cost", 5),
+        ("check-one-letter-currency-cost-comma", 5),
+        ("check-one-letter-currency-crlf", 5),
+        ("check-one-letter-currency-eof", 6),
+        ("check-one-letter-currency-list", 1),
+        ("check-one-letter-currency-first", 6),
+    ] {
+        let journal = probe(name);
+        let found = findings("f.beancount", &journal);
+        assert_eq!(found[0]["code"], json!("parse-error"), "{name}");
+        assert_eq!(found[0]["file"], json!("f.beancount"), "{name}");
+        assert_eq!(found[0]["line"], json!(line), "{name}");
+        let formatted = ledgermill::format(&file("f.beancount", &journal));
+        assert_eq!(formatted, journal, "{name}");
+    }
+}
+
+/// The forms around it that bean-check reads: a space or a tab after the letter, a longer
+/// currency, a flag, and the letter in a string, a comment, a tag or an account name.
+#[test]
+fn a_one_letter_currency_is_read_where_a_space_follows_or_it_is_not_a_currency() {
+    let found = findings("f.beancount", &probe("check-one-letter-currency-accepted"));
+    let errors: Vec<&Value> = found
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|f| f["severity"] == json!("error"))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
 #[test]
 fn a_document_is_read_and_skipped_with_a_warning() {
     let journal = probe("check-document-existing");

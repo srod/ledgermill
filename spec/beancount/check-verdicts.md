@@ -78,6 +78,12 @@ Rejected journals (`probes/` unless a directory is given):
 | `check-order-phases.beancount` | check-order-phases.beancount:39: Invalid account name: Foo:Bad | PASS, same first line |
 | `check-digits-date.beancount` | check-digits-date.beancount:3: Invalid token: '٢٠٢٦-01-02' | PASS, same first line |
 | `check-digits-time.beancount` | check-digits-time.beancount:5: Invalid account name: ١:٢٣ | PASS, same first line |
+| `check-one-letter-currency-cost.beancount` | check-one-letter-currency-cost.beancount:5: Invalid token: 'X}' | PASS, same first line |
+| `check-one-letter-currency-cost-comma.beancount` | check-one-letter-currency-cost-comma.beancount:5: Invalid token: 'X,' | PASS, same first line |
+| `check-one-letter-currency-crlf.beancount` | check-one-letter-currency-crlf.beancount:5: Invalid token: 'X' | PASS, same first line |
+| `check-one-letter-currency-eof.beancount` | check-one-letter-currency-eof.beancount:6: Invalid token: 'X' | PASS, same first line |
+| `check-one-letter-currency-list.beancount` | check-one-letter-currency-list.beancount:1: Invalid token: 'X,Y' | PASS, same first line |
+| `check-one-letter-currency-first.beancount` | check-one-letter-currency-first.beancount:6: Invalid token: 'X}' | PASS, same first line |
 | `check-parse-errors.beancount` | check-parse-errors.beancount:7: Invalid token: 'this' | PASS, same first line |
 | `check-tags-and-meta.beancount` | check-tags-and-meta.beancount:1: Attempting to pop absent tag: 'never-pushed' | PASS, same first line |
 | `lots-inferred-cost-currency-without-payment.beancount` | lots-inferred-cost-currency-without-payment.beancount:5: Transaction does not balance: (-50.00 USD) | PASS, same first line |

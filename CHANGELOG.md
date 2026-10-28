@@ -28,6 +28,10 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Fixed
 
+- A Beancount currency of one capital letter glued to the next character (`{2 X}`, `1 X,`, `X;`, `X` at
+  the end of a CRLF line or of the file) was accepted; bean-check says `Invalid token: 'X}'` (PLA-411).
+  It is now a `parse-error` on the line of the letter, the line bean-check gives. A letter followed by a
+  space, a tab or the end of the line, or by more currency characters (`X1`, `X.B`), is read as before.
 - A Beancount date or time written with digits other than 0-9 (`٢٠٢٦-01-02`, `time: ١:٢٣`) made the
   parser panic, a crash in a browser or an app (PLA-406). It is now a `parse-error` on its line, the
   line bean-check gives, and `format()` returns the file unchanged. The fix is in our parser fork
