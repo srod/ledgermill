@@ -89,6 +89,30 @@ date written with other ones (`٢٠٢٦-01-02`, Arabic-Indic) is `Invalid token:
 still lists the transaction. ledgermill gives a `parse-error` on the same line and returns the file unchanged from
 `format()`. (Its parser used to panic on both, PLA-406.)
 
+**A one-letter currency glued to the next character** (`check-one-letter-currency-cost`, `-cost-comma`, `-crlf`,
+`-eof`, `-list`, `-first`, `-accepted`, 2026-10-28). A currency of one capital letter (`X`) is only read when a
+space, a tab or the end of the line (`\n`) comes right after the letter. With anything else after it, and unless
+that makes a longer currency, the word is `Invalid token: 'X}'` (the word as far as the next space) on the line
+of the letter, and the transaction is gone from bean-query. "Anything else" is every printable ASCII character
+except `A-Z`, `0-9` and `'._-`: `} , @ { ; " ~ ( ) * / : # ...` and the lowercase letters, but also `\r` (so a CRLF
+file with `1 X` at the end of a line is an error, while `1 AB` there is fine), the end of the file when there is
+no final newline, and any non-ASCII character. The characters `'._-` are not an error by themselves because
+they grow a longer currency, but a currency has to end in a letter or a digit: after the letter take the run of
+`[A-Z0-9'._-]`; if some prefix of the run ends in `[A-Z0-9]` the word is a (longer) currency and nothing is
+wrong (`X1`, `XB`, `X.B`, `X'B`, `X_B`, `X-B`, `X-1`, `X..B`), otherwise it is an error (`X.}`, `X-}`, `X._}`,
+`X..}`). It does not matter where the currency is: units, a cost (`{2 X}`, `{{2 X}}`, `{2X}`, `{2 X, 2026-01-01}`),
+a price, a number glued to it (`1.5X}`), a minus sign before it (`-X}`), the currencies of an `open`
+(`open Assets:A X,Y`), a metadata value (`k: X,`), a `custom` value, the header (`2026-01-02 P"x"`), a word at
+the margin or an indented one. With two such lines the first is the first error.
+
+Not an error: the letter inside a string (a string can span lines), after a `;`, on a margin comment line
+(`* X}`), in an account name (`Assets:Foo-X`), in a tag or a link (`#X`, `^X`), after another capital or after a
+`/` (`/X}` is a currency). The flag letters of a header (`2026-01-02 P "x"`) and of a posting (`  P Assets:A`)
+are a letter followed by a space. ledgermill finds the lines by reading the text before the parser does (the
+parser accepts `{2 X}` and `X;`), and gives a `parse-error` on the first of them, merged with the parser's own
+errors in file order; `format()` returns the file unchanged. `/X` is not in the accepted probe because ledgermill
+refuses a `/` in a posting as a number expression (`unsupported-syntax`) for a reason that has nothing to do with this.
+
 **Open with a bad booking method.** `Invalid booking method: M` on the `open` line (ledgermill:
 `unsupported-booking-method`, lots-and-booking.md).
 
@@ -131,6 +155,7 @@ ledgermill reports `booking-error` on those lines. Its reasons `cannot-infer-uni
 `probes/check-commodity-duplicate.beancount`, `probes/check-tags-and-meta.beancount`,
 `probes/check-account-names.beancount`, `probes/check-parse-errors.beancount`,
 `probes/check-digits-date.beancount`, `probes/check-digits-time.beancount`,
+`probes/check-one-letter-currency-{cost,cost-comma,crlf,eof,list,first,accepted}.beancount`,
 `probes/check-accepted.beancount`, and for the booking lines `probes/booking-line-no-units-currency.beancount`,
 `probes/booking-line-price-without-units.beancount`, `probes/booking-line-units-missing-number.beancount`,
 `probes/booking-line-negative-price.beancount`, `probes/booking-line-second-posting.beancount`,
@@ -161,6 +186,13 @@ spec/beancount/show.sh spec/beancount/probes/check-account-names.beancount
 spec/beancount/show.sh spec/beancount/probes/check-parse-errors.beancount
 spec/beancount/show.sh spec/beancount/probes/check-digits-date.beancount
 spec/beancount/show.sh spec/beancount/probes/check-digits-time.beancount
+spec/beancount/show.sh spec/beancount/probes/check-one-letter-currency-cost.beancount
+spec/beancount/show.sh spec/beancount/probes/check-one-letter-currency-cost-comma.beancount
+spec/beancount/show.sh spec/beancount/probes/check-one-letter-currency-crlf.beancount
+spec/beancount/show.sh spec/beancount/probes/check-one-letter-currency-eof.beancount
+spec/beancount/show.sh spec/beancount/probes/check-one-letter-currency-list.beancount
+spec/beancount/show.sh spec/beancount/probes/check-one-letter-currency-first.beancount
+spec/beancount/show.sh spec/beancount/probes/check-one-letter-currency-accepted.beancount
 spec/beancount/show.sh spec/beancount/probes/check-accepted.beancount
 spec/beancount/verdicts.sh spec/beancount/probes/booking-line-*.beancount   # the first error of each
 ```
@@ -323,6 +355,57 @@ check-digits-time:
 ```text
 bean-check: check-digits-time.beancount:5: Invalid account name: ١:٢٣
 b6b532,transaction,4,2026-01-02,*,,a time in other digits
+```
+
+check-one-letter-currency-cost:
+
+```text
+bean-check: check-one-letter-currency-cost.beancount:5: Invalid token: 'X}'
+```
+
+check-one-letter-currency-cost-comma:
+
+```text
+bean-check: check-one-letter-currency-cost-comma.beancount:5: Invalid token: 'X,'
+```
+
+check-one-letter-currency-crlf (CRLF line endings):
+
+```text
+bean-check: check-one-letter-currency-crlf.beancount:5: Invalid token: 'X'
+bean-check: check-one-letter-currency-crlf.beancount:6: Invalid token: 'X'
+```
+
+check-one-letter-currency-eof (no final newline):
+
+```text
+bean-check: check-one-letter-currency-eof.beancount:6: Invalid token: 'X'
+```
+
+check-one-letter-currency-list:
+
+```text
+bean-check: check-one-letter-currency-list.beancount:1: Invalid token: 'X,Y'
+bean-check: check-one-letter-currency-list.beancount:2: Invalid token: 'P"x"'
+```
+
+check-one-letter-currency-first:
+
+```text
+bean-check: check-one-letter-currency-first.beancount:6: Invalid token: 'X}'
+bean-check: check-one-letter-currency-first.beancount:10: Invalid token: 'Q,'
+```
+
+check-one-letter-currency-accepted:
+
+```text
+bean-check: (no output, exit 0)
+0c4473,transaction,9,2026-01-02,*,,"a string with X} in it
+and a second line with X} too"
+64adde,transaction,13,2026-01-03,P,,flags are not currencies
+960e25,transaction,16,2026-01-04,*,,
+c34612,transaction,19,2026-01-05,*,,
+5f41c2,transaction,22,2026-01-06,*,,
 ```
 
 check-accepted:

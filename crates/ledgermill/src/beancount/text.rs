@@ -475,6 +475,107 @@ pub(super) fn margin_errors(text: &str) -> Vec<u32> {
     out
 }
 
+/// The line's code with each string cut down to one `"` and the comment to a `;`, given whether a
+/// string was open when the line began. `\r` stays: it is not a space for a one-letter currency.
+fn code_with_markers(line: &str, mut open: bool) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut escaped = false;
+    for c in line.chars() {
+        if open {
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                open = false;
+            }
+        } else if c == '"' {
+            open = true;
+            out.push(c);
+        } else if c == ';' {
+            out.push(c);
+            break;
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Whether a word (no space, brace, comma, `@`, `~`, parenthesis or quote in it) is a one-letter
+/// currency glued to what follows it. `next` is the character after the word, `None` at the end
+/// of the line, and `eof` says that end is the end of the file.
+fn is_glued_currency(word: &[char], next: Option<char>, eof: bool) -> bool {
+    // Tags, links, accounts and metadata keys have letters in them that are not currencies; a
+    // leading `/` makes a longer currency.
+    if word.first().is_some_and(|c| matches!(c, '#' | '^' | '/')) || word.contains(&':') {
+        return false;
+    }
+    // A sign and a number may be glued to the currency (`-2X`, `1.5X`).
+    let start = word
+        .iter()
+        .position(|c| !(c.is_ascii_digit() || matches!(c, '+' | '-' | ',' | '.')))
+        .unwrap_or(word.len());
+    let Some((letter, tail)) = word.get(start..).and_then(<[char]>::split_first) else {
+        return false;
+    };
+    if !letter.is_ascii_uppercase() {
+        return false;
+    }
+    match tail.first().copied().or(next) {
+        // A space, a tab or the end of the line after the letter: read as is. The end of the file
+        // is not a line end for the reference.
+        None => eof,
+        Some(' ' | '\t') => false,
+        // Otherwise only a longer currency saves it: one that ends in a letter or a digit.
+        Some(_) => !tail
+            .iter()
+            .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || "'._-".contains(**c))
+            .any(|c| c.is_ascii_uppercase() || c.is_ascii_digit()),
+    }
+}
+
+/// Lines with a one-letter currency glued to the character after it, outside strings, comments,
+/// and margin comment lines (spec/beancount/check-errors.md). The parser reads `{2 X}` and `X;`
+/// where the reference says `Invalid token: 'X}'`.
+pub(super) fn glued_currency_errors(text: &str) -> Vec<u32> {
+    let mut out = Vec::new();
+    let mut in_string = false;
+    let last = text.split('\n').count().saturating_sub(1);
+    for (index, raw) in text.split('\n').enumerate() {
+        let raw = if index == 0 {
+            raw.strip_prefix('\u{feff}').unwrap_or(raw)
+        } else {
+            raw
+        };
+        let margin_comment = !in_string && is_margin_comment(raw.strip_suffix('\r').unwrap_or(raw));
+        let code = code_with_markers(raw, in_string);
+        in_string = string_open_after(raw, in_string);
+        if margin_comment {
+            continue;
+        }
+        let chars: Vec<char> = code.chars().collect();
+        let is_break = |c: char| matches!(c, ' ' | '\t') || "{},@~()\";".contains(c);
+        let mut i = 0;
+        while i < chars.len() {
+            if is_break(chars[i]) {
+                i += 1;
+                continue;
+            }
+            let end = chars[i..]
+                .iter()
+                .position(|&c| is_break(c))
+                .map_or(chars.len(), |n| i + n);
+            if is_glued_currency(&chars[i..end], chars.get(end).copied(), index == last) {
+                out.extend(u32::try_from(index + 1));
+                break;
+            }
+            i = end;
+        }
+    }
+    out
+}
+
 /// Whether the line leaves a string open (a string that spans lines), given whether one was open
 /// when it began. `;` starts a comment only outside a string.
 fn string_open_after(line: &str, mut open: bool) -> bool {
