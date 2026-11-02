@@ -45,6 +45,16 @@ All notable changes to ledgermill are written here. The format follows
   the order written, so `check()` could report a different first failing assertion from hledger's
   (fuzz `--multi 500 908`, case 289; 0.1.2 did the same). The block itself stays at the
   transaction's date. See `spec/hledger/assignment-processing.md`.
+- Beancount `format()`: an account is now read with the character classes `bean-format` uses. It
+  starts with an uppercase letter, a later component with an uppercase letter or a decimal digit
+  (`5`, `٣`, `３`), and components go on with letters, decimal digits and `-`. A posting on an
+  account with another kind of number in it (`Assets:L²`, `Assets:LⅫ`) used to be aligned and could
+  move the column of the whole file; it is now kept as written, as `bean-format` does (fuzz
+  `--beancount 500 905` and `909`). See `spec/beancount/format.md`, "Which characters".
+- The check for a glued one-letter currency (above) made a Beancount load about 15% slower than in
+  0.1.2 on the bench ledger. It now reads each line once: on a Pixel 7 Pro, `load()` and
+  `transactions()` on 10,000 transactions take a median of 505 ms, against 491 ms for 0.1.2 (12
+  runs each, alternated).
 
 ### Release gate
 
