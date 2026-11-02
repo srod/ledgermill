@@ -1,0 +1,32 @@
+2026-01-02 a plain transaction between, written before the block: the block's dated posting is not in yet
+  b  2 EUR = 2 EUR
+  y
+
+2026-01-05 postings dated before the transaction come first in the block, in date order
+  a  4 EUR = 7 EUR
+  a  = 10 EUR
+  a  2 EUR = 3 EUR  ; date:2026-01-03
+  a  1 EUR = 1 EUR  ; date:2026-01-01
+  b  1 EUR = 7 EUR  ; date:2026-01-01
+  (v)  1 EUR = 1 EUR  ; date:2026-01-02
+  p  1 X @ 2 EUR == 1 X  ; date:2026-01-02
+  p  = 5 EUR
+  z
+
+2026-01-04 a plain transaction between, written after the block: the dated posting is not in yet
+  b  4 EUR = 6 EUR
+  y
+
+2026-01-05 written after the block, same date: the block is over
+  a  0 EUR = 10 EUR
+  b  0 EUR = 7 EUR
+  y
+
+2026-01-07 several dates, before, on and after the transaction, with plain postings between
+  c  4 EUR = 16 EUR  ; date:2026-01-09
+  c  2 EUR = 3 EUR
+  c  = 10 EUR
+  c  1 EUR = 1 EUR  ; date:2026-01-06
+  c  1 EUR = 11 EUR  ; date:2026-01-07
+  c  1 EUR = 12 EUR  ; date:2026-01-08
+  z

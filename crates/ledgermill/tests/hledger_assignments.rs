@@ -645,6 +645,86 @@ fn a_posting_dated_after_its_transaction_joins_the_balance_at_the_end_of_the_blo
 }
 
 #[test]
+fn the_postings_of_a_block_go_in_order_of_their_own_dates() {
+    let probe = include_str!("../../../spec/hledger/probes/assign-earlier-posting-date.journal");
+    assert_eq!(findings("x.journal", probe), json!([]));
+    assert_eq!(
+        rows("x.journal", probe),
+        vec![
+            "1: b => 2 EUR | y => -2 EUR",
+            "16: b => 4 EUR | y => -4 EUR",
+            "5: a => 4 EUR | a => 3 EUR | a => 2 EUR | a => 1 EUR | b => 1 EUR | v => 1 EUR | p => 1 X @ 2 EUR | p => 5 EUR | z => -18 EUR",
+            "20: a => 0 EUR | b => 0 EUR | y => 0 EUR",
+            "25: c => 4 EUR | c => 2 EUR | c => 7 EUR | c => 1 EUR | c => 1 EUR | c => 1 EUR | z => -16 EUR"
+        ]
+    );
+    // hledger reports only the first error; ours must be the first finding.
+    for (probe, line, code) in [
+        (
+            include_str!("../../../spec/hledger/probes/assign-fail-earlier-posting-date.journal"),
+            3,
+            "assertion-failed",
+        ),
+        (
+            include_str!(
+                "../../../spec/hledger/probes/assign-fail-earlier-posting-date-between.journal"
+            ),
+            7,
+            "assertion-failed",
+        ),
+        (
+            include_str!(
+                "../../../spec/hledger/probes/assign-fail-earlier-posting-date-first.journal"
+            ),
+            4,
+            "assertion-failed",
+        ),
+        (
+            include_str!(
+                "../../../spec/hledger/probes/assign-fail-earlier-posting-date-order.journal"
+            ),
+            7,
+            "assertion-failed",
+        ),
+        (
+            include_str!(
+                "../../../spec/hledger/probes/assign-fail-earlier-posting-date-elided.journal"
+            ),
+            4,
+            "assertion-failed",
+        ),
+        (
+            include_str!(
+                "../../../spec/hledger/probes/assign-fail-earlier-posting-date-blocks.journal"
+            ),
+            4,
+            "assertion-failed",
+        ),
+        (
+            include_str!(
+                "../../../spec/hledger/probes/assign-fail-later-posting-dates-order.journal"
+            ),
+            4,
+            "assertion-failed",
+        ),
+        (
+            include_str!(
+                "../../../spec/hledger/probes/assign-fail-posting-date-before-assertions.journal"
+            ),
+            3,
+            "assignment-with-posting-date",
+        ),
+        (
+            include_str!("../../../spec/hledger/probes/assign-fail-posting-date-in-walk.journal"),
+            7,
+            "assertion-failed",
+        ),
+    ] {
+        assert_eq!(order("x.journal", probe)[0], json!([line, code]), "{probe}");
+    }
+}
+
+#[test]
 fn a_star_amount_is_asserted_less_the_sub_accounts_less_the_own_balance() {
     // The whole is zero (-3.00 and 3.00): one step would give `1`, two steps give `1.00`.
     let probe = include_str!("../../../spec/hledger/probes/assign-inclusive-two-steps.journal");

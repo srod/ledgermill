@@ -45,9 +45,11 @@ included, and one whose difference turned out zero. All the others are **plain**
    - a plain posting, at its own date (its posting date if it has one): its amount is added to the
      balance of its account, then its assertion, if any, is checked;
    - a transaction with an assignment is taken as a **block, at the date of the transaction**, at
-     the place where the transaction is written among the others of that date. Its postings are
-     looked at in the order written, whatever their posting dates: the one dated March is in the
-     balance on the transaction's 1 January, unlike in a plain transaction. For each posting: an
+     the place where the transaction is written among the others of that date. No posting of the
+     block is in the balance before then, whatever its date: a posting dated March is in the
+     balance on the transaction's 1 January, and one dated December before is not in on 2
+     January. Inside the block its postings are looked at in order of their own dates (see below),
+     the transaction's date for the others, the order written for equal dates. For each posting: an
      assignment is worked out against the balance now, and the balance is set as in
      [assignments](assignments.md); a posting with an amount is added to the balance and its
      assertion checked; a posting with no amount (the one that will be elided) is passed over.
@@ -55,15 +57,41 @@ included, and one whose difference turned out zero. All the others are **plain**
      worked out, the group checks made, a price inferred) and the elided amounts are added to
      the balances of their accounts then.
 
-**Posting dates inside the block.** A posting of such a transaction dated *after* the transaction is
-not in the balance for the postings before it: it waits for the end of the block, is added then (its
-assertion, if any, is checked then, before the transaction is balanced), and is in the balance for
-everything after. A posting dated on or before the transaction is in at once. (Probe
-`assign-later-posting-date`: `x 5 EUR ; date:2026-03-01`, then `x = 7 EUR` gives `7`, and the `x 0 EUR =
-7 EUR` after it holds; the next day `x` holds 12. `assign-fail-later-posting-date`: `x 0 EUR = 5 EUR`
-after the assignment fails at its line, calculated 0 EUR. A posting dated 2026-01-01 and one dated
-2026-01-04 in a transaction of 4 January are both in at once.) This is how the 'dated March is in the
-balance' of the list above is to be read: in for everything after the block.
+**Posting dates inside the block.** The block is walked at the transaction's date, and inside it
+the postings are put in order of their dates: a posting with a `date:` tag or a `[DATE]` at that
+date, every other posting (assignments included) at the transaction's date, and postings of one
+date in the order written. So:
+
+- a posting dated *before* the transaction comes before the undated postings and the
+  assignments, wherever it is written: an assignment written above it sees it, and its assertion
+  does not see the assignment. Two of them go in date order (`a 1 = 3 ; date:01-02` written above
+  `a 2 = 2 ; date:01-01` holds);
+- a posting dated *after* the transaction comes after them, and two of them go in date order;
+- the block as a whole stays at the transaction's date: a transaction dated between the posting's
+  date and the block's, written before the block or after it, does not see the posting, and the
+  posting's assertion does not see that transaction. Its failing assertion is reported at the
+  block's turn: a plain assertion failing on 3 January is reported before it, even when written
+  after;
+- the posting's own date counts for nothing else (an elided posting still waits for the end of
+  the block; a `(virtual)` or priced posting is added like an undated one: the price kept as an
+  entry, see below). `date2:` is not a posting date.
+
+Probes: `assign-later-posting-date`: `x 5 EUR ; date:2026-03-01`, then `x = 7 EUR` gives `7`, and
+the `x 0 EUR = 7 EUR` after it holds; the next day `x` holds 12. `assign-fail-later-posting-date`:
+`x 0 EUR = 5 EUR` after the assignment fails at its line, calculated 0 EUR.
+`assign-earlier-posting-date` (accepted) and the `assign-fail-earlier-posting-date*`,
+`assign-fail-later-posting-dates-order` journals show each point above:
+
+```text
+assign-fail-earlier-posting-date           a = 10, then a 1 = 11 dated the day before: fails, 1 (checked before the assignment)
+assign-fail-earlier-posting-date-between   b 1 dated 1 Jan in a block of 5 Jan; b = 1 on 3 Jan, written after: fails, 0
+assign-fail-earlier-posting-date-first     a 1 = 50 undated written first, b 1 = 60 dated 1 Jan last: the b line is reported
+assign-fail-earlier-posting-date-order     the dated posting fails in a block of 5 Jan, a plain one fails on 3 Jan, written after: the plain one
+assign-fail-earlier-posting-date-elided    an elided z dated 1 Jan, z 0 = -10 dated 2 Jan: fails, 0 (the elided amount is added at the end)
+assign-fail-earlier-posting-date-blocks    the fuzz case: a block of 4 Jan written first fails; one of 3 Jan written second, whose
+                                           posting dated 2 Jan written after its assignment would fail if checked after it
+assign-fail-later-posting-dates-order      a 1 = 99 dated 8 Jan written above a 2 = 98 dated 7 Jan: the 7 Jan one is reported, 12
+```
 
 **Prices of postings in the block.** A posting with a price (`@`, `@@`) of a transaction with an
 assignment is added to the balance *with* its price, as an entry of its own price group; in a plain
@@ -95,7 +123,10 @@ worked out on the balance without the elided amount; the elided 2 is then added,
   comment (also one equal to the transaction's date, also under `-I`):
   `Balance assignments and custom posting dates may not be combined.` The message shows the
   transaction and names no file or line. `date2:` is fine. Other postings of the transaction
-  may have a date.
+  may have a date. The refusal comes when the walk reaches the block, before any assertion of
+  the block is checked (`assign-fail-posting-date-before-assertions`: a failing `a 1 EUR = 99 EUR`
+  written above the dated assignment is not reported), and after every failing assertion earlier in
+  the walk (`assign-fail-posting-date-in-walk`: a block of 3 January written after it is reported).
 - Two real postings with no amount (see above).
 - Amounts that do not sum to zero per commodity: the assigned amounts are in the sum (`a = 5 EUR`,
   `b = -4 EUR` leaves 1 EUR; `a = 5 EUR` alone is a posting of 5 EUR with nothing against it; a `==`
@@ -113,6 +144,10 @@ Which error comes first when there are several is in [assertion-failures](assert
 
 `probes/assign-balancing.journal`, `probes/assign-entry-prices.journal`,
 `probes/assign-later-posting-date.journal`, `probes/assign-fail-later-posting-date.journal`,
+`probes/assign-earlier-posting-date.journal`, `probes/assign-fail-earlier-posting-date*.journal`,
+`probes/assign-fail-later-posting-dates-order.journal`,
+`probes/assign-fail-posting-date-before-assertions.journal`,
+`probes/assign-fail-posting-date-in-walk.journal`,
 `probes/assign-precision.journal`,
 `probes/assign-fail-precision.journal`, `probes/assign-fail-precision-assertion.journal`,
 `probes/assign-processing.journal`, `probes/assign-fail-elided-not-yet.journal`,
@@ -134,6 +169,7 @@ spec/hledger/show.sh spec/hledger/probes/assign-processing.journal
 spec/hledger/show.sh spec/hledger/probes/assign-order.journal
 spec/hledger/show.sh spec/hledger/probes/assign-entry-prices.journal
 spec/hledger/show.sh spec/hledger/probes/assign-later-posting-date.journal
+spec/hledger/show.sh spec/hledger/probes/assign-earlier-posting-date.journal
 spec/hledger/show.sh spec/hledger/probes/assert-file-a.journal spec/hledger/probes/assign-file-b.journal
 spec/hledger/assertion-verdicts.sh spec/hledger/probes/assign-fail-*.journal \
   spec/hledger/probes/assign-posting-date2.journal
@@ -185,6 +221,18 @@ and a zero difference; 30-35 plain: the dated posting is left out on 8 January; 
 44 l [EUR 0]  y [EUR 0]                           l = 6 on 10 January: the dated posting is already in
 ```
 
+assign-earlier-posting-date (accepted; the block of line 5 assigns `a` 3, `p` 5, and the one of
+line 25 assigns `c` 7, after the 2 undated and the 1 dated 6 January, before the ones dated 7, 8
+and 9 January):
+
+```text
+1  b [EUR 2]  y [EUR -2]
+16 b [EUR 4]  y [EUR -4]
+5  a [EUR 4]  a [EUR 3]  a [EUR 2]  a [EUR 1]  b [EUR 1]  v [EUR 1]  p [X 1 @ EUR 2]  p [EUR 5]  z [EUR -18]
+20 a [EUR 0]  b [EUR 0]  y [EUR 0]
+25 c [EUR 4]  c [EUR 2]  c [EUR 7]  c [EUR 1]  c [EUR 1]  c [EUR 1]  z [EUR -16]
+```
+
 assign-order (printed in date order; `a`: assignment of 1 March written first, 3 on 1 January
 written second; `b`: two assignments on one day; `c`: a plain posting dated 5 January written before
 the assignment of the 5th; `e`: the other way round):
@@ -210,6 +258,15 @@ The same file pair, `assert-file-a` then `assign-file-b` (one file does not see 
 The failing journals:
 
 ```text
+assign-fail-earlier-posting-date-between | rejects | assign-fail-earlier-posting-date-between.journal:7:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 1 EUR; calculated 0 EUR
+assign-fail-earlier-posting-date-blocks | rejects | assign-fail-earlier-posting-date-blocks.journal:4:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted -1 EUR; calculated 0 EUR
+assign-fail-earlier-posting-date-elided | rejects | assign-fail-earlier-posting-date-elided.journal:4:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted -10 EUR; calculated 0 EUR
+assign-fail-earlier-posting-date-first | rejects | assign-fail-earlier-posting-date-first.journal:4:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 60 EUR; calculated 1 EUR
+assign-fail-earlier-posting-date-order | rejects | assign-fail-earlier-posting-date-order.journal:7:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 98 EUR; calculated 1 EUR
+assign-fail-earlier-posting-date | rejects | assign-fail-earlier-posting-date.journal:3:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 11 EUR; calculated 1 EUR
+assign-fail-later-posting-dates-order | rejects | assign-fail-later-posting-dates-order.journal:4:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 98 EUR; calculated 12 EUR
+assign-fail-posting-date-before-assertions | rejects | - | Balance assignments and custom posting dates may not be combined.
+assign-fail-posting-date-in-walk | rejects | assign-fail-posting-date-in-walk.journal:7:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 99 EUR; calculated 6 EUR
 assign-fail-elided-not-yet | rejects | assign-fail-elided-not-yet.journal:4:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted -5 EUR; calculated 0 EUR
 assign-fail-elided-not-yet-virtual | rejects | assign-fail-elided-not-yet-virtual.journal:5:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted -5 EUR; calculated 0 EUR
 assign-fail-elided-not-yet-zero | rejects | assign-fail-elided-not-yet-zero.journal:5:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted -5 EUR; calculated 0 EUR

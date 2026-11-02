@@ -1,0 +1,4 @@
+2026-01-05 a posting with no amount dated before the transaction still joins at the end of the block
+  a  = 10 EUR
+  z  ; date:2026-01-01
+  z  0 EUR = -10 EUR  ; date:2026-01-02

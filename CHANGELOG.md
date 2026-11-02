@@ -39,6 +39,12 @@ All notable changes to ledgermill are written here. The format follows
   line bean-check gives, and `format()` returns the file unchanged. The fix is in our parser fork
   (`ledgermill-beancount-parser` 0.16.4). `fuzz.ts --beancount` now puts such a digit in one journal
   in five.
+- hledger: in a transaction with a balance assignment, the postings are now taken in order of their
+  own dates (`date:` tag or `[DATE]`). A posting dated before the transaction comes before its
+  assignments and undated postings, wherever it is written, as hledger does. It used to be taken in
+  the order written, so `check()` could report a different first failing assertion from hledger's
+  (fuzz `--multi 500 908`, case 289; 0.1.2 did the same). The block itself stays at the
+  transaction's date. See `spec/hledger/assignment-processing.md`.
 
 ### Release gate
 

@@ -1,0 +1,5 @@
+2026-01-05 two postings dated after the transaction are checked in date order
+  a  = 10 EUR
+  a  1 EUR = 99 EUR  ; date:2026-01-08
+  a  2 EUR = 98 EUR  ; date:2026-01-07
+  z

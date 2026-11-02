@@ -1,0 +1,8 @@
+2026-01-05 a dated assignment is refused when the walk reaches its block
+  b  = 5 EUR  ; date:2026-01-09
+  z
+
+2026-01-03 so an assertion failing earlier, written after, is reported first
+  c  = 5 EUR
+  c  1 EUR = 99 EUR
+  z

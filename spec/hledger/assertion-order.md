@@ -8,7 +8,9 @@ Status: built.
 
 An assertion sees the postings that come before it in hledger's own order, not in the order of
 the file. This note covers journals whose transactions have no balance assignment; a transaction
-with an assignment is processed differently ([assignment-processing](assignment-processing.md)).
+with an assignment is processed differently ([assignment-processing](assignment-processing.md)):
+all of it at the transaction's date, its postings in order of their own dates inside it, so a
+posting date there does not move the posting to another place in the walk.
 
 - **Per file.** Each file has its own running balances. A file read after another one does not see
   that file's postings: with `-f A -f B`, an assertion in B on an account that only A touched

@@ -1,0 +1,8 @@
+2026-01-05 the dated posting fails, but on the 5th, with its block
+  a  = 10 EUR
+  b  1 EUR = 99 EUR  ; date:2026-01-01
+  z
+
+2026-01-03 this one fails on the 3rd, so it is reported
+  c  1 EUR = 98 EUR
+  y

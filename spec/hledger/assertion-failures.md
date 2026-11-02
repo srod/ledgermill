@@ -50,9 +50,10 @@ hides an assertion failure in the second. The same file given twice is two files
 2. a problem with a plain transaction (one without an assignment): unbalanced, two postings with no
    amount, price inference that fails...: the first in file order, not date order;
 3. then, in the order of the walk (date, then file position): for a plain posting, a failing assertion;
-   for a transaction with an assignment, in the order of its postings: a posting date on an
-   assignment, a failing assertion on a posting, and, after the last posting, a problem with the
-   balancing of the transaction (two postings with no amount, unbalanced).
+   for a transaction with an assignment, at its date: a posting date on an assignment, then a
+   failing assertion on a posting, its postings taken in order of their own dates
+   ([assignment-processing](assignment-processing.md)), and, after the last posting, a problem
+   with the balancing of the transaction (two postings with no amount, unbalanced).
 
 So an unbalanced transaction hides every failing assertion of its file, whatever the dates, unless
 the unbalanced transaction has an assignment and the failing assertion comes earlier in the walk.

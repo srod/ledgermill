@@ -1,0 +1,8 @@
+2026-01-05 the dated posting joins the balance with its block, on the 5th
+  a  = 10 EUR
+  b  1 EUR  ; date:2026-01-01
+  z
+
+2026-01-03 so on the 3rd it is not there
+  b  0 EUR = 1 EUR
+  y

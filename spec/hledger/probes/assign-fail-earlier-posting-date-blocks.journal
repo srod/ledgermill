@@ -1,0 +1,9 @@
+2026-01-04 a block written first, dated later, whose assertion fails
+  a
+  c  = 3 EUR
+  a  0 EUR = -1 EUR
+
+2026-01-03 a block written second: its posting dated the 2nd is checked before its assignment
+  a
+  a  = -1 EUR
+  a  0 EUR = 0 EUR  ; date:2026-01-02

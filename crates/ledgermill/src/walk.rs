@@ -178,22 +178,26 @@ fn walk_transaction(tx: &mut Tx, balances: &mut Balances, issues: &mut Vec<Issue
     let elided: Vec<bool> = (0..tx.info.len())
         .map(|i| tx.drafts.get(i).is_some_and(|d| d.amounts.is_none()) && !tx.is_assignment(i))
         .collect();
-    // A posting dated after the transaction waits for the end of the block: the postings before
-    // it do not see it, but it is in the balance when the block is over.
-    let later: Vec<bool> = (0..tx.info.len())
-        .map(|i| {
-            !tx.is_assignment(i)
-                && tx
-                    .info
-                    .get(i)
-                    .and_then(|p| p.date)
-                    .is_some_and(|d| d > tx.date)
-        })
-        .collect();
-    for i in 0..tx.info.len() {
-        if later.get(i).copied().unwrap_or(false) {
-            continue;
+    // A dated assignment is refused as soon as the walk reaches the block, before any assertion.
+    for (i, info) in tx.info.iter().enumerate() {
+        if info.date.is_some() && tx.is_assignment(i) {
+            issues.push(Issue::AssignmentPostingDate {
+                line: info.line,
+                account: info.account.clone(),
+            });
         }
+    }
+    // Inside the block the postings go in order of their own dates (an undated one, or an
+    // assignment, at the transaction's), written order breaking ties.
+    let mut order: Vec<usize> = (0..tx.info.len()).collect();
+    order.sort_by_key(|&i| {
+        tx.info
+            .get(i)
+            .and_then(|p| p.date)
+            .filter(|_| !tx.is_assignment(i))
+            .unwrap_or(tx.date)
+    });
+    for i in order {
         if tx.is_assignment(i) {
             let (Some(info), Some(draft)) = (tx.info.get(i), tx.drafts.get_mut(i)) else {
                 continue;
@@ -201,26 +205,12 @@ fn walk_transaction(tx: &mut Tx, balances: &mut Balances, issues: &mut Vec<Issue
             let Some(assertion) = &info.assertion else {
                 continue;
             };
-            if info.date.is_some() {
-                issues.push(Issue::AssignmentPostingDate {
-                    line: info.line,
-                    account: info.account.clone(),
-                });
-            }
             let w = &assertion.written;
             draft.amounts = Some(balances.assign(&info.account, w.total, w.inclusive, &w.amount));
         } else if let (Some(info), Some(draft)) = (tx.info.get(i), tx.drafts.get(i)) {
             if draft.amounts.is_none() {
                 continue;
             }
-            for amount in draft.amounts.iter().flatten() {
-                balances.add(&info.account, amount, true);
-            }
-            check(balances, info, issues);
-        }
-    }
-    for i in (0..later.len()).filter(|&i| later[i]) {
-        if let (Some(info), Some(draft)) = (tx.info.get(i), tx.drafts.get(i)) {
             for amount in draft.amounts.iter().flatten() {
                 balances.add(&info.account, amount, true);
             }
