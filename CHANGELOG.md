@@ -4,7 +4,7 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.3 – TBD at release
 
 ### Added
 
@@ -39,6 +39,23 @@ All notable changes to ledgermill are written here. The format follows
   line bean-check gives, and `format()` returns the file unchanged. The fix is in our parser fork
   (`ledgermill-beancount-parser` 0.16.4). `fuzz.ts --beancount` now puts such a digit in one journal
   in five.
+
+### Release gate
+
+From the release-gate workflow on commit TBD at release (run TBD at release), CI on the same
+commit (run TBD at release), and the owner's own runs.
+
+- Random hledger journals (5,000): TBD at release
+- Random Beancount journals (5,000): TBD at release
+- Random price networks (5,000): TBD at release
+- Random Beancount journals with pairs priced both ways (5,000): TBD at release
+- Random sets of several ledgers (5,000, new in this gate): TBD at release
+- Corpus comparison: TBD at release
+- Desktop bench against 0.1.2: TBD at release
+- Stress test, 100,000 transactions: TBD at release
+- Similarity check score: TBD at release
+- Real journals: TBD at release
+- Device targets: TBD at release
 
 ## 0.1.2 – 2026-10-27
 

@@ -1,6 +1,6 @@
 {
   "name": "@ledgermill/wasm",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "ledgermill ledger engines compiled to WebAssembly, with their wasm-bindgen glue.",
   "keywords": [
     "ledger",
