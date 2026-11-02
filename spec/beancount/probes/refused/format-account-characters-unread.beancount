@@ -1,0 +1,77 @@
+; Which characters bean-format accepts in an account (spec/beancount/format.md): each one is
+; second in a component (Assets:Lx) or first in a later one (Assets:L:xB).
+; The Equity account is the widest: an aligned posting's number moves right, a kept one stays 5 spaces away.
+; ledgermill's parser does not read these accounts yet; bean-check accepts them.
+option "operating_currency" "EUR"
+
+2026-01-01 open Equity:Anchor:AVeryLongAccountName
+2026-01-01 open Assets:L:²B
+2026-01-01 open Assets:L:¹B
+2026-01-01 open Assets:L:₂B
+2026-01-01 open Assets:L:٣B
+2026-01-01 open Assets:L:३B
+2026-01-01 open Assets:L:３B
+2026-01-01 open Assets:L:𝟑B
+2026-01-01 open Assets:L:①B
+2026-01-01 open Assets:L:½B
+2026-01-01 open Assets:L:éB
+2026-01-01 open Assets:L:ǅB
+2026-01-01 open Assets:L:ʰB
+2026-01-01 open Assets:LⒶ
+2026-01-01 open Assets:L:ⒶB
+
+2026-01-02 * "superscript two, U+00B2 No, first in a component"
+  Assets:L:²B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "superscript one, U+00B9 No, first in a component"
+  Assets:L:¹B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "subscript two, U+2082 No, first in a component"
+  Assets:L:₂B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Arabic-Indic three, U+0663 Nd, first in a component"
+  Assets:L:٣B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Devanagari three, U+0969 Nd, first in a component"
+  Assets:L:३B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "fullwidth three, U+FF13 Nd, first in a component"
+  Assets:L:３B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "mathematical bold three, U+1D7D1 Nd, first in a component"
+  Assets:L:𝟑B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "circled one, U+2460 No, first in a component"
+  Assets:L:①B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "vulgar fraction one half, U+00BD No, first in a component"
+  Assets:L:½B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "small e acute, U+00E9 Ll, first in a component"
+  Assets:L:éB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "titlecase dz, U+01C5 Lt, first in a component"
+  Assets:L:ǅB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "modifier small h, U+02B0 Lm, first in a component"
+  Assets:L:ʰB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "circled capital A, U+24B6 So, second in a component"
+  Assets:LⒶ     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "circled capital A, U+24B6 So, first in a component"
+  Assets:L:ⒶB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR

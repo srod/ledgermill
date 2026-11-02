@@ -1,0 +1,11 @@
+; A posting whose account has a superscript is not aligned, but it is still an account line: it is
+; counted for the indent (three at 2 spaces beat two at 4) (spec/beancount/format.md).
+2026-01-01 open Equity:Anchor
+2026-01-01 open Assets:L¹
+
+2026-01-02 * "two postings at 4 spaces, three superscript ones at 2"
+    Equity:Anchor   -3 EUR
+    Equity:Anchor   0 EUR
+  Assets:L¹   1 EUR
+  Assets:L¹   1 EUR
+  Assets:L¹   1 EUR

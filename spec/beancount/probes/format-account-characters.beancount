@@ -1,0 +1,136 @@
+; Which characters bean-format accepts in an account (spec/beancount/format.md): each one is
+; second in a component (Assets:Lx) or first in a later one (Assets:L:xB).
+; The Equity account is the widest: an aligned posting's number moves right, a kept one stays 5 spaces away.
+option "operating_currency" "EUR"
+
+2026-01-01 open Equity:Anchor:AVeryLongAccountName
+2026-01-01 open Assets:L5
+2026-01-01 open Assets:L:5B
+2026-01-01 open Assets:L²
+2026-01-01 open Assets:L¹
+2026-01-01 open Assets:L₂
+2026-01-01 open Assets:L٣
+2026-01-01 open Assets:L३
+2026-01-01 open Assets:L３
+2026-01-01 open Assets:L𝟑
+2026-01-01 open Assets:LⅫ
+2026-01-01 open Assets:L:ⅫB
+2026-01-01 open Assets:L①
+2026-01-01 open Assets:L½
+2026-01-01 open Assets:Lé
+2026-01-01 open Assets:LÉ
+2026-01-01 open Assets:L:ÉB
+2026-01-01 open Assets:LΩ
+2026-01-01 open Assets:L:ΩB
+2026-01-01 open Assets:L𝐀
+2026-01-01 open Assets:L:𝐀B
+2026-01-01 open Assets:Lǅ
+2026-01-01 open Assets:Lʰ
+2026-01-01 open Assets:L中
+2026-01-01 open Assets:L:中B
+2026-01-01 open Assets:Lª
+2026-01-01 open Assets:L:ªB
+
+2026-01-02 * "ASCII digit five, U+0035 Nd, second in a component"
+  Assets:L5     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "ASCII digit five, U+0035 Nd, first in a component"
+  Assets:L:5B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "superscript two, U+00B2 No, second in a component"
+  Assets:L²     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "superscript one, U+00B9 No, second in a component"
+  Assets:L¹     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "subscript two, U+2082 No, second in a component"
+  Assets:L₂     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Arabic-Indic three, U+0663 Nd, second in a component"
+  Assets:L٣     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Devanagari three, U+0969 Nd, second in a component"
+  Assets:L३     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "fullwidth three, U+FF13 Nd, second in a component"
+  Assets:L３     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "mathematical bold three, U+1D7D1 Nd, second in a component"
+  Assets:L𝟑     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Roman numeral twelve, U+216B Nl, second in a component"
+  Assets:LⅫ     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Roman numeral twelve, U+216B Nl, first in a component"
+  Assets:L:ⅫB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "circled one, U+2460 No, second in a component"
+  Assets:L①     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "vulgar fraction one half, U+00BD No, second in a component"
+  Assets:L½     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "small e acute, U+00E9 Ll, second in a component"
+  Assets:Lé     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "capital E acute, U+00C9 Lu, second in a component"
+  Assets:LÉ     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "capital E acute, U+00C9 Lu, first in a component"
+  Assets:L:ÉB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Greek capital omega, U+03A9 Lu, second in a component"
+  Assets:LΩ     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "Greek capital omega, U+03A9 Lu, first in a component"
+  Assets:L:ΩB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "mathematical bold capital A, U+1D400 Lu, second in a component"
+  Assets:L𝐀     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "mathematical bold capital A, U+1D400 Lu, first in a component"
+  Assets:L:𝐀B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "titlecase dz, U+01C5 Lt, second in a component"
+  Assets:Lǅ     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "modifier small h, U+02B0 Lm, second in a component"
+  Assets:Lʰ     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "CJK ideograph, U+4E2D Lo, second in a component"
+  Assets:L中     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "CJK ideograph, U+4E2D Lo, first in a component"
+  Assets:L:中B     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "feminine ordinal, U+00AA Lo, second in a component"
+  Assets:Lª     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR
+
+2026-01-02 * "feminine ordinal, U+00AA Lo, first in a component"
+  Assets:L:ªB     1 EUR
+  Equity:Anchor:AVeryLongAccountName  -1 EUR

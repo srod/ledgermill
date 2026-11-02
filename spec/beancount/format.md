@@ -61,9 +61,10 @@ line), in three shapes. "Blank" below is a space or a tab; a character is a Unic
 
 1. a run of blanks (the indent, at least one);
 2. an account with no flag before it: a first component starting with an uppercase letter, then one or
-   more `:`-separated components, each starting with an uppercase letter or a digit; every component
-   continues with letters, digits and `-` (Unicode letters and digits count: `Édition`, `Ag2024`; `_`,
-   `.`, `+` do not, a trailing `:` does not);
+   more `:`-separated components, each starting with an uppercase letter or a decimal digit; every
+   component continues with letters, decimal digits and `-` (`_`, `.`, `+` do not, a trailing `:` does
+   not). The classes are Unicode general categories, see "Which characters" below: an uppercase
+   letter is `Lu`, a letter any `L` category, a decimal digit `Nd`;
 3. a run of blanks (one is enough);
 4. a number: `+` or `-` optionally, then optional blanks, then one or more digits and commas, then
    optionally a `.` and digits (`5.` counts, `.5` does not); **or** one pair of parentheses holding two such
@@ -75,6 +76,36 @@ line), in three shapes. "Blank" below is a space or a tab; a character is a Unic
    (`/NQ`), followed by something that is not a letter, a digit or `_` (so `EURx` is not a currency);
 7. anything, kept as it is, including the spaces in it and trailing blanks.
 
+**Which characters** (`probes/format-account-characters.beancount`,
+`probes/refused/format-account-characters-unread.beancount`). Each character is tried second in a
+component (`Assets:Lx`) and first in a later component (`Assets:L:xB`); `bean-check` accepts every one of
+those accounts, so the difference is `bean-format`'s alone.
+
+- **Decimal digits** (`Nd`) are digits everywhere: `5`, Arabic-Indic `٣`, Devanagari `३`, fullwidth `３`,
+  mathematical bold `𝟑`. They may start a later component.
+- **Other numbers are not** account characters, in either place: superscripts `²` `¹` (`No`), subscript `₂`
+  (`No`), circled `①` (`No`), the fraction `½` (`No`), the Roman numeral `Ⅻ` (`Nl`). The account stops
+  before the character, so what follows is not a blank and a number: the posting is not shape 1, is not
+  aligned and is not counted in `P` or `N`. It is still shape 3 when its first component and the character
+  after the first `:` qualify (`Assets:L¹  1 EUR`, `Assets:L:²B  1 EUR`): it is then re-indented and counted
+  for the indent like an elided posting.
+- **Letters**: any letter continues a component (`é` `Ll`, `É` `Lu`, `ǅ` `Lt`, `ʰ` and `ⁿ` `Lm`, `中` and `ª`
+  `Lo`); only an uppercase letter (`Lu`: `É`, `Ω`, mathematical bold `𝐀`) starts one. `Assets:L:éB`,
+  `Assets:L:中B` and `Assets:L:ǅB` are kept as written. The same holds for the first character of the
+  account.
+- **Symbols and marks are not**: circled capital `Ⓐ` (`So`), combining acute (`Mn`), Devanagari vowel sign
+  (`Mc`), enclosing circle (`Me`), `_` (`Pc`; `bean-check` refuses it too).
+
+The same classes decide shape 3, which looks only at the first component and the character after its
+`:`: an elided `Assets:٣B` or `Assets:ÉB` is re-indented, an elided `Assets:²B` is not (`bean-check`
+refuses that account name: a first component then a number is only reachable in a broken file).
+
+`format-model.py` already used these classes (`Lu`; the `L` categories and `Nd`; `Lu` and `Nd`); the engine used
+Rust's `is_uppercase`, `is_alphanumeric` and `is_numeric`, which also take `²`, `Ⅻ` and `Ⓐ`.
+
+Why the gate cared: the indent and the column are file-wide, so one `Assets:L¹:Sub  12345.678 DDD` posting
+that ledgermill counted (wrongly) widened `P` and `N` for the whole file, and moved a `price` line too.
+
 **Shape 2, a dated line with an amount** (aligned): the first character is a digit; then any text without
 `"` and without `;`, up to the first place where a run of blanks is followed by a number (as above), a run
 of blanks and a currency. In a valid ledger this is a `balance` line (the number aligned is the tolerance
@@ -83,7 +114,7 @@ when there is a `~`, so `400.00 ~` belongs to the text before it) and a `price` 
 `open Assets:Bank EUR` has no number.
 
 **Shape 3, an account line** (re-indented only): the indent, then an account start (an uppercase
-letter, letters/digits/`-`, a `:`, then an uppercase letter or a digit), then anything. This covers
+letter, letters/decimal digits/`-`, a `:`, then an uppercase letter or a decimal digit), then anything. This covers
 elided postings (`  Expenses:Food`), postings with only a comment, and every shape-1 line.
 
 Not in any shape, so copied exactly (and not counted in any width): flagged postings (`! Account  5 EUR`,
@@ -152,7 +183,10 @@ What bean-format does: `probes/format-align-width.beancount`, `probes/format-ali
 `probes/format-align-indent-ignored.beancount`, `probes/format-align-unaligned.beancount`,
 `probes/format-align-unaligned-width.beancount`, `probes/format-align-idempotent.beancount`,
 `probes/format-align-string.beancount`, `probes/refused/format-align-expressions.beancount`,
-`probes/refused/format-nbsp-separator.beancount`, and the probes of "what Beancount reads the same" again
+`probes/refused/format-nbsp-separator.beancount`, `probes/format-account-characters.beancount`,
+`probes/refused/format-account-characters-unread.beancount` (accounts `bean-check` accepts and ledgermill's
+parser does not read yet: a later component that starts with a lowercase or other non-`Lu` letter or a
+number, and `Ⓐ`), and the probes of "what Beancount reads the same" again
 (`format-separator`, `format-trailing`, `format-flag-gap`, `format-indent`, `format-metadata-indent`,
 `format-comment-indent`, `format-directives`, `format-crlf`, `format-no-final-newline`, `refused/format-bom`).
 
@@ -180,10 +214,19 @@ What bean-format does (`show-format.sh` runs `bean-format`, prints a ruler, then
 their line numbers; `$` ends a line, `^I` is a tab):
 
 ```sh
+spec/beancount/show-format.sh spec/beancount/probes/format-account-characters-indent.beancount
 spec/beancount/show-format.sh spec/beancount/probes/format-align-width.beancount   # and -narrow, -lots, -kinds,
 # -indent, -indent-tie, -indent-ignored, -unaligned, -unaligned-width, -idempotent, -string,
 # refused/format-align-expressions, format-separator, format-trailing, format-flag-gap, format-indent,
 # format-metadata-indent, format-comment-indent, format-directives
+# which postings of the account-characters probes bean-format rewrites (show-format.sh prints the lines,
+# but cat -v garbles the characters): one row per posting
+for f in spec/beancount/probes/format-account-characters.beancount \
+         spec/beancount/probes/refused/format-account-characters-unread.beancount; do
+  bean-check "$f" && bean-format "$f" | awk 'NR==FNR { out[FNR] = $0; next }
+    /^2026-01-02/ { split($0, q, "\""); what = q[2] }
+    /^  Assets/ { printf "%-7s %-13s %s\n", (out[FNR] == $0 ? "kept" : "aligned"), $1, what }' - "$f"
+done
 BEAN_FORMAT_ARGS='-w 30 -W 12' spec/beancount/show-format.sh spec/beancount/probes/format-align-width-narrow.beancount
 BEAN_FORMAT_ARGS='-c 40' spec/beancount/show-format.sh spec/beancount/probes/format-align-width-narrow.beancount
 bean-format spec/beancount/probes/format-align-idempotent.beancount > /tmp/once && bean-format /tmp/once | diff /tmp/once -
@@ -512,6 +555,65 @@ format-align-idempotent: the second run moves the column (`diff` of the first ou
 ---
 >   Expenses:Food:Groceries   3 EUR
 >   Assets:Cash              -3 EUR
+```
+
+format-account-characters (and its `refused/` half, the accounts ledgermill's parser does not read yet): `bean-check`
+prints nothing for either file. One row per posting: `aligned` if `bean-format` rewrote it, `kept` if not, then the
+account and the transaction's narration (the character, its code point and general category, its place).
+
+```text
+aligned Assets:L5     ASCII digit five, U+0035 Nd, second in a component
+aligned Assets:L:5B   ASCII digit five, U+0035 Nd, first in a component
+kept    Assets:L²    superscript two, U+00B2 No, second in a component
+kept    Assets:L¹    superscript one, U+00B9 No, second in a component
+kept    Assets:L₂   subscript two, U+2082 No, second in a component
+aligned Assets:L٣    Arabic-Indic three, U+0663 Nd, second in a component
+aligned Assets:L३   Devanagari three, U+0969 Nd, second in a component
+aligned Assets:L３   fullwidth three, U+FF13 Nd, second in a component
+aligned Assets:L𝟑  mathematical bold three, U+1D7D1 Nd, second in a component
+kept    Assets:LⅫ   Roman numeral twelve, U+216B Nl, second in a component
+kept    Assets:L:ⅫB Roman numeral twelve, U+216B Nl, first in a component
+kept    Assets:L①   circled one, U+2460 No, second in a component
+kept    Assets:L½    vulgar fraction one half, U+00BD No, second in a component
+aligned Assets:Lé    small e acute, U+00E9 Ll, second in a component
+aligned Assets:LÉ    capital E acute, U+00C9 Lu, second in a component
+aligned Assets:L:ÉB  capital E acute, U+00C9 Lu, first in a component
+aligned Assets:LΩ    Greek capital omega, U+03A9 Lu, second in a component
+aligned Assets:L:ΩB  Greek capital omega, U+03A9 Lu, first in a component
+aligned Assets:L𝐀  mathematical bold capital A, U+1D400 Lu, second in a component
+aligned Assets:L:𝐀B mathematical bold capital A, U+1D400 Lu, first in a component
+aligned Assets:Lǅ    titlecase dz, U+01C5 Lt, second in a component
+aligned Assets:Lʰ    modifier small h, U+02B0 Lm, second in a component
+aligned Assets:L中   CJK ideograph, U+4E2D Lo, second in a component
+kept    Assets:L:中B CJK ideograph, U+4E2D Lo, first in a component
+aligned Assets:Lª    feminine ordinal, U+00AA Lo, second in a component
+kept    Assets:L:ªB  feminine ordinal, U+00AA Lo, first in a component
+== refused/format-account-characters-unread
+kept    Assets:L:²B  superscript two, U+00B2 No, first in a component
+kept    Assets:L:¹B  superscript one, U+00B9 No, first in a component
+kept    Assets:L:₂B subscript two, U+2082 No, first in a component
+aligned Assets:L:٣B  Arabic-Indic three, U+0663 Nd, first in a component
+aligned Assets:L:३B Devanagari three, U+0969 Nd, first in a component
+aligned Assets:L:３B fullwidth three, U+FF13 Nd, first in a component
+aligned Assets:L:𝟑B mathematical bold three, U+1D7D1 Nd, first in a component
+kept    Assets:L:①B circled one, U+2460 No, first in a component
+kept    Assets:L:½B  vulgar fraction one half, U+00BD No, first in a component
+kept    Assets:L:éB  small e acute, U+00E9 Ll, first in a component
+kept    Assets:L:ǅB  titlecase dz, U+01C5 Lt, first in a component
+kept    Assets:L:ʰB  modifier small h, U+02B0 Lm, first in a component
+kept    Assets:LⒶ   circled capital A, U+24B6 So, second in a component
+kept    Assets:L:ⒶB circled capital A, U+24B6 So, first in a component
+```
+
+In scratch files (not kept), the combining acute `U+0301` (`Mn`), the Devanagari vowel sign `U+093E` (`Mc`) and the
+enclosing circle `U+20DD` (`Me`) after `Assets:L` were kept too, as was `Assets:L_` (`bean-check`: `Invalid token`).
+
+format-account-characters-indent: the three `Assets:L¹` postings at 2 spaces are not aligned (they stay `   1 EUR`)
+but are counted for the indent and win against the two at 4, so the `Equity` postings move to 2 spaces:
+
+```text
+   7|  Equity:Anchor    -3 EUR$
+   8|  Equity:Anchor     0 EUR$
 ```
 
 Line endings, final newline, BOM:

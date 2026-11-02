@@ -7,6 +7,7 @@
 
 use crate::model::SourceFile;
 use std::collections::HashMap;
+use unicode_properties::{GeneralCategory, GeneralCategoryGroup, UnicodeGeneralCategory};
 
 /// The file with its posting, `balance` and `price` lines rewritten; the file as it was when
 /// ledgermill reads none of it.
@@ -139,23 +140,35 @@ fn skip_blanks(text: &str) -> &str {
     text.trim_start_matches([' ', '\t'])
 }
 
-/// Characters an account component continues with. Unicode letters and digits count.
-// shortcut: Unicode "alphabetic" and "numeric" properties, not the exact general categories
-// (they differ on combining marks and letter numbers); upgrade if a comparison finds a line.
+/// The first character of an account: an uppercase letter (not `Ⅻ` or `Ⓐ`, which Rust's
+/// `is_uppercase` takes).
+fn starts_account(c: char) -> bool {
+    c.general_category() == GeneralCategory::UppercaseLetter
+}
+
+/// The first character of each later component: an uppercase letter or a decimal digit.
+fn starts_component(c: char) -> bool {
+    starts_account(c) || c.general_category() == GeneralCategory::DecimalNumber
+}
+
+/// Characters a component continues with: any letter, a decimal digit (`5`, `٣`, `３`) or `-`.
+/// Other numbers (`²`, `₂`, `½`, `Ⅻ`) and combining marks are not.
 fn is_name_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '-'
+    c == '-'
+        || c.general_category_group() == GeneralCategoryGroup::Letter
+        || c.general_category() == GeneralCategory::DecimalNumber
 }
 
 /// What is left of `text` after an account: a capital, name characters, then one or more
 /// `:component`s. The account is the longest such prefix, so a trailing `:` is not part of it.
 fn after_account(text: &str) -> Option<&str> {
     let mut rest = text
-        .strip_prefix(char::is_uppercase)?
+        .strip_prefix(starts_account)?
         .trim_start_matches(is_name_char);
     let mut components = 0;
     while let Some(tail) = rest
         .strip_prefix(':')
-        .and_then(|t| t.strip_prefix(|c: char| c.is_uppercase() || c.is_numeric()))
+        .and_then(|t| t.strip_prefix(starts_component))
     {
         rest = tail.trim_start_matches(is_name_char);
         components += 1;
@@ -293,10 +306,10 @@ fn account_line(line: &str) -> Option<Shape<'_>> {
         return None;
     }
     account_start
-        .strip_prefix(char::is_uppercase)?
+        .strip_prefix(starts_account)?
         .trim_start_matches(is_name_char)
         .strip_prefix(':')?
-        .starts_with(|c: char| c.is_uppercase() || c.is_numeric())
+        .starts_with(starts_component)
         .then_some(Shape::Account {
             indent,
             rest: account_start,

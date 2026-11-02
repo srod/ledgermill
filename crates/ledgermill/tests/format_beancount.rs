@@ -101,6 +101,15 @@ fn what_follows_the_currency_is_kept() {
 }
 
 #[test]
+fn an_account_with_a_digit_that_is_not_a_decimal_digit_is_kept_and_not_counted() {
+    // `¹` and `Ⅻ` are numbers but not decimal digits: bean-format leaves those postings as written
+    // and they set no column; `٣` is a decimal digit and `é` a letter, so those are aligned.
+    let input = "2026-01-01 open Expenses:Food\n2026-01-01 open Assets:L¹:Sub:Long\n2026-01-01 open Assets:LⅫ\n2026-01-01 open Assets:L٣\n2026-01-01 open Assets:Lé\n2026-01-01 open Assets:L:ÉB\n\n2026-03-01 * \"x\"\n  Expenses:Food  1 EUR\n  Assets:L¹:Sub:Long  -1000.00 EUR\n  Assets:LⅫ  -1 EUR\n  Assets:L٣  999 EUR\n  Assets:Lé  2 EUR\n  Assets:L:ÉB  -1 EUR\n";
+    let want = "2026-01-01 open Expenses:Food\n2026-01-01 open Assets:L¹:Sub:Long\n2026-01-01 open Assets:LⅫ\n2026-01-01 open Assets:L٣\n2026-01-01 open Assets:Lé\n2026-01-01 open Assets:L:ÉB\n\n2026-03-01 * \"x\"\n  Expenses:Food    1 EUR\n  Assets:L¹:Sub:Long  -1000.00 EUR\n  Assets:LⅫ  -1 EUR\n  Assets:L٣      999 EUR\n  Assets:Lé        2 EUR\n  Assets:L:ÉB     -1 EUR\n";
+    assert_eq!(bean(input), want);
+}
+
+#[test]
 fn a_number_without_a_blank_before_its_currency_is_not_aligned() {
     let input = "2026-03-01 * \"x\"\n  Expenses:Food   12.50 EUR\n  Assets:Bank   -12.50 EUR\n  Expenses:Tea  3.50EUR\n  Assets:Cash  -3.50EUR\n";
     let want = "2026-03-01 * \"x\"\n  Expenses:Food   12.50 EUR\n  Assets:Bank    -12.50 EUR\n  Expenses:Tea  3.50EUR\n  Assets:Cash  -3.50EUR\n";
