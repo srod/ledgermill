@@ -8,15 +8,15 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Added
 
-- `load` reads several Beancount files, and hledger files together with Beancount files, in one call
-  (PLA-393). Each Beancount file is its own ledger (`include` is still refused) and all the hledger
+- `load` reads several Beancount files, and hledger files together with Beancount files, in one call.
+  Each Beancount file is its own ledger (`include` is still refused) and all the hledger
   files together are one. `transactions()`, `postings()` and `prices()` are merged by date, then by
   the position of the item's file in the list; `check()` lists each ledger's findings by the position
   of their file; `at_cost()` and `value()` are answered per ledger and line up with `transactions()`;
   `holdings()` adds the rows of the same account and commodity. The `several-beancount-files` and
   `mixed-formats` refusals are gone. A set of one ledger answers as before. See
   `spec/beancount/several-files.md`.
-- Harness: sets of several ledgers are compared with the reference (PLA-393). The reference runs per
+- Harness: sets of several ledgers are compared with the reference. The reference runs per
   ledger (`bean-check` and `bean-query` on each Beancount file, `hledger` on all the hledger files
   together) and the harness merges the results by the rule of the note with an implementation of its
   own; the wasm loaded with the whole set must give the same transactions, `postings()`, `prices()`,
@@ -29,13 +29,13 @@ All notable changes to ledgermill are written here. The format follows
 ### Fixed
 
 - A Beancount currency of one capital letter glued to the next character (`{2 X}`, `1 X,`, `X;`, `X` at
-  the end of a CRLF line or of the file) was accepted; bean-check says `Invalid token: 'X}'` (PLA-411).
+  the end of a CRLF line or of the file) was accepted; bean-check says `Invalid token: 'X}'`.
   It is now a `parse-error` on the line of the letter, the line bean-check gives. A letter followed by a
   space, a tab or the end of the line, or by more currency characters (`X1`, `X.B`), is read as before.
   `fuzz.ts --beancount` now adds `X` to three journals in ten (seed 411, 1,000 journals: 0 fail; of 300,
   79 use `X`, 49 accepted by bean-check, 25 refused on the `X`).
 - A Beancount date or time written with digits other than 0-9 (`٢٠٢٦-01-02`, `time: ١:٢٣`) made the
-  parser panic, a crash in a browser or an app (PLA-406). It is now a `parse-error` on its line, the
+  parser panic, a crash in a browser or an app. It is now a `parse-error` on its line, the
   line bean-check gives, and `format()` returns the file unchanged. The fix is in our parser fork
   (`ledgermill-beancount-parser` 0.16.4). `fuzz.ts --beancount` now puts such a digit in one journal
   in five.

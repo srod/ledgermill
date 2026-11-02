@@ -87,7 +87,7 @@ returns no transaction for a file with a parse error (spec/README.md).
 date written with other ones (`٢٠٢٦-01-02`, Arabic-Indic) is `Invalid token: '٢٠٢٦-01-02'` on its line; a
 `time:` metadata value in them (`١:٢٣`) is `Invalid account name: ١:٢٣` on the metadata line, and bean-query
 still lists the transaction. ledgermill gives a `parse-error` on the same line and returns the file unchanged from
-`format()`. (Its parser used to panic on both, PLA-406.)
+`format()`. (Its parser used to panic on both.)
 
 **A one-letter currency glued to the next character** (`check-one-letter-currency-cost`, `-cost-comma`, `-crlf`,
 `-eof`, `-list`, `-first`, `-accepted`, 2026-10-28). A currency of one capital letter (`X`) is only read when a

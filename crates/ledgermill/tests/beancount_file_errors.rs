@@ -90,7 +90,7 @@ fn a_syntax_error_is_a_parse_error_and_the_first_one_is_in_file_order() {
 }
 
 /// A date or time written with non-ASCII digits is a parse error on its line, as in bean-check,
-/// and `format()` returns the file as it was (PLA-406: the parser used to panic).
+/// and `format()` returns the file as it was (the parser used to panic).
 #[test]
 fn a_date_or_time_in_non_ascii_digits_is_a_parse_error_on_its_line() {
     for (name, line) in [("check-digits-date", 3), ("check-digits-time", 5)] {
@@ -105,7 +105,7 @@ fn a_date_or_time_in_non_ascii_digits_is_a_parse_error_on_its_line() {
 }
 
 /// A currency of one capital letter is only read when a space, a tab or the end of the line follows
-/// it; anything else glued to it is a parse error on its line, as in bean-check (PLA-411).
+/// it; anything else glued to it is a parse error on its line, as in bean-check.
 #[test]
 fn a_one_letter_currency_glued_to_the_next_character_is_a_parse_error_on_its_line() {
     for (name, line) in [

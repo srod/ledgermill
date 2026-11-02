@@ -3,7 +3,7 @@
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`;
 `bean-format --version`: `Beancount 3.2.3`), 2026-10-24.
 
-Status: **built** (PLA-360): `format()` follows "The formatter's rules" below, in `crates/ledgermill/src/beancount/align.rs`;
+Status: **built**: `format()` follows "The formatter's rules" below, in `crates/ledgermill/src/beancount/align.rs`;
 `crates/ledgermill/tests/format_beancount.rs` checks them.
 
 `format(file)` rewrites the whitespace of posting lines (and of `balance` and `price` lines) and nothing

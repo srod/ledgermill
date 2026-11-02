@@ -116,13 +116,13 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [postings](beancount/postings.md) | the flat posting list: row order, lot rows, flags |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
 | [refused](beancount/refused.md) | what ledgermill refuses, and what the reference says |
-| [several-files](beancount/several-files.md) | several Beancount files, or hledger and Beancount, in one `load`: one ledger per Beancount file, the merge order, summed holdings (PLA-393) |
+| [several-files](beancount/several-files.md) | several Beancount files, or hledger and Beancount, in one `load`: one ledger per Beancount file, the merge order, summed holdings |
 | [price-table](beancount/price-table.md) | the `prices` table: the `price` directives by date, the numbers as parsed |
 | [convert-rates](beancount/convert-rates.md) | `convert()`: the latest price of a pair on or before the date, inverse prices, zero, no chain |
 | [convert-positions](beancount/convert-positions.md) | `convert()` of a position: the units' rate, else the cost currency as a bridge; `@` and a cost are no rates |
 | [cost-of-position](beancount/cost-of-position.md) | `cost(position)`: the units times the booked cost per unit, 28 digits |
 | [holdings](beancount/holdings.md) | the units and holdings queries: sums that drop a zero, the date filter, what ledgermill gives |
-| [format](beancount/format.md) | the whitespace Beancount ignores, what `bean-format` aligns (the column, the indent, the line shapes), and the rules `format()` follows (PLA-360) |
+| [format](beancount/format.md) | the whitespace Beancount ignores, what `bean-format` aligns (the column, the indent, the line shapes), and the rules `format()` follows |
 
 ## ledgermill findings
 

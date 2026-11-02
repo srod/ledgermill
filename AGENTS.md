@@ -16,6 +16,10 @@ engines. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; its clean-room rules bin
 - Never copy test journals from upstream. Write your own.
 - Commits: `git commit -s`, plus an `Assisted-by: <tool> (<model>, <vendor>)` trailer, e.g.
   `Assisted-by: pi (Claude, Anthropic)`.
+- No ids from a private issue tracker (`PLA-` and a number, say) in code, docs or commit messages: this
+  repository is public and its readers can't open them. Say what changed, or link a GitHub issue.
+  `scripts/no-private-tracker-ids.sh` checks the files in CI; turn on the commit-message check once
+  per clone with `git config core.hooksPath .githooks`.
 
 ## Layout
 

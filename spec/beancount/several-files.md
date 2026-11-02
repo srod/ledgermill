@@ -2,7 +2,7 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), hledger 1.52.4, 2026-10-27.
 
-Status: **built** (PLA-393). This note records a design decision of the project owner, and what the reference
+Status: **built**. This note records a design decision of the project owner, and what the reference
 tools do that makes it the sensible one. The merge order and the sums are ours: no reference tool loads a
 Beancount file and a journal together, so there is nothing to compare them with, and the harness compares each
 file alone.
