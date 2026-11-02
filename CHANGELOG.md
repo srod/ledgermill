@@ -58,20 +58,28 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Release gate
 
-From the release-gate workflow on commit TBD at release (run TBD at release), CI on the same
-commit (run TBD at release), and the owner's own runs.
+From the release-gate workflow on commit `ea9e776` (run 41521006303, 2026-11-02), CI on the same
+commit (run 41513527166), and the owner's own runs.
 
-- Random hledger journals (5,000): TBD at release
-- Random Beancount journals (5,000): TBD at release
-- Random price networks (5,000): TBD at release
-- Random Beancount journals with pairs priced both ways (5,000): TBD at release
-- Random sets of several ledgers (5,000, new in this gate): TBD at release
-- Corpus comparison: TBD at release
-- Desktop bench against 0.1.2: TBD at release
-- Stress test, 100,000 transactions: TBD at release
-- Similarity check score: TBD at release
-- Real journals: TBD at release
-- Device targets: TBD at release
+- Random hledger journals (5,000): 0 mismatches (2,308 that hledger accepts; the rest rejected by
+  both, 43 skipped, all `conversion-postings`)
+- Random Beancount journals (5,000): 0 mismatches (3,735 that bean-check accepts)
+- Random price networks (5,000): 0 mismatches
+- Random Beancount journals with pairs priced both ways (5,000): 0 mismatches
+- Random sets of several ledgers (5,000, new in this gate): 0 mismatches (2,259 sets the reference
+  accepts; 63 skipped, all `conversion-postings`)
+- Corpus comparison: 12,582 pass, 0 fail, 47 skip
+- Desktop bench against 0.1.2 from npm (CI runner, 10,000 transactions): every operation within
+  0.78–1.07× of 0.1.2 (the 0.78 is Beancount `prices`, at 0.12 ms; the 1.07 is Beancount `format`,
+  452 to 483 ms); load+transactions 95.9 ms (hledger), 138.0 ms (Beancount); start 20.6 ms
+- Stress test, 100,000 transactions: ok, no crash (peak wasm memory 930 MB hledger, 549 MB Beancount)
+- Similarity check score: max 0.089 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
+  8 warn; copydetect max 0.275 (information only)
+- Real journals: pass (21 pass, 0 fail)
+- Device targets: not met (Beancount load+transactions on a Pixel 7 Pro: median 505 ms over 12 runs,
+  worst of 3 above 500 ms in 3 of 4 rounds; 0.1.2 on the same phone, alternated: median 491 ms, also
+  above 500 ms in 3 of 4 rounds). Every other target met: hledger load+transactions worst 312 ms,
+  start 19 ms, value 61 ms, holdings 36 ms, memory 48.2 MB hledger and 43.4 MB Beancount
 
 ## 0.1.2 – 2026-10-27
 
