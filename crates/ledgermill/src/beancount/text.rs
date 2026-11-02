@@ -475,64 +475,92 @@ pub(super) fn margin_errors(text: &str) -> Vec<u32> {
     out
 }
 
-/// The line's code with each string cut down to one `"` and the comment to a `;`, given whether a
-/// string was open when the line began. `\r` stays: it is not a space for a one-letter currency.
-fn code_with_markers(line: &str, mut open: bool) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut escaped = false;
-    for c in line.chars() {
-        if open {
-            if escaped {
-                escaped = false;
-            } else if c == '\\' {
-                escaped = true;
-            } else if c == '"' {
-                open = false;
-            }
-        } else if c == '"' {
-            open = true;
-            out.push(c);
-        } else if c == ';' {
-            out.push(c);
-            break;
-        } else {
-            out.push(c);
-        }
+/// The bytes that end a word of a line's code: blanks, the delimiters around amounts, and the `"`
+/// and `;` that start a string or a comment.
+const WORD_BREAKS: [bool; 256] = {
+    let mut table = [false; 256];
+    let breaks = b" \t{},@~()\";";
+    let mut i = 0;
+    while i < breaks.len() {
+        table[breaks[i] as usize] = true;
+        i += 1;
     }
-    out
+    table
+};
+
+fn is_word_break(b: u8) -> bool {
+    WORD_BREAKS[usize::from(b)]
 }
 
 /// Whether a word (no space, brace, comma, `@`, `~`, parenthesis or quote in it) is a one-letter
-/// currency glued to what follows it. `next` is the character after the word, `None` at the end
-/// of the line, and `eof` says that end is the end of the file.
-fn is_glued_currency(word: &[char], next: Option<char>, eof: bool) -> bool {
-    // Tags, links, accounts and metadata keys have letters in them that are not currencies; a
-    // leading `/` makes a longer currency.
-    if word.first().is_some_and(|c| matches!(c, '#' | '^' | '/')) || word.contains(&':') {
-        return false;
-    }
-    // A sign and a number may be glued to the currency (`-2X`, `1.5X`).
+/// currency glued to what follows it. `next` is the byte after the word, `None` at the end of the
+/// line, and `eof` says that end is the end of the file. Bytes, not chars: every byte looked for
+/// is ASCII, which never occurs inside a multi-byte sequence.
+fn is_glued_currency(word: &[u8], next: Option<u8>, eof: bool) -> bool {
+    // A sign and a number may be glued to the currency (`-2X`, `1.5X`). A word that starts with
+    // `#`, `^` or `/` (a tag, a link, a longer currency) has no capital here and is not one.
     let start = word
         .iter()
-        .position(|c| !(c.is_ascii_digit() || matches!(c, '+' | '-' | ',' | '.')))
+        .position(|c| !(c.is_ascii_digit() || matches!(c, b'+' | b'-' | b',' | b'.')))
         .unwrap_or(word.len());
-    let Some((letter, tail)) = word.get(start..).and_then(<[char]>::split_first) else {
+    let Some((letter, tail)) = word.get(start..).and_then(<[u8]>::split_first) else {
         return false;
     };
     if !letter.is_ascii_uppercase() {
         return false;
     }
-    match tail.first().copied().or(next) {
+    let glued = match tail.first().copied().or(next) {
         // A space, a tab or the end of the line after the letter: read as is. The end of the file
         // is not a line end for the reference.
         None => eof,
-        Some(' ' | '\t') => false,
+        Some(b' ' | b'\t') => false,
         // Otherwise only a longer currency saves it: one that ends in a letter or a digit.
         Some(_) => !tail
             .iter()
-            .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || "'._-".contains(**c))
+            .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || b"'._-".contains(*c))
             .any(|c| c.is_ascii_uppercase() || c.is_ascii_digit()),
+    };
+    // Accounts and metadata keys have capitals in them that are not currencies; looked at last,
+    // as it reads the whole word.
+    glued && !word.contains(&b':')
+}
+
+/// One pass over a line, given whether a string was open when it began: whether a word of its
+/// code (outside strings and the comment) is a glued one-letter currency, and whether a string is
+/// open after it. `\r` is a word byte: it is not a space for a one-letter currency.
+fn scan_line(line: &[u8], mut open: bool, eof: bool) -> (bool, bool) {
+    let mut found = false;
+    let mut escaped = false;
+    let mut i = 0;
+    while let Some(&c) = line.get(i) {
+        if open {
+            if escaped {
+                escaped = false;
+            } else if c == b'\\' {
+                escaped = true;
+            } else if c == b'"' {
+                open = false;
+            }
+            i += 1;
+        } else if c == b'"' {
+            open = true;
+            i += 1;
+        } else if c == b';' {
+            break;
+        } else if is_word_break(c) {
+            i += 1;
+        } else {
+            let rest = line.get(i..).unwrap_or_default();
+            let len = rest
+                .iter()
+                .position(|&b| is_word_break(b))
+                .unwrap_or(rest.len());
+            let word = rest.get(..len).unwrap_or_default();
+            found = found || is_glued_currency(word, rest.get(len).copied(), eof);
+            i += len;
+        }
     }
+    (found, open)
 }
 
 /// Lines with a one-letter currency glued to the character after it, outside strings, comments,
@@ -541,36 +569,21 @@ fn is_glued_currency(word: &[char], next: Option<char>, eof: bool) -> bool {
 pub(super) fn glued_currency_errors(text: &str) -> Vec<u32> {
     let mut out = Vec::new();
     let mut in_string = false;
-    let last = text.split('\n').count().saturating_sub(1);
+    let last = text.bytes().filter(|&b| b == b'\n').count();
     for (index, raw) in text.split('\n').enumerate() {
         let raw = if index == 0 {
             raw.strip_prefix('\u{feff}').unwrap_or(raw)
         } else {
             raw
         };
-        let margin_comment = !in_string && is_margin_comment(raw.strip_suffix('\r').unwrap_or(raw));
-        let code = code_with_markers(raw, in_string);
-        in_string = string_open_after(raw, in_string);
-        if margin_comment {
+        if !in_string && is_margin_comment(raw.strip_suffix('\r').unwrap_or(raw)) {
+            in_string = string_open_after(raw, false);
             continue;
         }
-        let chars: Vec<char> = code.chars().collect();
-        let is_break = |c: char| matches!(c, ' ' | '\t') || "{},@~()\";".contains(c);
-        let mut i = 0;
-        while i < chars.len() {
-            if is_break(chars[i]) {
-                i += 1;
-                continue;
-            }
-            let end = chars[i..]
-                .iter()
-                .position(|&c| is_break(c))
-                .map_or(chars.len(), |n| i + n);
-            if is_glued_currency(&chars[i..end], chars.get(end).copied(), index == last) {
-                out.extend(u32::try_from(index + 1));
-                break;
-            }
-            i = end;
+        let (found, open) = scan_line(raw.as_bytes(), in_string, index == last);
+        in_string = open;
+        if found {
+            out.extend(u32::try_from(index + 1));
         }
     }
     out
