@@ -127,6 +127,8 @@ const appSets: string[][] = [
   ["proj002-price-unit.beancount", "proj002-price-unit.journal", "verbatim-price-annotations.beancount"],
   ["proj002-price-unit.journal", "proj004-balance-assertion.journal", "proj002-price-unit.beancount"],
   ["valuation-dates.journal", "valuation-costs.beancount", "valuation-precedence.journal", "valuation-dates.beancount"],
+  // The app's crypto demo: the same 118 transactions in both syntaxes, so every account, commodity and price is shared.
+  ["crypto-demo.journal", "crypto-demo.beancount"],
 ].map((files) => files.map((f) => join(APP, f)));
 // Every Beancount journal of the app together, with three of its hledger ones in the middle.
 const appBeancount = readdirSync(APP).filter((f) => f.endsWith(".beancount")).sort().map((f) => join(APP, f));

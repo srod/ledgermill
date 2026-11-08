@@ -382,7 +382,7 @@ The summary has a line for the sets: `multi-ledger: N pass, N fail, N skip` (the
 `postings`, `prices`, `--cost`, `--value` and `holdings`; they are in the total. `compare.ts` runs the sets of `severalSets` (the probes of
 `spec/beancount/probes/several-files/` in several orders, with the hledger file first, in the middle and last; the rejected ones; the
 refused one next to good ones) and `appSets` (Plainledger's own Beancount journals with each other and with its hledger ones, which
-share accounts such as `Assets:Bank`, so that rows are added; all twelve Beancount ones together; all with three journals among them).
+share accounts such as `Assets:Bank`, so that rows are added; all thirteen Beancount ones together; all with three journals among them).
 `real.ts` with several files runs each alone and then all together, as a set, whatever the formats.
 
 `bun harness/fuzz.ts --multi [N] [SEED]` writes sets of 2 to 4 files (one Beancount at least, then Beancount or hledger; a hledger
@@ -444,7 +444,7 @@ All journals are written by us and safe to publish.
   `compare.ts` does not run them, since hledger accepts them; the Rust test
   `crates/ledgermill/tests/hledger_refused_probes.rs` reads the directory and checks that each gives an
   `unsupported-syntax` error.
-- `journals/app/*.beancount`: the Beancount test journals of our first user (12).
+- `journals/app/*.beancount`: the Beancount test journals of our first user (13).
 - `../spec/beancount/probes/`: the Beancount probe journals behind each spec note
   (`probes/refused/` holds those ledgermill refuses; they are not run by `compare.ts`).
 - Sets of several ledgers: the `severalSets` and `appSets` lists in `compare.ts` (see "Several ledgers").
