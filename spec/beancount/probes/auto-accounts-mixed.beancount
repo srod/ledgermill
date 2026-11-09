@@ -1,0 +1,7 @@
+2026-03-02 * "one account opened by hand, the other by the plugin"
+  Assets:A  1 EUR
+  Assets:B
+
+2026-01-01 open Assets:A EUR
+
+plugin "beancount.plugins.auto_accounts"

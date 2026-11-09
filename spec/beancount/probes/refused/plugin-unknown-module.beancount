@@ -1,0 +1,8 @@
+plugin "no.such.module"
+
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a module that cannot be loaded"
+  Assets:A  1 EUR
+  Assets:B

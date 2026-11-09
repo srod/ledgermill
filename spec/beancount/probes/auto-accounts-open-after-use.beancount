@@ -1,0 +1,9 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-01-01 open Assets:A
+
+2026-03-02 * "Assets:B has an open, but dated after this use"
+  Assets:A  1 EUR
+  Assets:B
+
+2026-04-01 open Assets:B

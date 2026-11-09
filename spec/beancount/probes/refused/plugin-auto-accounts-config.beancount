@@ -1,0 +1,5 @@
+plugin "beancount.plugins.auto_accounts" "a configuration string"
+
+2026-01-02 * "this plugin takes no configuration"
+  Assets:A  1 EUR
+  Assets:B

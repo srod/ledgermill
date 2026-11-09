@@ -1,0 +1,12 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-01-01 open Assets:Eur EUR
+2026-01-01 open Assets:Dup
+2026-01-01 open Assets:Dup
+
+2026-03-01 * "an explicit account keeps its constraint; an auto one has none"
+  Assets:Eur  1 USD
+  Assets:Auto  -1 USD
+
+2026-03-02 balance Assets:Eur  0 JPY
+2026-03-02 balance Assets:Auto  0 JPY
