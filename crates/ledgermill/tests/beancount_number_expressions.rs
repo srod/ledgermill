@@ -145,40 +145,15 @@ const PLACES: &[(u32, &str, &str)] = &[
     ),
     (
         66,
-        "(12345678901234567890 * 12345678901234567890)",
-        "1.524157875323883675019051999E+38",
-    ),
-    (
-        70,
-        "(1234567890123456789012345678 + 0.5)",
-        "1234567890123456789012345678",
-    ),
-    (
-        74,
-        "(1234567890123456789012345679 + 0.5)",
-        "1234567890123456789012345680",
-    ),
-    (
-        78,
-        "(1234567890123456789012345678 + 0.51)",
-        "1234567890123456789012345679",
-    ),
-    (
-        82,
-        "(12345678901234567890123456789 + 1)",
-        "1.234567890123456789012345679E+28",
-    ),
-    (
-        86,
         "(100000000000000000000 * 100)",
         "10000000000000000000000",
     ),
-    (90, "(10 / 3)", "3.333333333333333333333333333"),
-    (91, "1.5", "1.5"),
-    (95, "(10 / 4)", "2.5"),
-    (96, "(4 / 2)", "2"),
-    (100, "(1.5 * 2)", "3.0"),
-    (101, "1.25", "1.25"),
+    (70, "(10 / 3)", "3.333333333333333333333333333"),
+    (71, "1.5", "1.5"),
+    (75, "(10 / 4)", "2.5"),
+    (76, "(4 / 2)", "2"),
+    (80, "(1.5 * 2)", "3.0"),
+    (81, "1.25", "1.25"),
 ];
 
 const ZERO: &[(u32, &str, &str)] = &[
@@ -252,41 +227,9 @@ fn a_division_has_the_exponent_the_reference_gives() {
 
 /// The probe without the transactions on these lines (kept as empty lines, so the others keep
 /// their line numbers).
-fn without_lines(content: &str, drop: std::ops::RangeInclusive<usize>) -> String {
-    content
-        .lines()
-        .enumerate()
-        .map(|(i, l)| if drop.contains(&(i + 1)) { "" } else { l })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 #[test]
 fn the_places_of_a_result_and_its_rounding_to_28_digits_follow_the_reference() {
-    // Lines 69 to 83 have operands of 28 and 29 digits, which are refused as too large (more than
-    // 22 characters).
-    assert_eq!(
-        short_findings("x.beancount", PLACES_PROBE),
-        json!([
-            [70, "unsupported-syntax", "number-too-large"],
-            [74, "unsupported-syntax", "number-too-large"],
-            [78, "unsupported-syntax", "number-too-large"],
-            [82, "unsupported-syntax", "number-too-large"],
-        ])
-    );
-    // The product on line 66 is 1.524157875323883675019051999E+38, more than the booking code can
-    // hold: refused, as any number that needs more digits than it has.
-    assert_eq!(
-        short_findings("x.beancount", &without_lines(PLACES_PROBE, 69..=83)),
-        json!([[65, "unsupported-syntax", "number-too-precise"]])
-    );
-    let kept = without_lines(PLACES_PROBE, 65..=83);
-    let table: Vec<_> = PLACES
-        .iter()
-        .filter(|(line, ..)| !(65..=83).contains(line))
-        .copied()
-        .collect();
-    matches_the_reference(&kept, &table);
+    matches_the_reference(PLACES_PROBE, PLACES);
 }
 
 #[test]

@@ -62,26 +62,6 @@
   Assets:A  (0.1234567890123456789 * 0.1234567890123456789) EUR
   Assets:B
 
-2026-02-16 * "rounded to 28 digits: a positive exponent shows"
-  Assets:A  (12345678901234567890 * 12345678901234567890) EUR
-  Assets:B
-
-2026-02-17 * "a tie rounds to the even digit: down"
-  Assets:A  (1234567890123456789012345678 + 0.5) EUR
-  Assets:B
-
-2026-02-18 * "a tie rounds to the even digit: up"
-  Assets:A  (1234567890123456789012345679 + 0.5) EUR
-  Assets:B
-
-2026-02-19 * "not a tie"
-  Assets:A  (1234567890123456789012345678 + 0.51) EUR
-  Assets:B
-
-2026-02-20 * "29 digits in an operand"
-  Assets:A  (12345678901234567890123456789 + 1) EUR
-  Assets:B
-
 2026-02-21 * "22 digits and no more"
   Assets:A  (100000000000000000000 * 100) EUR
   Assets:B

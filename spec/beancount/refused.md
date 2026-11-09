@@ -23,6 +23,7 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `include` | rejects here, the file is missing: "File glob ... does not match any files" | `include` |
 | `number-expression-stacked-sign` | accepts: `--4 EUR` is `4` (a sign in front of a sign, no parentheses) | `number-expression` |
 | `number-expression-tolerance-sum` | accepts: `0 ~ 1 + 2 EUR`, a tolerance that is a sum, no parentheses | `number-expression` |
+| `number-expression-operands-too-large` | accepts: operands of 28 and 29 digits, `(1234567890123456789012345678 + 0.5) EUR` is `1234567890123456789012345678` (a tie to the even digit) | `number-too-large` |
 | `number-expression-result-too-large` | accepts: `(12345678901234567890 * 12345678901234567890) EUR` is `1.524157875323883675019051999E+38` | `number-too-precise` |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
@@ -49,7 +50,7 @@ Also refused, without a probe because nothing needs a reference to confirm it:
 
 ## Probe
 
-`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression-result-too-large.beancount`, `probes/refused/number-expression-stacked-sign.beancount`, `probes/refused/number-expression-tolerance-sum.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin.beancount`
+`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression-operands-too-large.beancount`, `probes/refused/number-expression-result-too-large.beancount`, `probes/refused/number-expression-stacked-sign.beancount`, `probes/refused/number-expression-tolerance-sum.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin.beancount`
 
 Command:
 
@@ -57,6 +58,7 @@ Command:
 spec/beancount/show.sh spec/beancount/probes/refused/average-booking.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/cost-merge.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/include.beancount
+spec/beancount/show.sh spec/beancount/probes/refused/number-expression-operands-too-large.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/number-expression-result-too-large.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/number-expression-stacked-sign.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/number-expression-tolerance-sum.beancount
@@ -92,6 +94,20 @@ include:
 
 ```text
 bean-check: <load>:0: File glob "other.beancount" does not match any files
+```
+
+number-expression-operands-too-large:
+
+```text
+bean-check: (no output, exit 0)
+4b3972,transaction,4,2026-02-17,*,,a tie rounds to the even digit: down
+c76229,transaction,8,2026-02-18,*,,a tie rounds to the even digit: up
+a7ffa2,transaction,12,2026-02-19,*,,not a tie
+cb83f5,transaction,16,2026-02-20,*,,29 digits in an operand
+4b3972,Assets:A,,1234567890123456789012345678,EUR,,,,,,,5
+c76229,Assets:A,,1234567890123456789012345680,EUR,,,,,,,9
+a7ffa2,Assets:A,,1234567890123456789012345679,EUR,,,,,,,13
+cb83f5,Assets:A,,1.234567890123456789012345679E+28,EUR,,,,,,,17
 ```
 
 number-expression-result-too-large:

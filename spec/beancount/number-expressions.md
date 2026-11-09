@@ -154,7 +154,7 @@ than 22 characters are refused) that the reader replaces by the value. What it r
   (more than 96 bits, such as `1.524157875323883675019051999E+38`) is refused as `number-too-precise`,
   like any number that needs more digits than are handled (`probes/refused/number-expression-result-too-large.beancount`).
   An operand is a number as written anywhere: more than 22 characters is `number-too-large`, so the
-  28- and 29-digit operands of `-places` (lines 69 to 83) are refused, and the rest of that probe is read.
+  28- and 29-digit operands of `probes/refused/number-expression-operands-too-large.beancount` are refused.
 - **Syntax errors** are `parse-error`, on the line of the expression, or the line after when the expression
   stops where more was needed (a line break or a comment inside it: lines 154 and 163 of `-errors`). As for
   every parse error, ledgermill returns no transaction for the file (the reference loses only the entry,
@@ -180,7 +180,8 @@ than 22 characters are refused) that the reader replaces by the value. What it r
 `probes/number-expression-balance.beancount`, `probes/number-expression-price-directive.beancount`,
 `probes/number-expression-metadata.beancount`, `probes/number-expression-errors.beancount`,
 `probes/number-expression-format.beancount`, `probes/refused/number-expression-division-by-zero.beancount`,
-`probes/refused/number-expression-division-by-zero-first-operand.beancount`
+`probes/refused/number-expression-division-by-zero-first-operand.beancount`,
+`probes/refused/number-expression-operands-too-large.beancount`
 
 Command:
 
@@ -307,18 +308,13 @@ line  written                                          number
 54    (2.50 - 2.5)                                     0.00
 58    (1,000.50 * 2)                                   2001.00
 62    (0.1234567890123456789 * 0.1234567890123456789)  0.01524157875323883675019051999
-66    (12345678901234567890 * 12345678901234567890)    1.524157875323883675019051999E+38
-70    (1234567890123456789012345678 + 0.5)             1234567890123456789012345678
-74    (1234567890123456789012345679 + 0.5)             1234567890123456789012345680
-78    (1234567890123456789012345678 + 0.51)            1234567890123456789012345679
-82    (12345678901234567890123456789 + 1)              1.234567890123456789012345679E+28
-86    (100000000000000000000 * 100)                    10000000000000000000000
-90    (10 / 3)                                         3.333333333333333333333333333
-91    1.5                                              1.5
-95    (10 / 4)                                         2.5
-96    (4 / 2)                                          2
-100   (1.5 * 2)                                        3.0
-101   1.25                                             1.25
+66    (100000000000000000000 * 100)                    10000000000000000000000
+70    (10 / 3)                                         3.333333333333333333333333333
+71    1.5                                              1.5
+75    (10 / 4)                                         2.5
+76    (4 / 2)                                          2
+80    (1.5 * 2)                                        3.0
+81    1.25                                             1.25
 ```
 
 number-expression-zero:
@@ -464,6 +460,16 @@ bean-check (exit 1):
   145: syntax error, unexpected CURRENCY, expecting PLUS or MINUS or LPAREN or NUMBER   <- Assets:A  1 / EUR
   154: syntax error, unexpected EOL, expecting PLUS or MINUS or LPAREN or NUMBER   <- 2) EUR
   163: syntax error, unexpected EOL, expecting PLUS or MINUS or LPAREN or NUMBER   <- 2) EUR
+```
+
+refused/number-expression-operands-too-large (bean-check: no output, exit 0; operands of 28 and 29 digits, lines 5, 9, 13 and 17):
+
+```text
+line  written                                         number
+5     (1234567890123456789012345678 + 0.5)            1234567890123456789012345678
+9     (1234567890123456789012345679 + 0.5)            1234567890123456789012345680
+13    (1234567890123456789012345678 + 0.51)           1234567890123456789012345679
+17    (12345678901234567890123456789 + 1)             1.234567890123456789012345679E+28
 ```
 
 refused/number-expression-division-by-zero and refused/number-expression-division-by-zero-first-operand:

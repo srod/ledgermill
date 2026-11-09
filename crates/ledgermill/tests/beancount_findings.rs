@@ -93,6 +93,15 @@ fn the_arithmetic_the_parser_cannot_read_and_lot_merging_are_refused() {
         3,
         "number-too-precise",
     );
+    // The first of four operands of 28 and 29 digits: more than 22 characters.
+    refused(
+        "x.beancount",
+        include_str!(
+            "../../../spec/beancount/probes/refused/number-expression-operands-too-large.beancount"
+        ),
+        5,
+        "number-too-large",
+    );
     refused(
         "m.beancount",
         include_str!("../../../spec/beancount/probes/refused/cost-merge.beancount"),
