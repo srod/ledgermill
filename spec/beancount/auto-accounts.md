@@ -18,8 +18,8 @@ with the module name in `details.name`.
   the string: a backslash makes the next character itself (`\o` is `o`, `\\` a backslash, `\"` a quote), except
   `\n`, `\t`, `\r`, `\b` and `\f`, which are control characters (`\x6f`, `\157` and `\u006f` are not escapes:
   `x6f`, `157`, `u006f`). So `plugin "beancount.plugins.auto_acc\ounts"` runs `auto_accounts` and
-  `"beancount.plugins.auto_accou\nts"` is another module. ledgermill compares the module as written, so both are
-  refused by name (as written); the parser behind it does not read these escapes in a `plugin` line either.
+  `"beancount.plugins.auto_accou\nts"` is another module. ledgermill's parser does not decode these escapes in a
+  `plugin` line, and it compares the module as written, so both are refused by name (as written).
   The same holds for `implicit_prices`.
 - `beancount.plugins.auto_accounts` with **no** configuration string is built. With one the reference fails
   to apply the plugin (an error on `<load>:0`), and ledgermill refuses it.

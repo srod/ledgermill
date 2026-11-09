@@ -9,9 +9,9 @@ Status: **built** (`Ledger::prices()` for Beancount).
 The query Plainledger runs is `SELECT date, currency, number(amount), currency(amount) FROM prices`.
 The table lists the `price` directives of the file and nothing else:
 
-- A price annotation on a posting (`@`, `@@`) and a cost (`{}`) put no row in it (unless the file has the `implicit_prices` plugin line:
-  implicit-prices.md), and no rate anywhere
-  else (convert-positions.md checks that valuation ignores them too).
+- A price annotation on a posting (`@`, `@@`) and a cost (`{}`) put no row in it, and no rate anywhere
+  else (convert-positions.md checks that valuation ignores them too). The exception is a file with the
+  `implicit_prices` plugin line: its entries are rows, and rates (implicit-prices.md).
 - **Order: by date, not file order.** The sort is stable: directives with the same date stay in the
   order written, and a directive written twice is listed twice (no duplicates are dropped, no
   last-one-wins). A directive written below a later date comes first.

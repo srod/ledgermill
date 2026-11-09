@@ -75,8 +75,8 @@ a directive written below the posting beats the posting. The rest of convert-rat
 
 ### Errors
 
-None are added. `check()` gives for a journal with the plugin what it gives without (compared on every probe
-of the corpus, 196 journals with the plugin line added at the end, and the app's journals).
+None are added. `check()` gives for a journal with the plugin what it gives without (the one-off check under
+"What ledgermill does").
 
 ## Probe
 
@@ -247,10 +247,20 @@ directive (40) is above the posting (41), the posting wins; 2 BTC at 100.00 on 0
 
 ## What ledgermill does
 
-Built. `prices()`, `value()` and `holdings()` are those of the reference on every probe above, on 196 probe journals of
-the corpus with the plugin line added at the end and on the app's 13 Beancount journals with it, compared by the harness
-(`prices` with the line of each entry, `value` and `holdings` on the dates of the table). The entries are made from the transactions
-booking kept, in the order of their booked postings, dropped as above, repeated once per plugin line and listed with the `price` directives
+Built. `prices()`, `value()` and `holdings()` are those of the reference on every probe above, compared by the harness
+(`prices` with the line of each entry, `value` and `holdings` on the dates of the table). A one-off check, not part of
+`compare.ts`, also ran the 196 probes that have no `plugin` line and the app's 13 Beancount journals with the plugin line
+added at the end, each alone (2026-11-09: 209 journals, 0 fail, 1 skip, the `document` probe):
+
+```sh
+d=$(mktemp -d)
+for f in $(grep -L '^plugin' spec/beancount/probes/*.beancount) harness/journals/app/*.beancount; do
+  cp "$f" "$d/"; printf '\nplugin "beancount.plugins.implicit_prices"\n' >> "$d/$(basename "$f")"
+done
+for f in "$d"/*.beancount; do bun harness/real.ts --quiet "$f" | tail -1; done | sort | uniq -c
+```
+
+The entries are made from the transactions booking kept, in the order of their booked postings, dropped as above, repeated once per plugin line and listed with the `price` directives
 by date and line. Whether a posting opened a lot is known from booking (it is what decides the lot digits of a purchase and a sale). Refused,
 still: a configuration string, every other module, and the shapes that booking refuses (`number-too-precise`, `inferred-cost`, …),
 which keep the file refused with or without the plugin.

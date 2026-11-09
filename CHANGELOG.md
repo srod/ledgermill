@@ -17,7 +17,15 @@ All notable changes to ledgermill are written here. The format follows
   aligns expressions as `bean-format` does. See `spec/beancount/number-expressions.md`.
 - Beancount: `plugin "beancount.plugins.auto_accounts"` is built: every account used and never opened gets an `open`
   on the day of its first use, so a journal with no `open` lines is valid. Every other plugin is still refused
-  (`unsupported-syntax`), and the finding now names it in `details.name`. See `spec/beancount/auto-accounts.md`.
+  (`unsupported-syntax`), and the finding now names it in `details.name`. An indented `plugin` line is
+  accepted, though the reference rejects it (a gap of every indented directive). See
+  `spec/beancount/auto-accounts.md`.
+- Beancount: `plugin "beancount.plugins.implicit_prices"` is built: a price annotation (`@`, `@@`) and the
+  cost of a posting that opens a lot add `price` entries, on the transaction's date and line, so `prices()`,
+  `value()` and `holdings()` follow them. A price annotation wins over a cost, a cost that reduces a lot
+  makes no price (with `NONE` booking every costed posting opens a lot, so each makes one), equal entries of
+  one run are dropped, and every `plugin` line runs it once more. A configuration string is still refused.
+  See `spec/beancount/implicit-prices.md`.
 - `fuzz.ts --beancount` writes arithmetic in numbers now and then.
 - Beancount: a posting flag `*` straight before the account (`*Assets:Bank`) is read.
 
