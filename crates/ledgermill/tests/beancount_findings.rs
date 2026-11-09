@@ -68,12 +68,39 @@ fn options_that_change_nothing_are_accepted() {
 }
 
 #[test]
-fn arithmetic_in_amounts_and_lot_merging_are_refused() {
+fn the_arithmetic_the_parser_cannot_read_and_lot_merging_are_refused() {
     refused(
         "x.beancount",
-        include_str!("../../../spec/beancount/probes/refused/number-expression.beancount"),
+        include_str!(
+            "../../../spec/beancount/probes/refused/number-expression-stacked-sign.beancount"
+        ),
         5,
         "number-expression",
+    );
+    refused(
+        "x.beancount",
+        include_str!(
+            "../../../spec/beancount/probes/refused/number-expression-tolerance-sum.beancount"
+        ),
+        2,
+        "number-expression",
+    );
+    refused(
+        "x.beancount",
+        include_str!(
+            "../../../spec/beancount/probes/refused/number-expression-result-too-large.beancount"
+        ),
+        3,
+        "number-too-precise",
+    );
+    // The first of four operands of 28 and 29 digits: more than 22 characters.
+    refused(
+        "x.beancount",
+        include_str!(
+            "../../../spec/beancount/probes/refused/number-expression-operands-too-large.beancount"
+        ),
+        5,
+        "number-too-large",
     );
     refused(
         "m.beancount",

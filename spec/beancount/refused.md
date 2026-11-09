@@ -2,7 +2,9 @@
 
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-21.
 
-Status: **built**. `pad` and `balance` are no longer refused; the rest of this note is as it was.
+Status: **built**. `pad` and `balance` are no longer refused, and neither is arithmetic in a number
+(number-expressions.md); only a few shapes of it still are, listed in that note's "What ledgermill does
+with it". The rest of this note is as it was.
 
 ## Rule
 
@@ -20,15 +22,20 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `cost-partial-per-unit`, `cost-partial-total` | accept: the missing part of `{2 # EUR}` / `{# 1 EUR}` is worked out | `cost-partial` |
 | `inferred-price-with-cost` | rejects: "Too many missing numbers" | `inferred-price` |
 | `include` | rejects here, the file is missing: "File glob ... does not match any files" | `include` |
-| `number-expression` | accepts: `(1 + 2) * 3 EUR` is `9`; the same in a `price` directive (price-table.md) | `number-expression` |
+| `number-expression-stacked-sign` | accepts: `--4 EUR` is `4` (a sign in front of a sign, no parentheses) | `number-expression` |
+| `number-expression-tolerance-sum` | accepts: `0 ~ 1 + 2 EUR`, a tolerance that is a sum, no parentheses | `number-expression` |
+| `number-expression-operands-too-large` | accepts: operands of 28 and 29 digits, `(1234567890123456789012345678 + 0.5) EUR` is `1234567890123456789012345678` (a tie to the even digit) | `number-too-large` |
+| `number-expression-result-too-large` | accepts: `(12345678901234567890 * 12345678901234567890) EUR` is `1.524157875323883675019051999E+38` | `number-too-precise` |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
 | `plugin` | accepts, the plugin runs | `plugin` |
 
-Why each is refused: `include` and `plugin` bring in files or rewrite the entries; a
-number expression needs the expression grammar; an option other than the ones in options-and-directives.md may
+Why each is refused: `include` and `plugin` bring in files or rewrite the entries; an option other than the ones in options-and-directives.md may
 change tolerances, account names or booking; `cost-merge` (`{..., *}`) and AVERAGE booking merge
-lots. ledgermill refuses a rejected journal as unsupported rather than as an error when the
+lots. A sign in front of a sign and a tolerance that is a sum are read by the reference but not by the
+parser ledgermill is built on, which takes one sign and a plain number there; the same two inside
+parentheses are read (number-expressions.md). A result that needs more digits than the booking code holds
+is `number-too-precise`, as any other number is. ledgermill refuses a rejected journal as unsupported rather than as an error when the
 construct is one it would refuse anyway, so the harness reports SKIP, not "both fail".
 
 Also refused, without a probe because nothing needs a reference to confirm it:
@@ -44,7 +51,7 @@ Also refused, without a probe because nothing needs a reference to confirm it:
 
 ## Probe
 
-`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin.beancount`
+`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression-operands-too-large.beancount`, `probes/refused/number-expression-result-too-large.beancount`, `probes/refused/number-expression-stacked-sign.beancount`, `probes/refused/number-expression-tolerance-sum.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin.beancount`
 
 Command:
 
@@ -52,7 +59,10 @@ Command:
 spec/beancount/show.sh spec/beancount/probes/refused/average-booking.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/cost-merge.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/include.beancount
-spec/beancount/show.sh spec/beancount/probes/refused/number-expression.beancount
+spec/beancount/show.sh spec/beancount/probes/refused/number-expression-operands-too-large.beancount
+spec/beancount/show.sh spec/beancount/probes/refused/number-expression-result-too-large.beancount
+spec/beancount/show.sh spec/beancount/probes/refused/number-expression-stacked-sign.beancount
+spec/beancount/show.sh spec/beancount/probes/refused/number-expression-tolerance-sum.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/option-tolerance.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/option-unknown.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/plugin.beancount
@@ -87,13 +97,42 @@ include:
 bean-check: <load>:0: File glob "other.beancount" does not match any files
 ```
 
-number-expression:
+number-expression-operands-too-large:
 
 ```text
 bean-check: (no output, exit 0)
-3cb4ff,transaction,4,2026-01-02,*,,arithmetic in an amount
-3cb4ff,Assets:A,,9,EUR,,,,,,,5
-3cb4ff,Assets:B,,-9,EUR,,,,,,,6
+4b3972,transaction,4,2026-02-17,*,,a tie rounds to the even digit: down
+c76229,transaction,8,2026-02-18,*,,a tie rounds to the even digit: up
+a7ffa2,transaction,12,2026-02-19,*,,not a tie
+cb83f5,transaction,16,2026-02-20,*,,29 digits in an operand
+4b3972,Assets:A,,1234567890123456789012345678,EUR,,,,,,,5
+c76229,Assets:A,,1234567890123456789012345680,EUR,,,,,,,9
+a7ffa2,Assets:A,,1234567890123456789012345679,EUR,,,,,,,13
+cb83f5,Assets:A,,1.234567890123456789012345679E+28,EUR,,,,,,,17
+```
+
+number-expression-result-too-large:
+
+```text
+bean-check: (no output, exit 0)
+463924,transaction,3,2026-01-02,*,,a product of 39 digits
+463924,Assets:A,,1.524157875323883675019051999E+38,EUR,,,,,,,4
+463924,Assets:B,,-1.524157875323883675019051999E+38,EUR,,,,,,,5
+```
+
+number-expression-stacked-sign:
+
+```text
+bean-check: (no output, exit 0)
+076a89,transaction,4,2026-01-02,*,,two signs in a row without parentheses
+076a89,Assets:A,,4,EUR,,,,,,,5
+076a89,Assets:B,,-4,EUR,,,,,,,6
+```
+
+number-expression-tolerance-sum:
+
+```text
+bean-check: (no output, exit 0)
 ```
 
 option-tolerance:

@@ -102,6 +102,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 |---|---|
 | [header-and-flags](beancount/header-and-flags.md) | flags, payee and narration, escapes, posting flags |
 | [numbers-and-interpolation](beancount/numbers-and-interpolation.md) | number forms, exponents, elided amounts, places, currency groups |
+| [number-expressions](beancount/number-expressions.md) | `(1 + 2) * 3 EUR`: operators, precedence, division digits, tolerance, where an expression may stand, the errors, `bean-format` |
 | [prices](beancount/prices.md) | `@`, `@@`, per-unit prices, the weight of a total price |
 | [lots-and-booking](beancount/lots-and-booking.md) | `{}` costs, reductions, negative lots, booking methods |
 | [inferred-cost-and-price](beancount/inferred-cost-and-price.md) | `{}` and `@ EUR`: the cost or price left to balancing |
@@ -200,7 +201,7 @@ several ledgers merges their lists ([several-files](beancount/several-files.md))
 
 - `include`, `plugin`: refused before the parser runs;
 - `option` (`details.name`): any option outside the harmless list (options-and-directives);
-- `number-expression` (arithmetic in a number, also in a `price`) and `number-too-large` (more than 22 characters);
+- `number-expression` (arithmetic the parser cannot read: a sign in front of a sign, or a `~` tolerance that is a sum, without parentheses; the rest of arithmetic is read, [number-expressions](beancount/number-expressions.md)) and `number-too-large` (more than 22 characters);
 - `inferred-price` (a price to work out next to a cost, or with zero units), `inferred-cost` (a
   cost to work out next to a reduction with an open cost, or with zero units and nothing to pay),
   `cost-partial` (`{# 5 EUR}`, `{2 # EUR}`), `cost-merge` (`{..., *}`), `number-too-precise`;
@@ -211,7 +212,12 @@ several ledgers merges their lists ([several-files](beancount/several-files.md))
 Any of them leaves the file with no transaction at all.
 
 `parse-error` (error): the parser rejects a line (`details.reason` is its message); the
-transactions are not returned.
+transactions are not returned. An arithmetic expression that is not one (`(1 + )`) is one too.
+
+`division-by-zero` (error): a number divided by zero in an expression. Unlike `parse-error`, only the entry
+that holds it is left out; the others are returned. The line is that of the posting, the metadata, the
+`balance` or the `price`. (The reference crashes or fails with an internal error on this; the finding is ledgermill's own,
+[number-expressions](beancount/number-expressions.md).)
 
 `booking-error` (error): bean-check rejects the transaction while booking it. For two elided
 postings bean-query leaves it out and ledgermill does the same; for the other reasons bean-query

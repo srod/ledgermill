@@ -4,6 +4,20 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Beancount: arithmetic in a number (`(1 + 2) * 3`, `10 / 4`, `-(2 - 5)`) in a posting's units, a price, a
+  cost, a `balance` and its tolerance, a `price` directive and metadata. The values, places and exponents
+  are the reference's (28 digits, half to even); an inexact quotient has a tolerance of its own. A division
+  by zero is a `division-by-zero` finding that leaves out its entry. A malformed expression (`(1 + )`) is a
+  `parse-error` and, like any parse error, leaves the file with no transactions. A sign in front of a sign and a `~`
+  tolerance that is a sum, both without parentheses, are still refused (`number-expression`). `format()`
+  aligns expressions as `bean-format` does. See `spec/beancount/number-expressions.md`.
+- `fuzz.ts --beancount` writes arithmetic in numbers now and then.
+- Beancount: a posting flag `*` straight before the account (`*Assets:Bank`) is read.
+
 ## 0.1.3 – 2026-11-03
 
 ### Added

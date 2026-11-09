@@ -1,0 +1,47 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:Stock
+
+2026-01-02 * "price per unit"
+  Assets:A  2 AAA @ (10 / 4) EUR
+  Assets:B  -5 EUR
+
+2026-01-03 * "total price"
+  Assets:A  4 AAA @@ (20 / 4) EUR
+  Assets:B  -5 EUR
+
+2026-01-04 * "price without parentheses"
+  Assets:A  2 FFF @ 1 + 1 EUR
+  Assets:B  -4 EUR
+
+2026-01-05 * "units and price both"
+  Assets:A  (1 + 1) GGG @ (10 / 4) EUR
+  Assets:B  -5 EUR
+
+2026-01-06 * "cost per unit"
+  Assets:Stock  2 BBB {(10 / 4) EUR}
+  Assets:B  -5 EUR
+
+2026-01-07 * "total cost"
+  Assets:Stock  4 CCC {{(20 / 4) EUR}}
+  Assets:B  -5 EUR
+
+2026-01-08 * "cost per unit and total together"
+  Assets:Stock  4 DDD {(1 + 1) # (6 / 2) EUR}
+  Assets:B  -11 EUR
+
+2026-01-09 * "cost per unit and total together without parentheses"
+  Assets:Stock  4 EEE {1 + 1 # 1 + 2 EUR}
+  Assets:B  -11 EUR
+
+2026-01-10 * "cost without parentheses"
+  Assets:Stock  2 HHH {1 + 1 EUR}
+  Assets:B  -4 EUR
+
+2026-01-11 * "cost with a date and a label"
+  Assets:Stock  2 JJJ {(1 + 1) EUR, 2026-01-10, "lot"}
+  Assets:B  -4 EUR
+
+2026-01-12 * "an expression left to be worked out from the cost"
+  Assets:Stock  (1 + 1) KKK {(3 / 2) EUR}
+  Assets:B

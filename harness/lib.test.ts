@@ -714,7 +714,7 @@ test("the Beancount reads pass on the probes of their notes", async () => {
 }, 120_000);
 
 test("a Beancount journal we refuse is a SKIP, and is not asked the reads", async () => {
-  const c = await compareAll([join(import.meta.dir, "../spec/beancount/probes/refused/price-expression.beancount")]);
+  const c = await compareAll([join(import.meta.dir, "../spec/beancount/probes/refused/number-expression-stacked-sign.beancount")]);
   expect(c.raw.status).toBe("SKIP");
   expect([c.prices, c.cost, c.values, c.beanHoldings]).toEqual([null, null, [], undefined]);
 }, 60_000);
@@ -798,7 +798,7 @@ test("compareFormat on Beancount: aligned like bean-format, by design, and a fil
   expect(aligned).toEqual({ verdict: pass, changed: false, reference: "equal" });
   const indents = await compareFormat([write("d.beancount", `${entry}\n2026-01-02 * "u"\n    Expenses:Food  1.50 EUR\n    Assets:Cash:Bank   -1.50 EUR\n    Assets:X\n  Assets:Y 0 EUR\n`)]);
   expect(indents.verdict).toEqual(pass);
-  const refused = await compareFormat([write("e.beancount", "2026-01-01 * \"t\"\n  Expenses:Food  1+2 EUR\n  Assets:Bank  -3   EUR\n")]);
+  const refused = await compareFormat([write("e.beancount", "2026-01-01 * \"t\"\n  Expenses:Food  --3 EUR\n  Assets:Bank  -3   EUR\n")]);
   expect(refused).toEqual({ verdict: pass, changed: false, reference: expect.any(String) });
 }, 60_000);
 

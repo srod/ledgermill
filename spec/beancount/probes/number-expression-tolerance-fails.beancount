@@ -1,0 +1,42 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "three shares of 100 against an integer"
+  Assets:A  (100 / 3) EUR
+  Assets:A  (100 / 3) EUR
+  Assets:A  (100 / 3) EUR
+  Assets:B  -100 EUR
+
+2026-01-03 * "three shares of 10 against an integer"
+  Assets:A  (10 / 3) EUR
+  Assets:A  (10 / 3) EUR
+  Assets:A  (10 / 3) EUR
+  Assets:B  -10 EUR
+
+2026-01-04 * "three thirds against an integer"
+  Assets:A  (1 / 3 + 1 / 3 + 1 / 3) EUR
+  Assets:B  -1 EUR
+
+2026-01-05 * "a third times three"
+  Assets:A  (1 / 3 * 3) EUR
+  Assets:B  -1 EUR
+
+2026-01-06 * "a quarter 0.006 away"
+  Assets:A  (1 / 4) EUR
+  Assets:B  -0.256 EUR
+
+2026-01-07 * "a share of 100 is 0.0033 away from a rounded share"
+  Assets:A  (100 / 3) EUR
+  Assets:B  -33.32 EUR
+
+2026-01-08 * "a product 0.006 away"
+  Assets:A  (1.50 * 2) EUR
+  Assets:B  -3.006 EUR
+
+2026-01-09 * "a positive exponent against an integer allows nothing"
+  Assets:A  (50 / 0.5) EUR
+  Assets:B  -101 EUR
+
+2026-01-10 * "a positive exponent against two places"
+  Assets:A  (50 / 0.5) EUR
+  Assets:B  -100.04 EUR

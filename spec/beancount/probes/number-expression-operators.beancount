@@ -1,0 +1,83 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "the four operators"
+  Assets:A  (7 + 2) EUR
+  Assets:A  (7 - 2) EUR
+  Assets:A  (7 * 2) EUR
+  Assets:A  (7 / 2) EUR
+  Assets:B  -31.5 EUR
+
+2026-01-03 * "multiplication before addition"
+  Assets:A  (1 + 2 * 3) EUR
+  Assets:B  -7 EUR
+
+2026-01-04 * "subtraction goes from the left"
+  Assets:A  (2 - 3 - 4) EUR
+  Assets:B  5 EUR
+
+2026-01-05 * "division goes from the left"
+  Assets:A  (8 / 4 / 2) EUR
+  Assets:B  -1 EUR
+
+2026-01-06 * "multiplication and division go from the left"
+  Assets:A  (8 / 2 * 4) EUR
+  Assets:B  -16 EUR
+
+2026-01-07 * "subtraction and addition go from the left"
+  Assets:A  (10 - 2 + 3) EUR
+  Assets:B  -11 EUR
+
+2026-01-08 * "division before addition"
+  Assets:A  (10 / 2 + 3) EUR
+  Assets:B  -8 EUR
+
+2026-01-09 * "parentheses first"
+  Assets:A  ((1 + 2) * 3) EUR
+  Assets:A  (2 * (3 + 4)) EUR
+  Assets:A  (((5))) EUR
+  Assets:B  -28 EUR
+
+2026-01-10 * "unary signs"
+  Assets:A  (-2 * 3) EUR
+  Assets:A  (2 * -3) EUR
+  Assets:A  (2 - -3) EUR
+  Assets:A  (--4) EUR
+  Assets:A  (+5) EUR
+  Assets:A  (+-6) EUR
+  Assets:A  (- 7) EUR
+  Assets:B  11 EUR
+
+2026-01-11 * "a sign before the parentheses"
+  Assets:A  -(1 + 2) EUR
+  Assets:A  +(1 + 2) EUR
+  Assets:A  - (4 - 5) EUR
+  Assets:B  -1 EUR
+
+2026-01-12 * "blanks inside the expression"
+  Assets:A  (1+2) EUR
+  Assets:A  ( 1 + 2 ) EUR
+  Assets:A  (1 +2) EUR
+  Assets:A  (1+ 2) EUR
+  Assets:A  (2*-3) EUR
+  Assets:A  (2 --3) EUR
+  Assets:A  (1	+	2) EUR
+  Assets:B  -14 EUR
+
+2026-01-13 * "no parentheses: the expression runs up to the currency"
+  Assets:A  1 + 2 EUR
+  Assets:A  1+2 EUR
+  Assets:A  2 * 3 EUR
+  Assets:A  3 -1 EUR
+  Assets:A  -1 + 3 EUR
+  Assets:A  1 + 2 * 3 EUR
+  Assets:A  (1 + 2) * 3 EUR
+  Assets:A  (1 + 2)EUR
+  Assets:A  1+2EUR
+  Assets:B  -38 EUR
+
+2026-01-14 * "digit groups and a trailing dot are numbers inside an expression too"
+  Assets:A  (1,000 + 1) EUR
+  Assets:A  (1,000.50 * 2) EUR
+  Assets:A  (5. + 1) EUR
+  Assets:B  -3008.00 EUR

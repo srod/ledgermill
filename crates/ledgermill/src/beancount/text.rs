@@ -2,6 +2,7 @@
 //! the parser sees them (it would read the filesystem for `include`, and a few number
 //! expressions would make it panic).
 
+use super::expr::{self, Expressions};
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -107,12 +108,21 @@ fn longest_number(code: &str) -> usize {
     longest
 }
 
+/// `2026-01-02`, possibly with more after it (`2026-01-02}`).
+fn is_date_like(token: &str) -> bool {
+    token.len() >= 10
+        && token.bytes().take(10).enumerate().all(|(i, b)| match i {
+            4 | 7 => b == b'-',
+            _ => b.is_ascii_digit(),
+        })
+}
+
 /// A number in a piece of a cost: a token that starts with a digit or a dot, not a date.
 fn has_number(part: &str) -> bool {
     part.split(|c: char| c == ',' || c.is_whitespace())
         .any(|t| {
-            let t = t.trim_start_matches(['+', '-']);
-            t.starts_with(|c: char| c.is_ascii_digit() || c == '.') && !t.contains('-')
+            let t = t.trim_start_matches(['+', '-', '(']);
+            t.starts_with(|c: char| c.is_ascii_digit() || c == '.') && !is_date_like(t)
         })
 }
 
@@ -144,14 +154,24 @@ fn option_name(line: &str) -> Option<String> {
 }
 
 /// Whether a line can be skipped by `prescan`'s number checks without looking at its code: it
-/// has none of the characters that make an expression or a partial cost, and no run of digits
+/// has none of the characters that make an expression, a tolerance or a partial cost, and no run of digits
 /// long enough to refuse. Strings and comments only ever remove characters from the code, so
 /// what holds for the whole line holds for the code too (the converse need not hold).
 fn plainly_fine(raw: &str) -> bool {
     let mut run = 0usize;
+    let mut after_sign = false;
     for b in raw.bytes() {
-        if matches!(b, b'(' | b')' | b'/' | b'*' | b'#') {
+        if matches!(b, b'(' | b')' | b'/' | b'*' | b'#' | b'~') {
             return false;
+        }
+        // Two signs with only blanks between: `--4`, looked at closer.
+        if matches!(b, b'+' | b'-') {
+            if after_sign {
+                return false;
+            }
+            after_sign = true;
+        } else if b != b' ' && b != b'\t' {
+            after_sign = false;
         }
         if b.is_ascii_digit() || (run > 0 && (b == b',' || b == b'.')) {
             run += 1;
@@ -189,24 +209,75 @@ pub(super) fn prescan(text: &str) -> Vec<Refusal> {
         } else if plainly_fine(raw) {
             // Nothing to refuse: the checks below would find nothing.
         } else if raw.starts_with([' ', '\t']) {
-            // A posting's flag may be `*`; it is not an operator.
-            let code = merge_marker_removed(&code_of(raw));
-            let code = match code.trim_start().strip_prefix('*') {
-                Some(rest) if rest.starts_with([' ', '\t']) => rest.to_string(),
-                _ => code,
-            };
-            if code.contains(['(', ')', '/', '*']) {
-                out.push(refuse("number-expression", None));
-            } else if longest_number(&code) > MAX_NUMBER_CHARS {
+            let code = code_of(raw);
+            if longest_number(&code) > MAX_NUMBER_CHARS {
                 out.push(refuse("number-too-large", None));
             } else if has_partial_cost(&code) {
                 out.push(refuse("cost-partial", None));
+            } else if unreadable_sign(&code) {
+                out.push(refuse("number-expression", None));
             }
-        } else if longest_number(&code_of(raw)) > MAX_NUMBER_CHARS {
-            out.push(refuse("number-too-large", None));
+        } else {
+            let code = code_of(raw);
+            if longest_number(&code) > MAX_NUMBER_CHARS {
+                out.push(refuse("number-too-large", None));
+            } else if is_amount_header(&code) && unreadable_sign(&code) {
+                out.push(refuse("number-expression", None));
+            }
         }
     }
     out
+}
+
+/// Whether a sign stands in front of another (`--4`, `+-6`): the reference reads that, the parser
+/// reads one sign only. Or a `~` tolerance that is a sum (`~ 1 + 2`): the parser reads a plain
+/// number there. Lines with `( ) / *` are read by `expr.rs`, which reads both, so they do not
+/// count.
+fn unreadable_sign(code: &str) -> bool {
+    if code.contains(['(', ')', '/', '*']) {
+        return false;
+    }
+    let bytes = code.as_bytes();
+    let signs = bytes
+        .iter()
+        .enumerate()
+        .filter(|(_, b)| matches!(b, b'+' | b'-'))
+        .map(|(i, _)| i);
+    for at in signs {
+        // A sign of an operand starts a word: not `Assets:A--B`, not the `-` of `2026-01-02`.
+        let before = bytes[..at].iter().rposition(|b| !matches!(b, b' ' | b'\t'));
+        let glued = at > 0 && !matches!(bytes[at - 1], b' ' | b'\t' | b'{' | b'@' | b'~' | b',');
+        let after = bytes[at + 1..]
+            .iter()
+            .find(|b| !matches!(b, b' ' | b'\t'))
+            .copied();
+        let binary = before.is_some_and(|i| matches!(bytes[i], b'0'..=b'9' | b'.'));
+        if !glued && !binary && matches!(after, Some(b'+' | b'-')) {
+            return true;
+        }
+    }
+    // `~ 1 + 2`: an operator after the first character of the tolerance.
+    if let Some(tilde) = code.find('~') {
+        let tolerance: String = code[tilde + 1..]
+            .trim_start()
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || matches!(c, '.' | ',' | '+' | '-' | ' ' | '\t'))
+            .collect();
+        if tolerance
+            .trim_start()
+            .chars()
+            .skip(1)
+            .any(|c| matches!(c, '+' | '-'))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// A directive line that carries an amount: `balance` and `price`.
+fn is_amount_header(code: &str) -> bool {
+    matches!(code.split_whitespace().nth(1), Some("balance" | "price"))
 }
 
 fn is_flag_letter(c: char) -> bool {
@@ -417,8 +488,7 @@ fn trailing_dots_dropped(line: &str, strict: bool) -> Cow<'_, str> {
 
 /// Where the minus sign of a negative tolerance is on a `balance` line (`500 ~ -0.5 EUR`). The
 /// reference reads it and a negative tolerance passes nothing (spec/beancount/balance-directive.md);
-/// the parser does not read it, so `normalize` drops the sign and `negative_tolerance_lines` says
-/// which lines had one.
+/// the parser does not read it, so `normalize` drops the sign and says which lines had one.
 fn negative_tolerance_at(line: &str) -> Option<usize> {
     if line.starts_with([' ', '\t']) || !line.contains('~') {
         return None;
@@ -430,15 +500,6 @@ fn negative_tolerance_at(line: &str) -> Option<usize> {
     let after = code.get(code.find('~')? + 1..)?;
     let trimmed = after.trim_start();
     trimmed.starts_with('-').then(|| code.len() - trimmed.len())
-}
-
-/// The lines whose `balance` has a negative tolerance.
-pub(super) fn negative_tolerance_lines(text: &str) -> HashSet<u32> {
-    text.split('\n')
-        .enumerate()
-        .filter(|(_, line)| negative_tolerance_at(line).is_some())
-        .filter_map(|(index, _)| u32::try_from(index + 1).ok())
-        .collect()
 }
 
 /// Whether a margin line is a comment the reference skips: it starts with `*` and has anything
@@ -642,8 +703,10 @@ fn superseded_options(text: &str) -> HashSet<usize> {
 /// capital-letter flags get the parser's quote (`P` becomes `'P`), and `{{ total }}` becomes
 /// `{# total}`. Both are accepted by the reference tool (spec/beancount/header-flags.md,
 /// spec/beancount/lots-costs.md).
-pub(super) fn normalize(text: &str) -> String {
+pub(super) fn normalize(text: &str) -> Normalized {
     let mut out = String::with_capacity(text.len() + 16);
+    let mut expressions = Expressions::default();
+    let mut negative_tolerance = HashSet::new();
     let superseded = superseded_options(text);
     let mut in_string = false;
     for (index, raw) in text.split_inclusive('\n').enumerate() {
@@ -674,6 +737,22 @@ pub(super) fn normalize(text: &str) -> String {
             None => Cow::Borrowed(body),
         };
         let indented = line.starts_with([' ', '\t']);
+        // Arithmetic is cut out first: what is left is plain numbers.
+        if Expressions::wants(&line) {
+            let number = u32::try_from(index + 1).unwrap_or(u32::MAX);
+            let replaced = if indented || is_amount_header(&line) {
+                expressions.line(number, &line, was_in_string, |left| {
+                    operator_left(left, indented)
+                })
+            } else if is_custom_header(&line) {
+                Some(expr::blank_operators(&line, was_in_string))
+            } else {
+                None
+            };
+            if let Some(replaced) = replaced {
+                line = Cow::Owned(replaced);
+            }
+        }
         if indented && line.contains('{') {
             line = Cow::Owned(braces_tidied(&line));
         }
@@ -690,9 +769,48 @@ pub(super) fn normalize(text: &str) -> String {
         }
         if let Some(at) = negative_tolerance_at(&line) {
             line.to_mut().replace_range(at..=at, " ");
+            negative_tolerance.insert(u32::try_from(index + 1).unwrap_or(u32::MAX));
         }
         out.push_str(&line);
         out.push_str(end);
     }
-    out
+    Normalized {
+        text: out,
+        expressions,
+        negative_tolerance,
+    }
+}
+
+/// The text the parser reads, and what was cut out of it before.
+pub(super) struct Normalized {
+    pub text: String,
+    pub expressions: Expressions,
+    /// The `balance` lines whose tolerance had a minus sign (`500 ~ -0.5 EUR`), which was dropped
+    /// from the text: the parser does not read it. A tolerance that was an expression has its
+    /// sign in its value and is not listed.
+    pub negative_tolerance: HashSet<u32>,
+}
+
+/// Whether the code left of a line, with its arithmetic and strings blanked, still has an
+/// operator or a parenthesis that no number owns. A posting's flag `*` (also straight before the
+/// account) and the merge mark of a
+/// cost (`{*}`, `, *}`) are not operators.
+fn operator_left(code: &str, indented: bool) -> bool {
+    let code = merge_marker_removed(code);
+    let code = match code.trim_start().strip_prefix('*') {
+        Some(rest)
+            if indented
+                && (rest.starts_with([' ', '\t'])
+                    || rest.starts_with(|c: char| c.is_uppercase())) =>
+        {
+            rest.to_string()
+        }
+        _ => code,
+    };
+    code.contains(['(', ')', '/', '*'])
+}
+
+/// A `custom` directive: its values are never used, and each may be an expression.
+fn is_custom_header(line: &str) -> bool {
+    !line.starts_with([' ', '\t']) && line.split_whitespace().nth(1) == Some("custom")
 }

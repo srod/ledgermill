@@ -51,7 +51,11 @@ Three classes.
 | `plugin` | unsupported | `plugin` |
 | `include` | unsupported | `include` |
 | a `price` of zero in a pair priced both ways (valuation only) | unsupported | `price-both-ways-zero` |
-| arithmetic in a number, in a transaction or a `price` | unsupported | `number-expression`, `price-expression` |
+| arithmetic in a number: `+ - * /`, parentheses, signs, in a posting, a price, a cost, a `balance` and its tolerance, a `price`, metadata | supported | `number-expression-operators`, `-division`, `-places`, `-zero`, `-tolerance`, `-tolerance-fails`, `-display`, `-positions`, `-balance`, `-price-directive`, `-metadata`, `-errors`, `-format` (number-expressions.md) |
+| a division by zero in a number | supported (error `division-by-zero`, the entry is left out) | `refused/number-expression-division-by-zero`, `refused/number-expression-division-by-zero-first-operand` (the reference crashes or fails; not run) |
+| arithmetic the parser cannot read: a sign in front of a sign without parentheses, a `~` tolerance that is a sum without parentheses | unsupported | `refused/number-expression-stacked-sign`, `refused/number-expression-tolerance-sum` |
+| a number of more than 22 characters, an operand of arithmetic too | unsupported | `refused/number-expression-operands-too-large` (`number-too-large`) |
+| a result of arithmetic that needs more digits than the booking code holds | unsupported | `refused/number-expression-result-too-large` (`number-too-precise`) |
 | partial costs `{2 # EUR}`, `{# 1 EUR}` | unsupported | `cost-partial-per-unit`, `cost-partial-total` |
 | cost merge `{..., *}` | unsupported | `cost-merge` |
 | booking method AVERAGE | unsupported | `average-booking` |

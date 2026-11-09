@@ -1,0 +1,18 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-02-17 * "a tie rounds to the even digit: down"
+  Assets:A  (1234567890123456789012345678 + 0.5) EUR
+  Assets:B
+
+2026-02-18 * "a tie rounds to the even digit: up"
+  Assets:A  (1234567890123456789012345679 + 0.5) EUR
+  Assets:B
+
+2026-02-19 * "not a tie"
+  Assets:A  (1234567890123456789012345678 + 0.51) EUR
+  Assets:B
+
+2026-02-20 * "29 digits in an operand"
+  Assets:A  (12345678901234567890123456789 + 1) EUR
+  Assets:B

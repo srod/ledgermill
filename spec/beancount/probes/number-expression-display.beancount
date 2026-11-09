@@ -1,0 +1,10 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a third of 100 against a rounded share"
+  Assets:A  (100 / 3) EUR
+  Assets:B  -33.33 EUR
+
+2026-01-03 * "a plain amount with two places"
+  Assets:A  1.25 EUR
+  Assets:B  -1.25 EUR

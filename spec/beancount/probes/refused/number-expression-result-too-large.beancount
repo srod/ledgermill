@@ -1,0 +1,5 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-02 * "a product of 39 digits"
+  Assets:A  (12345678901234567890 * 12345678901234567890) EUR
+  Assets:B

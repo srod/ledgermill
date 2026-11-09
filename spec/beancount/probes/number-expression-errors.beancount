@@ -1,0 +1,168 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "good: before"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-03 * "bad: a missing operand"
+  Assets:A  (1 + ) EUR
+  Assets:B  -1 EUR
+
+2026-01-04 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-05 * "bad: a parenthesis never closed"
+  Assets:A  (1 + 2 EUR
+  Assets:B  -1 EUR
+
+2026-01-06 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-07 * "bad: a parenthesis never opened"
+  Assets:A  1 + 2) EUR
+  Assets:B  -1 EUR
+
+2026-01-08 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-09 * "bad: floor division"
+  Assets:A  (7 // 2) EUR
+  Assets:B  -1 EUR
+
+2026-01-10 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-11 * "bad: a power"
+  Assets:A  (2 ** 3) EUR
+  Assets:B  -1 EUR
+
+2026-01-12 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-13 * "bad: a caret"
+  Assets:A  (2 ^ 3) EUR
+  Assets:B  -1 EUR
+
+2026-01-14 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-15 * "bad: a remainder"
+  Assets:A  (7 % 2) EUR
+  Assets:B  -1 EUR
+
+2026-01-16 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-17 * "bad: a name"
+  Assets:A  (a + 1) EUR
+  Assets:B  -1 EUR
+
+2026-01-18 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-19 * "bad: empty parentheses"
+  Assets:A  () EUR
+  Assets:B  -1 EUR
+
+2026-01-20 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-21 * "bad: two numbers in a row"
+  Assets:A  (1 2) EUR
+  Assets:B  -1 EUR
+
+2026-01-22 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-23 * "bad: two groups in a row"
+  Assets:A  (1 + 2) (3) EUR
+  Assets:B  -1 EUR
+
+2026-01-24 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-25 * "bad: two dots in a number"
+  Assets:A  (1.5.2) EUR
+  Assets:B  -1 EUR
+
+2026-01-26 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-27 * "bad: a number starting with a dot"
+  Assets:A  (.5 + 1) EUR
+  Assets:B  -1 EUR
+
+2026-01-28 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-29 * "bad: an exponent"
+  Assets:A  (1E3) EUR
+  Assets:B  -1 EUR
+
+2026-01-30 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-01-31 * "bad: an operator with no left operand"
+  Assets:A  (* 2) EUR
+  Assets:B  -1 EUR
+
+2026-02-01 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-02-02 * "bad: two operators in a row"
+  Assets:A  (1 + * 2) EUR
+  Assets:B  -1 EUR
+
+2026-02-03 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-02-04 * "bad: a trailing operator"
+  Assets:A  (2 * 3 -) EUR
+  Assets:B  -1 EUR
+
+2026-02-05 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-02-06 * "bad: a trailing operator without parentheses"
+  Assets:A  1 / EUR
+  Assets:B  -1 EUR
+
+2026-02-07 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-02-08 * "bad: the expression goes on to the next line"
+  Assets:A  (1 +
+    2) EUR
+  Assets:B  -3 EUR
+
+2026-02-09 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR
+
+2026-02-10 * "bad: a comment inside the expression"
+  Assets:A  (1 + ; hi
+    2) EUR
+  Assets:B  -3 EUR
+
+2026-02-11 * "good: after"
+  Assets:A  (1 + 1) EUR
+  Assets:B  -2 EUR

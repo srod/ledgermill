@@ -1,0 +1,14 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "good: before"
+  Assets:A  1 EUR
+  Assets:B  -1 EUR
+
+2026-01-03 * "bad: a division by zero is the left operand of another operation"
+  Assets:A  (1 / 0) + 1 EUR
+  Assets:B  -1 EUR
+
+2026-01-04 * "good: after"
+  Assets:A  2 EUR
+  Assets:B  -2 EUR

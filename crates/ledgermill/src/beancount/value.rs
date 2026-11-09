@@ -118,8 +118,6 @@ impl Rates {
 /// A posting's amount, read back: its units, and its cost per unit with the cost's currency.
 struct Leg<'a> {
     units: Num,
-    /// The units are written negative, `-0.00` included (a zero has no sign in `Num`).
-    negative: bool,
     commodity: &'a str,
     cost: Option<(Num, &'a str)>,
 }
@@ -133,7 +131,6 @@ fn leg(posting: &Posting) -> Option<Leg<'_>> {
     };
     Some(Leg {
         units: Num::parse(&amount.quantity)?,
-        negative: amount.quantity.starts_with('-'),
         commodity: &amount.commodity,
         cost,
     })
@@ -143,39 +140,28 @@ fn leg(posting: &Posting) -> Option<Leg<'_>> {
 struct Value {
     commodity: String,
     number: Num,
-    negative: bool,
 }
 
 impl Value {
-    fn new(commodity: &str, number: Num, negative: bool) -> Value {
-        Value {
-            commodity: commodity.to_string(),
-            number,
-            negative,
-        }
-    }
-
     /// `number()` of the amount: `-0` for a negative zero.
     fn text(&self) -> String {
-        if self.number.is_zero() && self.negative {
-            format!("-{}", self.number)
-        } else {
-            self.number.to_string()
-        }
+        self.number.to_string()
     }
 
     fn times(&self, rate: &Num) -> Value {
         Value {
             commodity: self.commodity.clone(),
             number: self.number.mul(rate),
-            negative: self.negative != rate.is_negative(),
         }
     }
 }
 
 impl Leg<'_> {
     fn units(&self) -> Value {
-        Value::new(self.commodity, self.units.clone(), self.negative)
+        Value {
+            commodity: self.commodity.to_string(),
+            number: self.units.clone(),
+        }
     }
 
     /// `cost(position)`: the units times the cost per unit, in the cost's currency; the units

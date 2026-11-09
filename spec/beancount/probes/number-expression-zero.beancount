@@ -1,0 +1,55 @@
+2026-01-01 open Assets:A
+
+2026-02-01 * "a product of a zero and a negative is a negative zero"
+  Assets:A  (0.00 * -1) EUR
+
+2026-02-02 * "a sign in front of a zero gives a plain zero"
+  Assets:A  (-(0.00 * -1)) EUR
+
+2026-02-03 * "two negatives"
+  Assets:A  ((0.00 * -1) * -1) EUR
+
+2026-02-04 * "(0.00 * -1) * 1"
+  Assets:A  ((0.00 * -1) * 1) EUR
+
+2026-02-05 * "a quotient"
+  Assets:A  (0.00 / -5) EUR
+
+2026-02-06 * "(0.00 * -1) / 5"
+  Assets:A  ((0.00 * -1) / 5) EUR
+
+2026-02-07 * "a sum of two negative zeros"
+  Assets:A  ((0.00 * -1) + (0.00 * -1)) EUR
+
+2026-02-08 * "a sum with a plain zero"
+  Assets:A  ((0.00 * -1) + 0.00) EUR
+
+2026-02-09 * "a difference"
+  Assets:A  ((0.00 * -1) - 0.00) EUR
+
+2026-02-10 * "0.00 - (0.00 * -1)"
+  Assets:A  (0.00 - (0.00 * -1)) EUR
+
+2026-02-11 * "a written negative zero is a plain zero"
+  Assets:A  (-0.00) EUR
+
+2026-02-12 * "-0.00 * 1"
+  Assets:A  (-0.00 * 1) EUR
+
+2026-02-13 * "an integer zero"
+  Assets:A  (0 * -1) EUR
+
+2026-02-14 * "a difference of zeros keeps the places"
+  Assets:A  (0.0 - 0.0) EUR
+
+2026-02-15 * "a sum that reaches zero keeps the places"
+  Assets:A  (-1.0 + 1.0) EUR
+
+2026-02-16 * "a zero quotient keeps the dividend's places"
+  Assets:A  (0 / 5) EUR
+
+2026-02-17 * "0.00 / 5"
+  Assets:A  (0.00 / 5) EUR
+
+2026-02-18 * "places add; the sign does not"
+  Assets:A  (0.00 * -0.00) EUR

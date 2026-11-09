@@ -1,0 +1,46 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:Stock
+
+2026-02-01 * "a plain amount sets the column"
+  Assets:A  12.50 EUR
+  Assets:B  -12.50 EUR
+
+2026-02-02 * "one operation in parentheses is a number to align"
+  Assets:A  (100000 * 3) EUR
+  Assets:B  -300000 EUR
+
+2026-02-03 * "a blank after the opening parenthesis"
+  Assets:A  ( 1+2) EUR
+  Assets:B  -3 EUR
+
+2026-02-04 * "two operations are not aligned"
+  Assets:A  (1 + 2 + 3) EUR
+  Assets:B  -6 EUR
+
+2026-02-05 * "no parentheses are not aligned"
+  Assets:A  1 + 2 EUR
+  Assets:B  -3 EUR
+
+2026-02-06 * "a sign before the parentheses is not aligned"
+  Assets:A  -(1 + 2) EUR
+  Assets:B  3 EUR
+
+2026-02-07 * "a blank before the closing parenthesis is not aligned"
+  Assets:A  (1 + 2 ) EUR
+  Assets:B  -3 EUR
+
+2026-02-08 * "a price and a cost after an aligned expression"
+  Assets:A  (1 * 2) AAA @ (10 / 4) EUR
+  Assets:Stock  (1 * 2) BBB {(10 / 4) EUR}
+  Assets:B  -10 EUR
+
+2026-02-09 * "an expression with a negative operand"
+  Assets:A  (2 * -3) EUR
+  Assets:B  6 EUR
+
+2026-02-10 balance Assets:A  (1 * 0) EUR
+2026-02-10 balance Assets:A  (1 * 0) ~ (1 / 100) EUR
+2026-02-10 balance Assets:A  0 ~ 1 / 100 EUR
+2026-02-11 price AAA (10 / 4) EUR
+2026-02-11 price BBB 1 + 1 EUR
