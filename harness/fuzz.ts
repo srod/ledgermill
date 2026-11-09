@@ -14,7 +14,7 @@
 // there, with their questions. With `--beancount`: random Beancount journals (price directives among seven
 // commodities, lots, price annotations, plain units of either sign) compared against bean-check and bean-query
 // for their transactions and postings, their prices, their cost and, at several dates and commodities,
-// their value and holdings; one in five has a digit other than 0-9, three in ten also use the one-letter currency X, which bean-check reads only before a space or a line end, so `{2 X}` is refused by both. With `--both-ways`: Beancount journals of 3 or 4 commodities with up to 9 prices, several pairs
+// their value and holdings; one in five has a digit other than 0-9, three in ten also use the one-letter currency X, which bean-check reads only before a space or a line end, so `{2 X}` is refused by both; one in four has `plugin "beancount.plugins.implicit_prices"` (now and then twice) and one in four `plugin "beancount.plugins.auto_accounts"` (some or all `open` lines dropped, now and then), each at a random top-level position, never with a configuration string, and the summary counts them (`--both-ways` writes no plugin line). With `--both-ways`: Beancount journals of 3 or 4 commodities with up to 9 prices, several pairs
 // priced in both directions at rates whose inverse is not exact (3, 7, 11, 0.3), a few one way, and plain holdings, compared
 // the same way: the evidence for "a pair priced both ways" in spec/beancount/convert-rates.md. Every case must
 // PASS or SKIP; any FAIL is printed with its journal and makes the exit code 1. The summary counts the SKIPs by what
@@ -648,7 +648,62 @@ function beanJournal(): { text: string; used: string[] } {
     text += `2026-01-02 * "z"\n  Assets:Z  ${quotient ?? exactExpression(value)} EUR\n  Equity:O\n\n`;
     text += `2026-01-08 balance Assets:Z  ${quotient ?? exactExpression(value)}${tolerance} EUR\n`;
   }
-  return { text, used };
+  return { text: withPlugins(text), used };
+}
+
+// ───────────── Beancount built-in plugins ─────────────
+// Each journal switches `implicit_prices` and `auto_accounts` on now and then. Only the two module names, never a configuration
+// string (the reference fails to apply the plugin with one, and ledgermill refuses it) and never another plugin. Its own stream,
+// so that the journals a seed gives stay the same apart from these lines.
+const rg = rng(seed ^ 0x7a3b19d5);
+const gint = (n: number) => Math.floor(rg() * n);
+const gchance = (p: number) => rg() < p;
+const IMPLICIT_PRICES = 'plugin "beancount.plugins.implicit_prices"';
+const AUTO_ACCOUNTS = 'plugin "beancount.plugins.auto_accounts"';
+/** How many Beancount journals had each plugin on, for the summary. */
+const pluginRuns = { journals: 0, implicitPrices: 0, implicitPricesTwice: 0, autoAccounts: 0, opensDropped: 0, allOpensDropped: 0 };
+
+/** `line` before a random top-level line of `text`: never between a transaction's header and its postings. */
+function insertTopLevel(text: string, line: string): string {
+  const lines = text.split("\n");
+  const spots = Array.from({ length: lines.length }, (_, i) => i).filter((i) => !/^\s+\S/.test(lines[i] ?? ""));
+  lines.splice(spots[gint(spots.length)] ?? 0, 0, line);
+  return lines.join("\n");
+}
+
+/**
+ * Now and then (one journal in four each) a plugin line at a random position; `implicit_prices` is now and then written twice (it
+ * runs once per line, so its entries repeat). With `auto_accounts` on, some or all `open` lines go: the plugin opens the accounts,
+ * the journal stays valid. Without the plugin no `open` is dropped, so the journals stay as valid as before.
+ */
+function withPlugins(text: string): string {
+  pluginRuns.journals++;
+  let out = text;
+  if (gchance(0.25)) {
+    pluginRuns.implicitPrices++;
+    out = insertTopLevel(out, IMPLICIT_PRICES);
+    if (gchance(0.15)) {
+      pluginRuns.implicitPricesTwice++;
+      out = insertTopLevel(out, IMPLICIT_PRICES);
+    }
+  }
+  if (gchance(0.25)) {
+    pluginRuns.autoAccounts++;
+    if (gchance(0.7)) {
+      const all = gchance(0.4);
+      const before = out;
+      out = out
+        .split("\n")
+        .filter((l) => !/^2026-01-01 open /.test(l) || !(all || gchance(0.5)))
+        .join("\n");
+      if (out !== before) {
+        if (all) pluginRuns.allOpensDropped++;
+        else pluginRuns.opensDropped++;
+      }
+    }
+    out = insertTopLevel(out, AUTO_ACCOUNTS);
+  }
+  return out;
 }
 
 // Digits other than 0-9 (Arabic-Indic, Persian, Devanagari, fullwidth, superscript, mathematical): the parser panicked on
@@ -798,6 +853,12 @@ for (let k = 0; k < count; k++) {
 }
 const counts = countsLine;
 console.log(`fuzz${graph ? " --graph" : ""}${multi ? " --multi" : bothWays ? " --both-ways" : beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${countsLine(raw).replace(/^\d+ pass, /, "")}`);
+if ((beancount && !bothWays) || multi) {
+  const p = pluginRuns;
+  console.log(
+    `  plugins: implicit_prices on in ${p.implicitPrices} of ${p.journals} Beancount journals (${p.implicitPricesTwice} written twice), auto_accounts on in ${p.autoAccounts} (${p.opensDropped} with some opens dropped, ${p.allOpensDropped} with all)`,
+  );
+}
 if (multi) {
   const m = t.multi;
   console.log(`  postings: ${counts(m.postings)}\n  prices: ${counts(m.prices)}\n  --cost: ${counts(m.cost)}\n  --value: ${counts(m.value)}\n  holdings: ${counts(m.holdings)}`);

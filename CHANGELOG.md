@@ -27,6 +27,8 @@ All notable changes to ledgermill are written here. The format follows
   one run are dropped, and every `plugin` line runs it once more. A configuration string is still refused.
   See `spec/beancount/implicit-prices.md`.
 - `fuzz.ts --beancount` writes arithmetic in numbers now and then.
+- `fuzz.ts --beancount` and `--multi` switch `implicit_prices` and `auto_accounts` on now and then (with `auto_accounts`, some or all `open` lines
+  dropped) and the summary counts the journals that had each.
 - Beancount: a posting flag `*` straight before the account (`*Assets:Bank`) is read.
 
 ## 0.1.3 – 2026-11-03
