@@ -3,10 +3,9 @@
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`;
 `bean-format --version`: `Beancount 3.2.3`), 2026-11-09.
 
-Status: **not built**. ledgermill refuses arithmetic in a number (`unsupported-syntax`, construct
-`number-expression`, refused.md). This note pins the reference behaviour so that evaluation can be built on
-`pydec.rs`; the refused probe `probes/refused/number-expression.beancount` and the tables in refused.md and
-syntax.md are left for that step.
+Status: **built**: `crates/ledgermill/src/beancount/expr.rs` reads and evaluates the expressions with `pydec.rs`
+(`crates/ledgermill/tests/beancount_number_expressions.rs` checks every table of Output). Three shapes are
+still refused, in "What ledgermill does with it" below.
 
 ## Rule
 
@@ -134,26 +133,43 @@ checks them on expressions). In summary:
 
 ## What ledgermill does with it
 
-To decide in the implementation step; the evidence above says:
+The parser ledgermill is built on evaluates an expression as it reads it, with `rust_decimal`: a division
+by zero or a product beyond 96 bits stops the program, and a quotient has 28 places, not 28 digits. So
+no expression reaches it. Before it runs, `expr.rs` cuts each one out of its line and evaluates it with
+`pydec.rs`; the parser sees a placeholder number (a decimal with 28 places, which no written number has: more
+than 22 characters are refused) that the reader replaces by the value. What it reads:
 
-- **Evaluate** everything in the Grammar and Where paragraphs with `pydec.rs`. Every number that comes out has
-  to go through the same checks as a written one (28 digits fit; `number-too-large` is about the *text* of a
-  literal, 22 characters, and does not apply to a result).
-- **Syntax errors** are errors, not refusals: the entry is dropped and the error is on the posting's line, as
-  for the other malformed lines the parser already reports.
-- **Division by zero**: report an error on the posting's line and drop the entry (the one behaviour the
-  reference shows without crashing, and the line it reports). Do not copy the crash. It stays out of the
-  harness (`refused/`).
-- **Shapes the parser fork cannot read stay refused** as `number-expression` until a rewrite exists. From its
-  grammar, read in `beancount-parser-lima` (`expr()` and `amount_with_tolerance()`; not run): a sign is allowed once in front
-  of an operand (`--4`, `+-6`, `(2 * --3)` are the reference's but not the fork's), and the `~` tolerance of
-  a `balance` is a plain decimal, so `~ (1 / 100)` and `~ 1 / 2` are not read (the negative tolerance is
-  already rewritten as text before the parser, text.rs; an expression there would need the same). Both
-  evaluate fine in the reference (`probes/number-expression-balance.beancount`, `-operators.beancount`).
-- The text pass in `text.rs` refuses any indented line that holds `(`, `)`, `/` or `*`, so also a
-  metadata line with an expression value (`w1: (1 + 2)`), a value ledgermill never uses. The unparenthesised
-  `+` and `-` forms (`1 + 2 EUR`, `3 -1 EUR`) have none of these characters: only the parser sees them.
-  Neither is refused by the reference; metadata values do not reach any output.
+- **Where**: the units of a posting, `@`, `@@`, both parts of a cost (`{}` and `{{ }}`), the amount and the tolerance of a
+  `balance`, a `price`, a metadata value. A `custom` line is read, but its values are never evaluated (they
+  change nothing). The cut-out expression is the longest run of digits, `.`, `+ - * /`, parentheses, blanks
+  and a comma between two digits that starts where a number can: after a blank, a brace, `@`, `~` or a
+  comma. It ends at the currency, `~`, `#`, a brace or anything else. A run with no operator (`-5`) is a number,
+  and a sum or a difference without parentheses (`1 + 2 EUR`) is left to the parser, which adds safely.
+- **Evaluation**: as "Evaluation" above says, left operand first, `Num::add`, `Num::sub`, `Num::mul`,
+  `Num::div`. `Num` keeps the sign of a zero (`-0.00`): a product or a quotient is negative when exactly one
+  operand is, a sum only when both terms are, a subtraction adds the flipped sign of the subtrahend, and
+  the unary minus gives a plain zero. A posting printed with a negative zero shows it (`-0.00`).
+- **Numbers kept whole**: a posting's units, a cost and a price keep the digits the arithmetic gave (the booking
+  crate sees them rounded to 28 places, which only matters for matching lots). A result the crate cannot hold
+  (more than 96 bits, such as `1.524157875323883675019051999E+38`) is refused as `number-too-precise`,
+  like any number that needs more digits than are handled (`probes/refused/number-expression-result-too-large.beancount`).
+  An operand is a number as written anywhere: more than 22 characters is `number-too-large`, so the
+  28- and 29-digit operands of `-places` (lines 69 to 83) are refused, and the rest of that probe is read.
+- **Syntax errors** are `parse-error`, on the line of the expression, or the line after when the expression
+  stops where more was needed (a line break or a comment inside it: lines 154 and 163 of `-errors`). As for
+  every parse error, ledgermill returns no transaction for the file (the reference loses only the entry,
+  and the harness compares the first error). One error per line.
+- **Division by zero**: a `division-by-zero` finding (error) on the line of the posting, the `balance` or the
+  `price`; that entry is left out and everything else is read and checked (the reference crashes or reports an
+  internal error; the probes stay in `refused/`).
+- **Still refused**, as `unsupported-syntax`, construct `number-expression`: a sign in front of a sign
+  without parentheses (`--4`, `+-6`) and a `~` tolerance that is a sum or a difference without parentheses
+  (`~ 1 + 2`). The parser takes one sign and a plain tolerance there; the same inside parentheses is read
+  (`probes/refused/number-expression-stacked-sign.beancount`, `-tolerance-sum`). Beyond that, a `( ) / *` left in a
+  line after the expressions are cut out (a currency with a `/`) is refused the same way.
+- **`format()`** returns every one of the format probe's lines as `bean-format` does
+  (`crates/ledgermill/tests/format_beancount.rs`, `expressions_stay_as_written_and_align_as_bean_format_does`): the
+  shapes in "bean-format" above, and the blanks after the operator (`(2 * - 3)` is one operation).
 
 ## Probe
 

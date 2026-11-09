@@ -18,8 +18,8 @@ The table lists the `price` directives of the file and nothing else:
   (`1.50`, `1.000`), no digit-group commas (`1,234.50` is `1234.50`), no `+` and no trailing dot, `-0` is
   `0`, and a number smaller than 0.000001 has an exponent (`1E-7`). Twenty digits stay whole (ledgermill refuses a number of more than 22 characters, refused.md). A price of zero,
   a negative one, and one of a commodity in itself are listed like any other.
-- A price written as an expression is listed with its value (`(1 + 2)` is `3`). ledgermill refuses
-  arithmetic in numbers (refused.md), here too: `unsupported-syntax`, `number-expression`.
+- A price written as an expression is listed with its value (`(1 + 2)` is `3`), with the places and
+  exponent that arithmetic gives (number-expressions.md, `probes/number-expression-price-directive.beancount`).
 - Metadata under a directive, or a tag, changes nothing. The entry's line (`entries`, `lineno`) is the
   line of the directive's first line, the same order as the table.
 
@@ -28,13 +28,13 @@ the rate as `number(amount)` prints it, with the commodity of the amount, and th
 
 ## Probe
 
-`probes/price-table.beancount`, `probes/refused/price-expression.beancount`
+`probes/price-table.beancount`, `probes/number-expression-price-directive.beancount`
 
 Command:
 
 ```sh
 spec/beancount/show-prices.sh spec/beancount/probes/price-table.beancount
-spec/beancount/show-prices.sh spec/beancount/probes/refused/price-expression.beancount
+spec/beancount/show-prices.sh spec/beancount/probes/number-expression-price-directive.beancount
 ```
 
 `show-prices.sh` runs the prices query and then a second query on the entries to get the line of each
@@ -76,12 +76,24 @@ no output (exit 0) for both journals.
 2026-03-01,7,price-table.beancount
 2026-03-01,9,price-table.beancount
 2026-03-01,10,price-table.beancount
-== price-expression.beancount
+== number-expression-price-directive.beancount
 -- bean-check
 -- prices: date,currency,number(amount),currency(amount)
-2026-01-02,AAA,3,EUR
-2026-01-02,BBB,6,EUR
+2026-01-02,AAA,2.5,EUR
+2026-01-03,BBB,2,EUR
+2026-01-04,AAA,3.333333333333333333333333333,EUR
+2026-01-05,BBB,3.00,EUR
+2026-01-06,AAA,0.125,EUR
+2026-01-07,BBB,-2,EUR
+2026-01-08,AAA,1E-7,EUR
+2026-01-09,BBB,1.0E+2,EUR
 -- price entries: date,lineno,filename
-2026-01-02,3,price-expression.beancount
-2026-01-02,4,price-expression.beancount
+2026-01-02,4,number-expression-price-directive.beancount
+2026-01-03,5,number-expression-price-directive.beancount
+2026-01-04,6,number-expression-price-directive.beancount
+2026-01-05,7,number-expression-price-directive.beancount
+2026-01-06,8,number-expression-price-directive.beancount
+2026-01-07,9,number-expression-price-directive.beancount
+2026-01-08,10,number-expression-price-directive.beancount
+2026-01-09,11,number-expression-price-directive.beancount
 ```

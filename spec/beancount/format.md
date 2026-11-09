@@ -30,8 +30,7 @@ about the shape of a line.
 - **CRLF** line endings read the same as LF. A missing final newline reads the same.
 - **Gap between a posting flag and its account**: `! Account`, `!Account` and `!` or `*` followed by several
   blanks or tabs all give the same posting with the same flag; so does `*Account`
-  (`probes/refused/format-flag-gap-star.beancount`, kept apart because ledgermill refuses a posting that
-  starts with `*` straight before the account as a `number-expression` today).
+  (`probes/format-flag-gap-star.beancount`).
 - **Metadata lines** (`key: value`) belong to the entry above them, whatever their indent: deeper than the
   posting, the same as the posting, shallower, or tab-indented. A metadata line under a posting
   belongs to that posting; one before the first posting belongs to the transaction.
@@ -174,7 +173,7 @@ and equals `bean-format` on every file whose lines all have one indent. Results 
 What Beancount reads the same: `probes/format-indent.beancount`, `probes/format-separator.beancount`,
 `probes/format-trailing.beancount`, `probes/format-flag-gap.beancount`, `probes/format-metadata-indent.beancount`,
 `probes/format-comment-indent.beancount`, `probes/format-directives.beancount`, `probes/format-crlf.beancount`,
-`probes/format-no-final-newline.beancount`, `probes/refused/format-flag-gap-star.beancount`,
+`probes/format-no-final-newline.beancount`, `probes/format-flag-gap-star.beancount`,
 `probes/refused/format-transaction-ends.beancount`, `probes/refused/format-bom.beancount`.
 
 What bean-format does: `probes/format-align-width.beancount`, `probes/format-align-width-narrow.beancount`,
@@ -182,7 +181,7 @@ What bean-format does: `probes/format-align-width.beancount`, `probes/format-ali
 `probes/format-align-indent.beancount`, `probes/format-align-indent-tie.beancount`,
 `probes/format-align-indent-ignored.beancount`, `probes/format-align-unaligned.beancount`,
 `probes/format-align-unaligned-width.beancount`, `probes/format-align-idempotent.beancount`,
-`probes/format-align-string.beancount`, `probes/refused/format-align-expressions.beancount`,
+`probes/format-align-string.beancount`, `probes/format-align-expressions.beancount`,
 `probes/refused/format-nbsp-separator.beancount`, `probes/format-account-characters.beancount`,
 `probes/refused/format-account-characters-unread.beancount` (accounts `bean-check` accepts and ledgermill's
 parser does not read yet: a later component that starts with a lowercase or other non-`Lu` letter or a
@@ -199,7 +198,7 @@ spec/beancount/show-postings.sh spec/beancount/probes/format-indent.beancount | 
 # and the same for format-separator, format-trailing, format-comment-indent, format-crlf,
 # format-no-final-newline
 spec/beancount/show.sh spec/beancount/probes/format-flag-gap.beancount        # posting flags: 3rd column of the postings
-# and the same for refused/format-flag-gap-star
+# and the same for format-flag-gap-star
 spec/beancount/show-prices.sh spec/beancount/probes/format-directives.beancount
 bean-check spec/beancount/probes/format-directives.beancount                  # the balance lines: no output
 bean-query -f csv spec/beancount/probes/format-metadata-indent.beancount \
@@ -217,7 +216,7 @@ their line numbers; `$` ends a line, `^I` is a tab):
 spec/beancount/show-format.sh spec/beancount/probes/format-account-characters-indent.beancount
 spec/beancount/show-format.sh spec/beancount/probes/format-align-width.beancount   # and -narrow, -lots, -kinds,
 # -indent, -indent-tie, -indent-ignored, -unaligned, -unaligned-width, -idempotent, -string,
-# refused/format-align-expressions, format-separator, format-trailing, format-flag-gap, format-indent,
+# format-align-expressions, format-separator, format-trailing, format-flag-gap, format-indent,
 # format-metadata-indent, format-comment-indent, format-directives
 # which postings of the account-characters probes bean-format rewrites (show-format.sh prints the lines,
 # but cat -v garbles the characters): one row per posting
@@ -310,7 +309,7 @@ id,Expenses:Food,!      <- "!    Expenses:Food"
 id,Assets:Bank,*        <- "*<TAB><TAB>Assets:Bank"
 ```
 
-refused/format-flag-gap-star: `*Expenses:Food` and `*Assets:Bank` give the flag `*` on both.
+format-flag-gap-star: `*Expenses:Food` and `*Assets:Bank` give the flag `*` on both.
 
 ```text
 id,Expenses:Food,*
@@ -521,7 +520,7 @@ own widths. format-align-unaligned-width: the long flagged account sets no colum
   16|  Assets:Cash   -1 EUR$
 ```
 
-refused/format-align-expressions: after a wide plain number (`1,000,000.00`) that makes every aligned line end in
+format-align-expressions: after a wide plain number (`1,000,000.00`) that makes every aligned line end in
 column 29. Aligned: `(4 + 2.5)` (line 9) and `- 5` (line 33), and the plain numbers next to the others. Not
 aligned and not counted: `(4 + 2 + 0.5)` (13), `4+2` (17), `-(2)` (21), `(5)` (25), `(1 + 2) * 3` (29): those lines are as written (they
 are not listed).
