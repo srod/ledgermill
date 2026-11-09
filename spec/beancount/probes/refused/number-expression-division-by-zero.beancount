@@ -1,0 +1,6 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a division by zero as the whole amount"
+  Assets:A  (1 / 0) EUR
+  Assets:B  -1 EUR

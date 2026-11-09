@@ -1,0 +1,11 @@
+2026-01-01 commodity AAA
+2026-01-01 commodity BBB
+
+2026-01-02 price AAA (10 / 4) EUR
+2026-01-03 price BBB 1 + 1 EUR
+2026-01-04 price AAA (10 / 3) EUR
+2026-01-05 price BBB (1.50 * 2) EUR
+2026-01-06 price AAA 1 / 8 EUR
+2026-01-07 price BBB -(1 + 1) EUR
+2026-01-08 price AAA (1 / 10000000) EUR
+2026-01-09 price BBB (50 / 0.5) EUR

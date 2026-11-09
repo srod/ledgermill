@@ -102,6 +102,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 |---|---|
 | [header-and-flags](beancount/header-and-flags.md) | flags, payee and narration, escapes, posting flags |
 | [numbers-and-interpolation](beancount/numbers-and-interpolation.md) | number forms, exponents, elided amounts, places, currency groups |
+| [number-expressions](beancount/number-expressions.md) | `(1 + 2) * 3 EUR`: operators, precedence, division digits, tolerance, where an expression may stand, the errors, `bean-format` |
 | [prices](beancount/prices.md) | `@`, `@@`, per-unit prices, the weight of a total price |
 | [lots-and-booking](beancount/lots-and-booking.md) | `{}` costs, reductions, negative lots, booking methods |
 | [inferred-cost-and-price](beancount/inferred-cost-and-price.md) | `{}` and `@ EUR`: the cost or price left to balancing |

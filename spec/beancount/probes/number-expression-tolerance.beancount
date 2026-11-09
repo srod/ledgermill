@@ -1,0 +1,40 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "a quarter has two places - so it allows 0.005"
+  Assets:A  (1 / 4) EUR
+  Assets:B  -0.254 EUR
+
+2026-01-03 * "a share of 100 against a rounded share"
+  Assets:A  (100 / 3) EUR
+  Assets:B  -33.33 EUR
+
+2026-01-04 * "a product keeps the places of its factors"
+  Assets:A  (1.50 * 2) EUR
+  Assets:B  -3.004 EUR
+
+2026-01-05 * "three shares against a total with places"
+  Assets:A  (100 / 3) EUR
+  Assets:A  (100 / 3) EUR
+  Assets:A  (100 / 3) EUR
+  Assets:B  -100.00 EUR
+
+2026-01-06 * "two thirds and one third add up exactly"
+  Assets:A  (2 / 3) EUR
+  Assets:A  (1 / 3) EUR
+  Assets:B  -1 EUR
+
+2026-01-07 * "an exact quotient is exact"
+  Assets:A  (90.00 / 3) EUR
+  Assets:A  (90.00 / 3) EUR
+  Assets:A  (90.00 / 3) EUR
+  Assets:B  -90.00 EUR
+
+2026-01-08 * "a positive exponent allows nothing by itself: the other amount decides"
+  Assets:A  (50 / 0.5) EUR
+  Assets:B  -100.00 EUR
+
+2026-01-09 * "the elided posting makes up the difference"
+  Assets:A  (100 / 3) EUR
+  Assets:A  (100 / 3) EUR
+  Assets:B

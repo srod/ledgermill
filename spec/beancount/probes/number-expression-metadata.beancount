@@ -1,0 +1,14 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "metadata values are numbers too"
+  w1: (1 + 2)
+  w2: 1 + 2
+  w3: 1 / 3
+  w4: (1 + 2) EUR
+  w5: 2 * 3 EUR
+  Assets:A  1 EUR
+    p1: (4 / 8)
+  Assets:B  -1 EUR
+
+2026-01-03 custom "setting" (1 + 2) 4 * 5
