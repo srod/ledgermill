@@ -420,7 +420,10 @@ impl Expressions {
                     "0".to_string()
                 }
                 Err(Failure::DivisionByZero) => {
-                    self.zero_division.push(number);
+                    // One finding per line, like a syntax error.
+                    if self.zero_division.last() != Some(&number) {
+                        self.zero_division.push(number);
+                    }
                     "0".to_string()
                 }
             };
