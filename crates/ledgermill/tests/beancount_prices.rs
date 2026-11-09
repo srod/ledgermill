@@ -7,7 +7,6 @@
 mod support;
 
 use ledgermill::{Ledger, load};
-use serde_json::json;
 use support::file;
 
 macro_rules! probe {
@@ -106,16 +105,16 @@ fn a_number_may_end_in_a_dot_or_start_with_a_plus_on_a_price_line() {
 }
 
 #[test]
-fn a_price_written_as_an_expression_is_refused_and_lists_nothing() {
+fn a_price_written_as_an_expression_lists_its_value() {
     let ledger = load(&[file(
-        "price-expression.beancount",
-        include_str!("../../../spec/beancount/probes/refused/price-expression.beancount"),
+        "t.beancount",
+        "2026-01-02 price AAA (1 + 2) EUR\n2026-01-02 price BBB 3 * 2 EUR\n2026-01-02 price CCC 10 / 4 EUR\n",
     )]);
-    assert_eq!(ledger.check()[0].code, "unsupported-syntax");
-    assert_eq!(
-        ledger.check()[0].details,
-        json!({ "construct": "number-expression" })
-    );
-    assert_eq!(ledger.check()[0].line, 3);
-    assert!(ledger.prices().is_empty());
+    assert!(ledger.check().is_empty());
+    let listed: Vec<_> = ledger
+        .prices()
+        .iter()
+        .map(|p| (p.commodity.as_str(), p.rate.quantity.as_str()))
+        .collect();
+    assert_eq!(listed, [("AAA", "3"), ("BBB", "6"), ("CCC", "2.5")]);
 }

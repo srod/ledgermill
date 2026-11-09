@@ -11,6 +11,7 @@
 mod align;
 mod book;
 mod check;
+mod expr;
 mod lima;
 mod plain;
 mod pydec;
@@ -76,7 +77,9 @@ fn refusal_message(construct: &str) -> &'static str {
         "include" => "Including other files is not supported.",
         "plugin" => "Plugins are not supported.",
         "option" => "This option is not supported yet.",
-        "number-expression" => "Arithmetic in a number is not supported yet.",
+        "number-expression" => {
+            "This arithmetic is not supported yet: put a sign in front of a sign, or a sum after `~`, in parentheses."
+        }
         "number-too-large" => "This number is too large to handle.",
         "inferred-price" => "A price to work out next to a cost is not supported.",
         "cost-partial" => "A cost with one part of `#` left out is not supported yet.",
@@ -111,6 +114,11 @@ fn parse_finding(file: &str, issue: ParseIssue) -> Finding {
             "unbalanced-push",
             json!({ "kind": push_kind(metadata), "name": name, "reason": "push-not-popped" }),
             "This tag or metadata key is pushed and never popped.",
+        ),
+        IssueKind::DivisionByZero => (
+            "division-by-zero",
+            json!({}),
+            "A number is divided by zero. The entry is left out.",
         ),
         IssueKind::DuplicateMetadata { key, posting } => (
             "duplicate-metadata",
@@ -271,6 +279,15 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
             };
         }
     };
+
+    // Entries left out for a division by zero are reported first, as the reference reports
+    // what it cannot read before it checks anything.
+    findings.extend(
+        read.errors
+            .iter()
+            .cloned()
+            .map(|issue| parse_finding(&file.name, issue)),
+    );
 
     let mut methods: HashMap<String, Method> = HashMap::default();
     for item in &read.items {
@@ -494,7 +511,7 @@ fn amount_lines(file: &SourceFile) -> Option<HashSet<u32>> {
     }
     // shortcut: the file is parsed twice (here and in `load`), upgrade if format() gets slow
     let read = lima::read(&file.content).ok()?;
-    let mut lines = HashSet::default();
+    let mut lines: HashSet<u32> = read.left_out.iter().copied().collect();
     for item in &read.items {
         match item {
             Item::Transaction(tx) => lines.extend(tx.postings.iter().map(|p| p.line)),

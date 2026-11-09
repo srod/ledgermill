@@ -117,10 +117,111 @@ fn a_number_without_a_blank_before_its_currency_is_not_aligned() {
 }
 
 #[test]
-fn a_file_with_a_number_expression_is_returned_unchanged() {
-    // ledgermill refuses the expression, so it reads no posting of the file (rule 8).
+fn expressions_stay_as_written_and_align_as_bean_format_does() {
+    // The lines `bean-format` changed in the probe, as it wrote them: one operation in
+    // parentheses is a number to align (and sets the column), every other expression is kept and
+    // counts for nothing, and a `balance` or `price` line is cut in front of its last operand.
+    let probe = include_str!("../../../spec/beancount/probes/number-expression-format.beancount");
+    let changed: &[(usize, &str)] = &[
+        (
+            6,
+            "  Assets:A                                     12.50 EUR",
+        ),
+        (
+            7,
+            "  Assets:B                                    -12.50 EUR",
+        ),
+        (
+            10,
+            "  Assets:A                              (100000 * 3) EUR",
+        ),
+        (
+            11,
+            "  Assets:B                                   -300000 EUR",
+        ),
+        (
+            14,
+            "  Assets:A                                    ( 1+2) EUR",
+        ),
+        (
+            15,
+            "  Assets:B                                        -3 EUR",
+        ),
+        (
+            19,
+            "  Assets:B                                        -6 EUR",
+        ),
+        (
+            23,
+            "  Assets:B                                        -3 EUR",
+        ),
+        (
+            27,
+            "  Assets:B                                         3 EUR",
+        ),
+        (
+            31,
+            "  Assets:B                                        -3 EUR",
+        ),
+        (
+            34,
+            "  Assets:A                                   (1 * 2) AAA @ (10 / 4) EUR",
+        ),
+        (
+            35,
+            "  Assets:Stock                               (1 * 2) BBB {(10 / 4) EUR}",
+        ),
+        (
+            36,
+            "  Assets:B                                       -10 EUR",
+        ),
+        (
+            39,
+            "  Assets:A                                  (2 * -3) EUR",
+        ),
+        (
+            40,
+            "  Assets:B                                         6 EUR",
+        ),
+        (
+            42,
+            "2026-02-10 balance Assets:A                  (1 * 0) EUR",
+        ),
+        (
+            43,
+            "2026-02-10 balance Assets:A  (1 * 0) ~     (1 / 100) EUR",
+        ),
+        (
+            44,
+            "2026-02-10 balance Assets:A  0 ~ 1 /             100 EUR",
+        ),
+        (
+            45,
+            "2026-02-11 price AAA                        (10 / 4) EUR",
+        ),
+        (
+            46,
+            "2026-02-11 price BBB 1                           + 1 EUR",
+        ),
+    ];
+    let got = bean(probe);
+    let (before, after): (Vec<_>, Vec<_>) = (probe.lines().collect(), got.lines().collect());
+    assert_eq!(before.len(), after.len());
+    for (index, (was, now)) in before.iter().zip(&after).enumerate() {
+        let want = changed
+            .iter()
+            .find(|(line, _)| *line == index + 1)
+            .map_or(*was, |(_, text)| *text);
+        assert_eq!(*now, want, "line {}", index + 1);
+    }
+}
+
+#[test]
+fn a_file_with_arithmetic_is_formatted_like_any_other() {
     let input = "2026-03-01 * \"x\"\n  Expenses:Food   (4 + 2.5) EUR\n  Assets:Bank  -6.5 EUR\n";
-    assert_eq!(bean(input), input);
+    let want =
+        "2026-03-01 * \"x\"\n  Expenses:Food  (4 + 2.5) EUR\n  Assets:Bank         -6.5 EUR\n";
+    assert_eq!(bean(input), want);
 }
 
 #[test]

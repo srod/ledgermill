@@ -423,23 +423,18 @@ fn only(content: &str) -> Ledger {
 }
 
 #[test]
-fn a_price_written_as_an_expression_is_refused_by_every_read() {
-    let ledger = load(&[file(
-        "price-expression.beancount",
-        include_str!("../../../spec/beancount/probes/refused/price-expression.beancount"),
-    )]);
-    let construct = json!({ "construct": "number-expression" });
-    assert_eq!(ledger.check()[0].details, construct);
-    assert!(ledger.prices().is_empty());
-    for finding in [
-        ledger.value("2026-02-01", "EUR").unwrap_err(),
-        ledger.at_cost().unwrap_err(),
-        ledger.holdings(&query("EUR", None)).unwrap_err(),
-    ] {
-        assert_eq!(finding.code, "unsupported-syntax");
-        assert_eq!(finding.details, construct);
-        assert_eq!(finding.line, 3);
-    }
+fn a_price_written_as_an_expression_values_by_its_number() {
+    // `bean-query` converts 2 AAA at `(1 + 2) EUR` to 6 EUR.
+    let ledger = only(
+        "2026-01-01 open Assets:Bank\n2026-01-01 open Assets:Stock\n2026-01-01 commodity AAA\n\
+         2026-01-02 price AAA (1 + 2) EUR\n2026-01-03 * \"buy\"\n  Assets:Stock  2 AAA @ 2 EUR\n\
+         \x20 Assets:Bank  -4 EUR\n",
+    );
+    assert!(ledger.check().is_empty());
+    assert_eq!(
+        valued(&ledger, "EUR", "2026-02-01", "Assets:Stock"),
+        ["Assets:Stock 2 AAA -> 6 EUR"]
+    );
 }
 
 #[test]

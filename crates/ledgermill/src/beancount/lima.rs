@@ -9,6 +9,7 @@
 //! output (per-unit prices, interpolated amounts) is derived by `book.rs`, because the crate's
 //! arithmetic differs from the reference tool's (spec/beancount/numbers-and-interpolation.md).
 
+use super::expr::Expressions;
 use super::plain::{
     BookFailure, Day, IssueKind, Item, Lot, Method, ParseIssue, RawCost, RawPosting, RawPrice,
     RawTransaction, Read, Row,
@@ -27,16 +28,28 @@ fn number(d: rust_decimal::Decimal) -> Number {
     Number::from_scaled_i128(d.mantissa(), d.scale())
 }
 
-/// A number written as a plain literal; anything computed is refused by the caller.
-fn literal(value: &parser::ExprValue) -> Option<Number> {
-    match value.expr() {
-        parser::Expr::Value(d) => Some(number(*d)),
-        parser::Expr::Neg(inner) => match inner.as_ref() {
-            parser::Expr::Value(d) => Some(number(*d).negated()),
-            _ => None,
-        },
-        _ => None,
+/// The value of a number as the parser read it: a plain literal, a sign, a sum or a difference
+/// (`1 + 2 EUR`, which the parser evaluates safely), or the placeholder of an expression that
+/// `expr.rs` cut out and evaluated. `None` for a product or a quotient: those lines are cut out
+/// first, so none comes this way, and the parser's own evaluation of one is never trusted.
+fn evaluated(expr: &parser::Expr, found: &Expressions) -> Option<Number> {
+    use parser::Expr as E;
+    match expr {
+        E::Value(d) => Some(
+            found
+                .value_of(d.mantissa(), d.scale())
+                .unwrap_or_else(|| number(*d)),
+        ),
+        E::Neg(inner) => Some(evaluated(inner, found)?.negated()),
+        E::Paren(inner) => evaluated(inner, found),
+        E::Add(left, right) => Some(evaluated(left, found)?.add(&evaluated(right, found)?)),
+        E::Sub(left, right) => Some(evaluated(left, found)?.sub(&evaluated(right, found)?)),
+        E::Mul(..) | E::Div(..) => None,
     }
+}
+
+fn literal(value: &parser::ExprValue, found: &Expressions) -> Option<Number> {
+    evaluated(value.expr(), found)
 }
 
 /// The parser's date type is not exported, so this reads it through a macro.
@@ -92,20 +105,21 @@ fn scoped(value: &parser::ScopedExprValue) -> (&parser::ExprValue, bool) {
 fn posting(
     p: &parser::Spanned<parser::Posting<'_>>,
     starts: &[usize],
+    found: &Expressions,
 ) -> Result<RawPosting, &'static str> {
     let units = match p.amount() {
-        Some(value) => Some(literal(value.item()).ok_or("number-expression")?),
+        Some(value) => Some(literal(value.item(), found).ok_or("number-expression")?),
         None => None,
     };
     let cost = match p.cost_spec() {
         Some(spec) => {
             let spec = spec.item();
             let per_unit = match spec.per_unit() {
-                Some(v) => Some(literal(v.item()).ok_or("number-expression")?),
+                Some(v) => Some(literal(v.item(), found).ok_or("number-expression")?),
                 None => None,
             };
             let total = match spec.total() {
-                Some(v) => Some(literal(v.item()).ok_or("number-expression")?),
+                Some(v) => Some(literal(v.item(), found).ok_or("number-expression")?),
                 None => None,
             };
             Some(RawCost {
@@ -125,7 +139,7 @@ fn posting(
             parser::PriceSpec::CurrencyAmount(s, currency) => {
                 let (value, total) = scoped(s);
                 RawPrice {
-                    number: Some(literal(value).ok_or("number-expression")?),
+                    number: Some(literal(value, found).ok_or("number-expression")?),
                     total,
                     currency: Some(owned(currency)),
                 }
@@ -133,7 +147,7 @@ fn posting(
             parser::PriceSpec::BareAmount(s) => {
                 let (value, total) = scoped(s);
                 RawPrice {
-                    number: Some(literal(value).ok_or("number-expression")?),
+                    number: Some(literal(value, found).ok_or("number-expression")?),
                     total,
                     currency: None,
                 }
@@ -255,10 +269,28 @@ fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> Pars
     }
 }
 
+/// The line of the entry that holds `line`: its own when it starts an entry, else the header above.
+fn entry_start(text: &str, line: u32) -> u32 {
+    let starts_entry = text
+        .split('\n')
+        .nth(usize::try_from(line).unwrap_or(1).saturating_sub(1))
+        .is_some_and(|l| !l.starts_with([' ', '\t']));
+    if starts_entry {
+        line
+    } else {
+        entry_of(text, line).0
+    }
+}
+
 /// Read one file's text. `text` has no `include` line (the caller refuses those first).
 pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     // Offsets from the parser refer to the rewritten text, so lines are counted in it too.
-    let negative_tolerance = super::text::negative_tolerance_lines(text);
+    let rewritten = super::text::normalize(text);
+    let (normalized, found, negative_tolerance) = (
+        rewritten.text,
+        rewritten.expressions,
+        rewritten.negative_tolerance,
+    );
     // Lines the parser reads but the reference does not, found in the text; they join the parser's
     // errors below so the first one is the first in the file, whichever found it.
     let mut margin: Vec<ParseIssue> = super::text::margin_errors(text)
@@ -279,20 +311,35 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
         )
         .collect();
     margin.sort_by_key(|i| i.line);
-    let normalized = super::text::normalize(text);
+    let arithmetic: Vec<ParseIssue> = found
+        .syntax
+        .iter()
+        .map(|&line| ParseIssue {
+            line,
+            reason: "an arithmetic expression that is not one".into(),
+            kind: IssueKind::Syntax,
+        })
+        .collect();
     let starts = line_starts(&normalized);
     let sources = parser::BeancountSources::from(normalized.as_str());
     let reader = parser::BeancountParser::new(&sources);
     let success = match reader.parse() {
-        Ok(success) if margin.is_empty() => success,
-        Ok(_) => return Err(margin),
+        Ok(success) if margin.is_empty() && arithmetic.is_empty() => success,
+        Ok(_) => {
+            margin.extend(arithmetic);
+            margin.sort_by_key(|i| i.line);
+            return Err(margin);
+        }
         Err(failure) => {
             let mut issues: Vec<ParseIssue> = failure
                 .errors
                 .iter()
                 .map(|e| issue(e.reason(), e.span(), &normalized, &starts))
                 .collect();
+            // The parser may have objected to the same line (`2 ^ 3`): one error per line.
+            let seen: Vec<u32> = issues.iter().map(|i| i.line).collect();
             issues.extend(margin);
+            issues.extend(arithmetic.into_iter().filter(|i| !seen.contains(&i.line)));
             // The reference reports in file order, and the pushes left open last, after the file:
             // tags before metadata.
             issues.sort_by_key(|i| match i.kind {
@@ -307,16 +354,49 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
         .booking_method()
         .map_or(Method::Strict, |m| method(*m.item()));
     let mut items = Vec::new();
+    let mut left_out = Vec::new();
+    // An entry with a division by zero is left out; the others are read.
+    let dropped: Vec<u32> = found
+        .zero_division
+        .iter()
+        .map(|&line| entry_start(&normalized, line))
+        .collect();
+    let errors: Vec<ParseIssue> = found
+        .zero_division
+        .iter()
+        .map(|&line| ParseIssue {
+            line,
+            reason: "division by zero".into(),
+            kind: IssueKind::DivisionByZero,
+        })
+        .collect();
+    items.extend(found.unsupported.iter().map(|&line| Item::Refused {
+        line,
+        construct: "number-expression",
+    }));
     // By value: each directive is freed once converted, so the parse result and the items are
     // never both whole in memory (that was the peak on a big ledger).
     for directive in success.directives {
         let line = line_of(&starts, directive.span().start);
+        if dropped.contains(&line) {
+            // Left out of the ledger, but still a posting, a `balance` or a `price` to `format`.
+            match directive.variant() {
+                parser::DirectiveVariant::Transaction(t) => {
+                    left_out.extend(t.postings().map(|p| line_of(&starts, p.span().start)));
+                }
+                parser::DirectiveVariant::Balance(_) | parser::DirectiveVariant::Price(_) => {
+                    left_out.push(line);
+                }
+                _ => {}
+            }
+            continue;
+        }
         match directive.variant() {
             parser::DirectiveVariant::Transaction(t) => {
                 let mut postings = Vec::new();
                 let mut refused = None;
                 for p in t.postings() {
-                    match posting(p, &starts) {
+                    match posting(p, &starts, &found) {
                         Ok(p) => postings.push(p),
                         Err(construct) => {
                             refused = Some(construct);
@@ -356,7 +436,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
             }),
             parser::DirectiveVariant::Price(price) => {
                 let amount = price.amount().item();
-                match literal(amount.number().item()) {
+                match literal(amount.number().item(), &found) {
                     Some(number) => items.push(Item::Price {
                         date: day!(directive.date()),
                         line,
@@ -389,18 +469,21 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
             parser::DirectiveVariant::Balance(balance) => {
                 let atol = balance.atol().item();
                 let amount = atol.amount().item();
-                match literal(amount.number().item()) {
+                match literal(amount.number().item(), &found) {
                     Some(expected) => items.push(Item::Balance {
                         date: day!(directive.date()),
                         line,
                         account: balance.account().item().to_string(),
                         expected,
                         tolerance: atol.tolerance().map(|t| {
-                            let t = number(*t.item());
-                            if negative_tolerance.contains(&line) {
-                                t.negated()
+                            let d = *t.item();
+                            // An expression carries its sign in its value.
+                            if let Some(value) = found.value_of(d.mantissa(), d.scale()) {
+                                value
+                            } else if negative_tolerance.contains(&line) {
+                                number(d).negated()
                             } else {
-                                t
+                                number(d)
                             }
                         }),
                         currency: amount.currency().item().to_string(),
@@ -418,6 +501,8 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     Ok(Read {
         items,
         default_method,
+        errors,
+        left_out,
     })
 }
 
@@ -779,9 +864,11 @@ impl Books {
                     method,
                 );
             }
+            // As written, not through `rust_decimal`: the result of an expression can have
+            // more places than it holds.
             rows.push(Row {
                 origin,
-                units: number(units),
+                units: p.units.clone().unwrap_or_else(|| number(units)),
                 currency: own.to_string(),
                 lot: None,
             });
@@ -916,9 +1003,14 @@ impl Books {
                                 .cloned()
                                 .ok_or(BookFailure::Unsupported("inferred-cost"))?,
                         };
+                        // A lot added by a posting is that posting's units as written.
+                        let units = match (adds.get(origin), feed.get(origin)) {
+                            (Some(true), Some(f)) => f.units.clone(),
+                            _ => None,
+                        };
                         rows.push(Row {
                             origin,
-                            units: number(c.units),
+                            units: units.unwrap_or_else(|| number(c.units)),
                             currency: units_currency.clone(),
                             lot: Some(Lot {
                                 per_unit,
@@ -931,7 +1023,10 @@ impl Books {
                 }
                 None => rows.push(Row {
                     origin,
-                    units: number(p.units),
+                    units: feed
+                        .get(origin)
+                        .and_then(|f| f.units.clone())
+                        .unwrap_or_else(|| number(p.units)),
                     currency: units_currency,
                     lot: None,
                 }),

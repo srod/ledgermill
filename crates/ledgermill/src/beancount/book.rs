@@ -439,12 +439,18 @@ pub(super) fn book(
     let mut sums: HashMap<String, Decimal> = HashMap::default();
     for s in slots.iter().filter(|s| !s.elided) {
         let w = weight(s);
-        let sum = sums.entry(s.group.clone()).or_insert_with(Decimal::zero);
-        *sum = sum.add(&w);
+        // The first term is the sum as it is: adding it to a zero would drop the positive exponent
+        // of `(50 / 0.5)` (`1.0E+2`).
+        let sum = match sums.get(&s.group) {
+            Some(sum) => sum.add(&w),
+            None => w,
+        };
         // A sum that reaches zero starts again: the places of the terms before it are forgotten
         // (numbers-and-interpolation.md, "A sum that reaches zero").
         if sum.is_zero() {
             sums.remove(&s.group);
+        } else {
+            sums.insert(s.group.clone(), sum);
         }
     }
     for s in slots.iter_mut().filter(|s| s.elided) {

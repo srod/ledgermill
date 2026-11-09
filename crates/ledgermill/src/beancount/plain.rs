@@ -158,6 +158,10 @@ pub(super) struct Read {
     pub items: Vec<Item>,
     /// The `booking_method` option; STRICT when absent.
     pub default_method: Method,
+    /// Entries left out of `items` for a reason that does not stop the file: a division by zero.
+    pub errors: Vec<ParseIssue>,
+    /// The lines of the postings, `balance` and `price` of those entries.
+    pub left_out: Vec<u32>,
 }
 
 /// What the parser objected to.
@@ -173,6 +177,8 @@ pub(super) enum IssueKind {
     PushNotPopped { metadata: bool, name: String },
     /// A key given twice under one entry or one posting.
     DuplicateMetadata { key: String, posting: bool },
+    /// A number divided by zero in an expression; the entry is left out and the file is read on.
+    DivisionByZero,
 }
 
 /// A line the parser rejects.

@@ -25,6 +25,9 @@ const PRECISION: u32 = 28;
 pub(super) struct Num {
     coefficient: Coef,
     exponent: i64,
+    /// A zero that carries a minus sign (`0.00 * -1`): the arithmetic keeps it and it prints as
+    /// `-0.00`. Always false for a number that is not zero.
+    negative_zero: bool,
 }
 
 /// A coefficient: a machine word while it fits, a big integer beyond. Amounts in a ledger are
@@ -179,7 +182,19 @@ impl Num {
         Num {
             coefficient,
             exponent,
+            negative_zero: false,
         }
+    }
+
+    /// The same number as a zero with a minus sign, when it is a zero and `negative` is set.
+    fn signed_zero(mut self, negative: bool) -> Num {
+        self.negative_zero = negative && self.coefficient.is_zero();
+        self
+    }
+
+    /// The sign the arithmetic goes by: a zero can be negative too.
+    fn has_minus(&self) -> bool {
+        self.coefficient.is_negative() || self.negative_zero
     }
 
     /// `mantissa` with `scale` decimal places, as written in a journal.
@@ -220,7 +235,8 @@ impl Num {
                 Coef::from_big(if negative { -big } else { big })
             }
         };
-        Some(Num::of(coefficient, exponent - places))
+        // A minus sign in front of a zero stays (`-0.00`): it is a zero that prints with its sign.
+        Some(Num::of(coefficient, exponent - places).signed_zero(negative))
     }
 
     pub(super) fn zero() -> Num {
@@ -235,8 +251,20 @@ impl Num {
         self.coefficient.is_negative()
     }
 
+    /// The unary minus: a zero stays a plain zero (`-(0.00 * -1)` is `0.00`).
     pub(super) fn negated(&self) -> Num {
         Num::of(self.coefficient.negated(), self.exponent)
+    }
+
+    /// The subtrahend as the subtraction adds it: the sign flips, a zero's too (`-0.00 - 0.00`
+    /// is `-0.00`).
+    fn flipped(&self) -> Num {
+        Num::of(self.coefficient.negated(), self.exponent).signed_zero(!self.has_minus())
+    }
+
+    /// `self - other`.
+    pub(super) fn sub(&self, other: &Num) -> Num {
+        self.add(&other.flipped())
     }
 
     pub(super) fn abs(&self) -> Num {
@@ -310,7 +338,7 @@ impl Num {
         if self.exponent <= 0 {
             return self.clone();
         }
-        Num::of(self.aligned(0), 0)
+        Num::of(self.aligned(0), 0).signed_zero(self.negative_zero)
     }
 
     pub(super) fn add(&self, other: &Num) -> Num {
@@ -321,7 +349,9 @@ impl Num {
             Ordering::Less => self.coefficient.add(&other.aligned(exponent)),
             Ordering::Greater => self.aligned(exponent).add(&other.coefficient),
         };
-        Num::of(sum, exponent).rounded()
+        // A zero reached by cancelling is plain; two zeros are negative only when both are.
+        let negative_zero = self.negative_zero && other.negative_zero;
+        Num::of(sum, exponent).rounded().signed_zero(negative_zero)
     }
 
     pub(super) fn mul(&self, other: &Num) -> Num {
@@ -330,6 +360,7 @@ impl Num {
             self.exponent + other.exponent,
         )
         .rounded()
+        .signed_zero(self.has_minus() != other.has_minus())
     }
 
     /// `self / divisor`; `None` when the divisor is zero.
@@ -339,7 +370,10 @@ impl Num {
         }
         let ideal = self.exponent - divisor.exponent;
         if self.is_zero() {
-            return Some(Num::new(BigInt::zero(), ideal));
+            return Some(
+                Num::new(BigInt::zero(), ideal)
+                    .signed_zero(self.has_minus() != divisor.has_minus()),
+            );
         }
         // Scale so the integer quotient has at least PRECISION + 1 digits.
         let da = i64::from(self.coefficient.digit_count());
@@ -379,7 +413,7 @@ impl Num {
     pub(super) fn quantized(&self, places: u32) -> Num {
         let exponent = -i64::from(places);
         if self.exponent >= exponent {
-            return Num::of(self.aligned(exponent), exponent);
+            return Num::of(self.aligned(exponent), exponent).signed_zero(self.negative_zero);
         }
         let drop = u32::try_from(exponent - self.exponent).unwrap_or(u32::MAX);
         let (coefficient, _) = divide_rounded(&self.coefficient.to_big(), &pow10(drop));
@@ -391,7 +425,7 @@ impl Num {
     /// The value in full, never with an exponent: `0.0000005`, not `5E-7`. Padding narrations
     /// print numbers this way (spec/beancount/pad.md).
     pub(super) fn plain(&self) -> String {
-        let sign = if self.is_negative() { "-" } else { "" };
+        let sign = if self.has_minus() { "-" } else { "" };
         let digits = self.coefficient.digits();
         let body = match usize::try_from(-self.exponent) {
             Ok(places) if places > 0 => {
@@ -410,7 +444,7 @@ impl Num {
 
 impl fmt::Display for Num {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sign = if self.is_negative() { "-" } else { "" };
+        let sign = if self.has_minus() { "-" } else { "" };
         let digits = self.coefficient.digits();
         let len = i64::try_from(digits.len()).unwrap_or(i64::MAX);
         let adjusted = self.exponent + len - 1;

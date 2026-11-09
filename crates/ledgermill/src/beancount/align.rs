@@ -183,7 +183,7 @@ fn number_len(text: &str) -> Option<usize> {
         Some(inner) => {
             let after_left = plain_number(inner)?;
             let after_operator = skip_blanks(after_left).strip_prefix(['+', '-', '*', '/'])?;
-            plain_number(after_operator)?.strip_prefix(')')?
+            plain_number(skip_blanks(after_operator))?.strip_prefix(')')?
         }
         None => plain_number(text)?,
     };
