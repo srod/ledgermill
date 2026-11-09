@@ -3,7 +3,8 @@
 Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery 0.2.0, beancount 3.2.3`), 2026-10-21.
 
 Status: **built**. `pad` and `balance` are no longer refused, and neither is arithmetic in a number
-(number-expressions.md); only three shapes of it still are, below. The rest of this note is as it was.
+(number-expressions.md); only a few shapes of it still are, listed in that note's "What ledgermill does
+with it". The rest of this note is as it was.
 
 ## Rule
 

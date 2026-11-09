@@ -215,8 +215,8 @@ Any of them leaves the file with no transaction at all.
 transactions are not returned. An arithmetic expression that is not one (`(1 + )`) is one too.
 
 `division-by-zero` (error): a number divided by zero in an expression. Unlike `parse-error`, only the entry
-that holds it is left out; the others are returned. The line is that of the posting, the `balance` or the
-`price`. (The reference crashes or fails with an internal error on this; the finding is ledgermill's own,
+that holds it is left out; the others are returned. The line is that of the posting, the metadata, the
+`balance` or the `price`. (The reference crashes or fails with an internal error on this; the finding is ledgermill's own,
 [number-expressions](beancount/number-expressions.md).)
 
 `booking-error` (error): bean-check rejects the transaction while booking it. For two elided

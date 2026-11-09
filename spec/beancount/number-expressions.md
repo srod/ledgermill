@@ -4,7 +4,7 @@ Reference: Beancount 3.2.3 / beanquery 0.2.0 (`bean-query --version`: `beanquery
 `bean-format --version`: `Beancount 3.2.3`), 2026-11-09.
 
 Status: **built**: `crates/ledgermill/src/beancount/expr.rs` reads and evaluates the expressions with `pydec.rs`
-(`crates/ledgermill/tests/beancount_number_expressions.rs` checks every table of Output). Three shapes are
+(`crates/ledgermill/tests/beancount_number_expressions.rs` covers the arithmetic and error cases). A few shapes are
 still refused, in "What ledgermill does with it" below.
 
 ## Rule
@@ -126,16 +126,15 @@ checks them on expressions). In summary:
   operand: `price BBB 1 + 1 EUR` becomes `price BBB 1` followed by blanks, then `+ 1 EUR` (the operand with its
   sign and the blank after it is the number), and `balance Assets:A  0 ~ 1 / 100 EUR` becomes `0 ~ 1 /`, blanks,
   `100 EUR`. Both still read as the same expression, since blanks are free inside one.
-- `format()` treats an expression as the text it is, whatever its value (format.md). Today ledgermill
-  returns every one of these probes unchanged because it refuses them, so its output differs from
-  `bean-format`'s on all 14 (the harness lets a file ledgermill does not read differ, `designDifference`).
-  Once expressions are read the text has to equal `bean-format`'s.
+- `format()` treats an expression as the text it is, whatever its value (format.md), and aligns these
+  probes as `bean-format` does ("What ledgermill does with it", below).
 
 ## What ledgermill does with it
 
 The parser ledgermill is built on evaluates an expression as it reads it, with `rust_decimal`: a division
 by zero or a product beyond 96 bits stops the program, and a quotient has 28 places, not 28 digits. So
-no expression reaches it. Before it runs, `expr.rs` cuts each one out of its line and evaluates it with
+no product, quotient or parenthesised expression reaches it: plain sums and differences (`1 + 2`), which
+it evaluates safely, are left to it. Before it runs, `expr.rs` cuts each of the others out of its line and evaluates it with
 `pydec.rs`; the parser sees a placeholder number (a decimal with 28 places, which no written number has: more
 than 22 characters are refused) that the reader replaces by the value. What it reads:
 
@@ -159,13 +158,15 @@ than 22 characters are refused) that the reader replaces by the value. What it r
   stops where more was needed (a line break or a comment inside it: lines 154 and 163 of `-errors`). As for
   every parse error, ledgermill returns no transaction for the file (the reference loses only the entry,
   and the harness compares the first error). One error per line.
-- **Division by zero**: a `division-by-zero` finding (error) on the line of the posting, the `balance` or the
-  `price`; that entry is left out and everything else is read and checked (the reference crashes or reports an
+- **Division by zero**: a `division-by-zero` finding (error) on the line of the posting, the metadata, the
+  `balance` or the `price`; that entry is left out and everything else is read and checked (the reference crashes or reports an
   internal error; the probes stay in `refused/`).
 - **Still refused**, as `unsupported-syntax`, construct `number-expression`: a sign in front of a sign
   without parentheses (`--4`, `+-6`) and a `~` tolerance that is a sum or a difference without parentheses
   (`~ 1 + 2`). The parser takes one sign and a plain tolerance there; the same inside parentheses is read
-  (`probes/refused/number-expression-stacked-sign.beancount`, `-tolerance-sum`). Beyond that, a `( ) / *` left in a
+  (`probes/refused/number-expression-stacked-sign.beancount`, `-tolerance-sum`). On a line that `expr.rs`
+  reads anyway, because it holds a `( ) / *` (a posting flag `*`, say), a stacked sign is evaluated there and
+  gets the reference's value (`  * Assets:A  --4 EUR` is `4`). Beyond that, a `( ) / *` left in a
   line after the expressions are cut out (a currency with a `/`) is refused the same way.
 - **`format()`** returns every one of the format probe's lines as `bean-format` does
   (`crates/ledgermill/tests/format_beancount.rs`, `expressions_stay_as_written_and_align_as_bean_format_does`): the

@@ -432,6 +432,22 @@ fn a_division_by_zero_in_a_balance_or_a_price_loses_that_directive_only() {
 }
 
 #[test]
+fn a_stacked_sign_on_a_flagged_posting_gets_the_reference_value() {
+    // bean-query: 4 and -4.
+    let journal = "2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n\n2026-01-02 * \"t\"\n  * Assets:A  --4 EUR\n  Assets:B\n";
+    let expected = BTreeMap::from([(5, "4".to_string()), (6, "-4".to_string())]);
+    assert_eq!(numbers(journal), expected);
+}
+
+#[test]
+fn a_trailing_point_operand_is_read() {
+    // bean-query: 6 and -6.
+    let journal = "2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n\n2026-01-02 * \"t\"\n  Assets:A  (5. + 1) EUR\n  Assets:B\n";
+    let expected = BTreeMap::from([(5, "6".to_string()), (6, "-6".to_string())]);
+    assert_eq!(numbers(journal), expected);
+}
+
+#[test]
 fn two_divisions_by_zero_on_one_line_are_one_finding() {
     let journal = "2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n\n2026-01-02 * \"t\"\n  Assets:A  (1 / 0) AAA {(2 / 0) EUR}\n  Assets:B\n";
     let found = short_findings("x.beancount", journal);
