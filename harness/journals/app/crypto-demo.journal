@@ -1,0 +1,500 @@
+; Plainledger crypto demo journal (fictional data). The .journal and .beancount
+; files hold the same transactions: change both together. hledger format.
+
+decimal-mark .
+
+P 2025-01-01 BTC 90000 EUR
+P 2025-01-01 ETH 3200 EUR
+P 2025-01-01 SOL 180 EUR
+P 2025-07-01 BTC 92000 EUR
+P 2025-07-01 ETH 2200 EUR
+P 2025-07-01 SOL 130 EUR
+P 2026-01-01 BTC 85000 EUR
+P 2026-01-01 ETH 2900 EUR
+P 2026-01-01 SOL 120 EUR
+P 2026-09-01 BTC 100000 EUR
+P 2026-09-01 ETH 3400 EUR
+P 2026-09-01 SOL 160 EUR
+P 2026-09-01 USDC 0.92 EUR
+P 2026-09-01 PEPE 0.000009 EUR
+
+2024-11-01 * Opening balance
+    assets:bank:checking  8000 EUR
+    equity:opening-balances
+
+2024-11-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2024-11-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2024-11-12 * Supermarket
+    expenses:food:groceries  280 EUR
+    assets:bank:checking
+
+2024-11-15 * Deposit to Kraken
+    assets:crypto:exchange:kraken  5500 EUR
+    assets:bank:checking
+
+2024-11-18 * Buy BTC
+    assets:crypto:exchange:kraken  0.02 BTC @ 85000 EUR
+    expenses:fees:crypto  4.25 EUR
+    assets:crypto:exchange:kraken  -1704.25 EUR
+
+2024-11-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2024-12-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2024-12-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2024-12-10 * Buy ETH
+    assets:crypto:exchange:kraken  0.5 ETH @ 3600 EUR
+    expenses:fees:crypto  4.5 EUR
+    assets:crypto:exchange:kraken  -1804.5 EUR
+
+2024-12-12 * Supermarket
+    expenses:food:groceries  317 EUR
+    assets:bank:checking
+
+2024-12-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-01-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-01-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-01-12 * Supermarket
+    expenses:food:groceries  354 EUR
+    assets:bank:checking
+
+2025-01-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-01-20 * Buy SOL
+    assets:crypto:exchange:kraken  5 SOL @ 240 EUR
+    expenses:fees:crypto  3 EUR
+    assets:crypto:exchange:kraken  -1203 EUR
+
+2025-02-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-02-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-02-05 * Buy USDC
+    assets:crypto:exchange:kraken  500 USDC @ 0.96 EUR
+    expenses:fees:crypto  1.2 EUR
+    assets:crypto:exchange:kraken  -481.2 EUR
+
+2025-02-12 * Supermarket
+    expenses:food:groceries  301 EUR
+    assets:bank:checking
+
+2025-02-15 * Stake ETH
+    assets:crypto:exchange:kraken  -0.5 ETH @ 3600 EUR
+    assets:crypto:staking:kraken  0.5 ETH @ 3600 EUR
+
+2025-02-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-03-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-03-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-03-12 * Supermarket
+    expenses:food:groceries  338 EUR
+    assets:bank:checking
+
+2025-03-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-03-31 * Staking reward
+    assets:crypto:staking:kraken  0.0045 ETH @ 1700 EUR
+    income:crypto:staking  -7.65 EUR
+
+2025-04-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-04-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-04-07 * Deposit to Kraken
+    assets:crypto:exchange:kraken  2000 EUR
+    assets:bank:checking
+
+2025-04-08 * Buy BTC
+    assets:crypto:exchange:kraken  0.025 BTC @ 70000 EUR
+    expenses:fees:crypto  4.38 EUR
+    assets:crypto:exchange:kraken  -1754.38 EUR
+
+2025-04-12 * Supermarket
+    expenses:food:groceries  285 EUR
+    assets:bank:checking
+
+2025-04-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-05-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-05-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-05-12 * Supermarket
+    expenses:food:groceries  322 EUR
+    assets:bank:checking
+
+2025-05-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-06-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-06-01 * Move BTC to Ledger
+    assets:crypto:exchange:kraken  -0.02 BTC @ 85000 EUR
+    assets:crypto:wallet:ledger  0.0199 BTC @ 85000 EUR
+    expenses:fees:crypto  8.5 EUR
+
+2025-06-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-06-12 * Supermarket
+    expenses:food:groceries  359 EUR
+    assets:bank:checking
+
+2025-06-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-06-30 * Staking reward
+    assets:crypto:staking:kraken  0.0045 ETH @ 2100 EUR
+    income:crypto:staking  -9.45 EUR
+
+2025-07-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-07-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-07-12 * Supermarket
+    expenses:food:groceries  306 EUR
+    assets:bank:checking
+
+2025-07-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-08-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-08-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-08-12 * Supermarket
+    expenses:food:groceries  343 EUR
+    assets:bank:checking
+
+2025-08-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-09-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-09-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-09-12 * Supermarket
+    expenses:food:groceries  290 EUR
+    assets:bank:checking
+
+2025-09-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-09-30 * Staking reward
+    assets:crypto:staking:kraken  0.0045 ETH @ 3800 EUR
+    income:crypto:staking  -17.1 EUR
+
+2025-10-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-10-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-10-05 * Sell BTC
+    assets:crypto:exchange:kraken  -0.01 BTC @ 70000 EUR
+    assets:crypto:exchange:kraken  947.62 EUR
+    expenses:fees:crypto  2.38 EUR
+    income:crypto:gains  -250 EUR
+
+2025-10-12 * Supermarket
+    expenses:food:groceries  327 EUR
+    assets:bank:checking
+
+2025-10-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-11-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-11-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-11-12 * Supermarket
+    expenses:food:groceries  364 EUR
+    assets:bank:checking
+
+2025-11-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-11-20 * Buy PEPE
+    assets:crypto:wallet:metamask  20000000 PEPE @ 0.0000075 EUR
+    assets:crypto:exchange:kraken  -150 EUR
+
+2025-12-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2025-12-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2025-12-12 * Supermarket
+    expenses:food:groceries  311 EUR
+    assets:bank:checking
+
+2025-12-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2025-12-31 * Staking reward
+    assets:crypto:staking:kraken  0.0045 ETH @ 2700 EUR
+    income:crypto:staking  -12.15 EUR
+
+2026-01-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-01-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-01-12 * Supermarket
+    expenses:food:groceries  348 EUR
+    assets:bank:checking
+
+2026-01-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-02-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-02-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-02-12 * Supermarket
+    expenses:food:groceries  295 EUR
+    assets:bank:checking
+
+2026-02-14 * ZORBX airdrop
+    assets:crypto:wallet:metamask  1200 ZORBX @ 0.05 EUR
+    income:crypto:airdrops  -60 EUR
+
+2026-02-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-03-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-03-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-03-12 * Supermarket
+    expenses:food:groceries  332 EUR
+    assets:bank:checking
+
+2026-03-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-03-31 * Staking reward
+    assets:crypto:staking:kraken  0.0045 ETH @ 3000 EUR
+    income:crypto:staking  -13.5 EUR
+
+2026-04-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-04-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-04-12 * Supermarket
+    expenses:food:groceries  369 EUR
+    assets:bank:checking
+
+2026-04-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-05-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-05-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-05-10 * Gallery membership token
+    assets:collectibles  1 ARTPASS @ 250 EUR
+    assets:bank:checking  -250 EUR
+
+2026-05-12 * Supermarket
+    expenses:food:groceries  316 EUR
+    assets:bank:checking
+
+2026-05-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-06-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-06-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-06-12 * Supermarket
+    expenses:food:groceries  353 EUR
+    assets:bank:checking
+
+2026-06-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-06-30 * Staking reward
+    assets:crypto:staking:kraken  0.0045 ETH @ 3200 EUR
+    income:crypto:staking  -14.4 EUR
+
+2026-07-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-07-01 * Buy BTC
+    assets:crypto:exchange:kraken  0.01 BTC @ 98000 EUR
+    expenses:fees:crypto  2.45 EUR
+    assets:crypto:exchange:kraken  -982.45 EUR
+
+2026-07-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-07-12 * Supermarket
+    expenses:food:groceries  300 EUR
+    assets:bank:checking
+
+2026-07-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-08-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-08-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-08-12 * Supermarket
+    expenses:food:groceries  337 EUR
+    assets:bank:checking
+
+2026-08-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-09-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-09-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-09-12 * Supermarket
+    expenses:food:groceries  284 EUR
+    assets:bank:checking
+
+2026-09-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
+
+2026-09-30 * Staking reward
+    assets:crypto:staking:kraken  0.0045 ETH @ 3500 EUR
+    income:crypto:staking  -15.75 EUR
+
+2026-10-01 * Salary ACME
+    assets:bank:checking  3200 EUR
+    income:salary
+
+2026-10-03 * Rent
+    expenses:housing:rent  950 EUR
+    assets:bank:checking
+
+2026-10-12 * Supermarket
+    expenses:food:groceries  321 EUR
+    assets:bank:checking
+
+2026-10-20 * Phone plan
+    expenses:utilities:phone  19.99 EUR
+    assets:bank:checking
