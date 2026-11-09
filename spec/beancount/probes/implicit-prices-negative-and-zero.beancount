@@ -1,0 +1,24 @@
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "negative units, per unit"
+  Assets:Btc   -2 BTC @ 50 EUR
+  Assets:Bank   100 EUR
+
+2026-01-03 * "negative units, total"
+  Assets:Btc   -4 BTC @@ 10 EUR
+  Assets:Bank   10 EUR
+
+2026-01-04 * "zero units, per unit"
+  Assets:Btc    0 BTC @ 5 EUR
+  Assets:Bank   0 EUR
+
+2026-01-06 * "price of zero"
+  Assets:Btc    1 BTC @ 0 EUR
+  Assets:Bank   0 EUR
+
+2026-01-07 * "price in the commodity of the units"
+  Assets:Btc    1 BTC @ 2 BTC
+  Assets:Bank  -2 BTC
+
+plugin "beancount.plugins.implicit_prices"

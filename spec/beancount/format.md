@@ -728,7 +728,7 @@ stated, the one that satisfies the acceptance (equality with `bean-format`).
    into LF and adds a final newline; that is not alignment, so the equality with `bean-format` is checked after
    turning CRLF into LF and adding the final newline to our output. Lines never move or merge.
 8. **Files ledgermill refuses.** If loading the file reports anything ledgermill refuses (`unsupported-syntax`: an
-   `include`, a `plugin` other than `auto_accounts`, an `option` that changes names or tolerances, a number expression, a cost to merge, …) the
+   `include`, a `plugin` other than `auto_accounts` and `implicit_prices`, an `option` that changes names or tolerances, a number expression, a cost to merge, …) the
    file is returned unchanged: ledgermill then reads no transaction of the file, so the safety check (rule 9)
    compares two empty ledgers and proves nothing. The same goes for a file ledgermill cannot parse (a syntax error,
    an unknown account root, a duplicate metadata key, an unbalanced `pushtag`, or a byte order mark, which

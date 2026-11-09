@@ -9,7 +9,7 @@ hide() {
 for f in "$@"; do
   echo "== $f"
   echo "-- bean-check"
-  bean-check "$f" 2>&1 | hide | sed -E "s#[^ :]*/##" | grep -E '^[^ ]*:[0-9]+: |^<' || echo "(no output)"
+  bean-check "$f" 2>&1 | hide | sed -E "s#[^ :]*/##" | grep -E '^[^ ]*:[0-9]+: |^<|^\[traceback hidden\]' || echo "(no output)"
   echo "-- open and close directives"
-  bean-query "$f" "PRINT" 2>&1 | hide | grep -E '^[0-9-]+ (open|close) '
+  bean-query "$f" "PRINT" 2>&1 | hide | grep -E '^[0-9-]+ (open|close) |^\[traceback hidden\]' || echo "(no output)"
 done

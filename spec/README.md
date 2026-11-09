@@ -47,6 +47,7 @@ Each note has:
   `id` is shortened to 6 characters and shared by the postings of a transaction. A price is the
   per-unit price, a cost the lot's cost per unit.
 - `beancount/probes/` – the probe journals; `beancount/probes/refused/` those ledgermill refuses (not run by the harness).
+  `beancount/show-implicit.sh` prints a journal's errors, prices table and the line of each price entry, a traceback hidden (the implicit-prices note uses it).
   `beancount/show-opens.sh` prints the errors and the `open` and `close` directives of a journal, those of a plugin included (the auto-accounts note uses it).
   `beancount/verdicts.sh` prints bean-check's verdict and first error for every journal of the corpus.
   `beancount/show-format.sh` prints what `bean-format` changes (a ruler, then the changed lines with their numbers), `beancount/format-same.sh` says whether it
@@ -115,6 +116,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [check-order](beancount/check-order.md) | the order bean-check prints errors in, so which one is first |
 | [check-verdicts](beancount/check-verdicts.md) | bean-check's verdict and first error on every journal of the corpus |
 | [auto-accounts](beancount/auto-accounts.md) | `plugin "beancount.plugins.auto_accounts"`: which accounts it opens and when, what errors go away; every other plugin line refused by name |
+| [implicit-prices](beancount/implicit-prices.md) | `plugin "beancount.plugins.implicit_prices"`: which annotations and costs make price entries, duplicates, order in the prices table, effect on `value()` and `holdings()` |
 | [syntax](beancount/syntax.md) | every directive and construct: supported, ignored with a warning, or refused |
 | [postings](beancount/postings.md) | the flat posting list: row order, lot rows, flags |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
@@ -202,8 +204,8 @@ several ledgers merges their lists ([several-files](beancount/several-files.md))
 `unsupported-syntax` (error): `details.construct` is one of
 
 - `include`: refused before the parser runs;
-- `plugin` (`details.name`: the module as written): any plugin but `beancount.plugins.auto_accounts`, which is built
-  ([auto-accounts](beancount/auto-accounts.md)), and `auto_accounts` given a configuration string; refused before the parser runs;
+- `plugin` (`details.name`: the module as written): any plugin but `beancount.plugins.auto_accounts` and `beancount.plugins.implicit_prices`, which are built
+  ([auto-accounts](beancount/auto-accounts.md), [implicit-prices](beancount/implicit-prices.md)), and either of them given a configuration string; refused before the parser runs;
 - `option` (`details.name`): any option outside the harmless list (options-and-directives);
 - `number-expression` (arithmetic the parser cannot read: a sign in front of a sign, or a `~` tolerance that is a sum, without parentheses; the rest of arithmetic is read, [number-expressions](beancount/number-expressions.md)) and `number-too-large` (more than 22 characters);
 - `inferred-price` (a price to work out next to a cost, or with zero units), `inferred-cost` (a
@@ -218,6 +220,9 @@ Any of them leaves the file with no transaction at all.
 `plugin "beancount.plugins.auto_accounts"` is read, not refused: the accounts a file uses and never opens are open from their first
 use, so `account-not-open` (`never-opened`) and `close-without-open` do not occur for them; every other check is as without
 the plugin ([auto-accounts](beancount/auto-accounts.md)).
+
+`plugin "beancount.plugins.implicit_prices"` is read too and adds no finding: the price annotations and the lots a posting opens become
+`price` entries, which `prices()`, `value()` and `holdings()` use ([implicit-prices](beancount/implicit-prices.md)).
 
 `parse-error` (error): the parser rejects a line (`details.reason` is its message); the
 transactions are not returned. An arithmetic expression that is not one (`(1 + )`) is one too.

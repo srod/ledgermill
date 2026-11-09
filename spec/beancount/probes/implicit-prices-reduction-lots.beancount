@@ -1,0 +1,22 @@
+2026-01-01 open Assets:Btc "FIFO"
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Btc    2 BTC {10.50 EUR}
+  Assets:Bank  -21.00 EUR
+
+2026-01-03 * "buy"
+  Assets:Btc    2 BTC {10.5 EUR, "second"}
+  Assets:Bank  -21.0 EUR
+
+2026-01-07 * "a reduction across two lots with a price: one entry"
+  Assets:Btc   -3 BTC {} @ 11.0 EUR
+  Assets:Bank   33.0 EUR
+  Income:Gain
+
+2026-01-08 * "a reduction across two lots without one: none"
+  Assets:Btc   -1 BTC {}
+  Assets:Bank   10.5 EUR
+
+plugin "beancount.plugins.implicit_prices"

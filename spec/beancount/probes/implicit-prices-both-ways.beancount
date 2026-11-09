@@ -1,0 +1,27 @@
+plugin "beancount.plugins.implicit_prices"
+
+2026-01-01 open Assets:Alpha
+2026-01-01 open Assets:Beta
+2026-01-01 open Assets:Gamma
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Lots
+
+; ALPHA priced in BETA by a posting, BETA in ALPHA by another day's posting: neither inverse is exact
+2026-01-02 * "alpha for beta"
+  Assets:Alpha   1 ALPHA @ 3 BETA
+  Assets:Beta   -3 BETA
+
+2026-01-03 * "beta for alpha"
+  Assets:Beta    1 BETA @ 7 ALPHA
+  Assets:Alpha  -7 ALPHA
+
+; a directive and a posting for GAMMA, in both directions
+2026-01-04 price GAMMA 11 ALPHA
+
+2026-01-05 * "alpha for gamma"
+  Assets:Alpha   1 ALPHA @ 13 GAMMA
+  Assets:Gamma  -13 GAMMA
+
+2026-01-06 * "gamma by cost"
+  Assets:Lots    2 GAMMA {0.3 ALPHA}
+  Assets:Alpha  -0.6 ALPHA

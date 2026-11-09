@@ -1,0 +1,9 @@
+; Zero units with a total price: the rate would be a division by zero; the reference lists a price of 0.
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-05 * "zero units, total"
+  Assets:Btc    0 BTC @@ 10 EUR
+  Assets:Bank   0 EUR
+
+plugin "beancount.plugins.implicit_prices"

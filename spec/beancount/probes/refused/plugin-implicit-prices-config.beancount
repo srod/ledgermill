@@ -1,0 +1,9 @@
+plugin "beancount.plugins.implicit_prices" "some config"
+
+; implicit_prices takes no configuration: the reference reports an error on <load>:0 and adds no price.
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "x"
+  Assets:Btc    2 BTC @ 100 EUR
+  Assets:Bank  -200 EUR

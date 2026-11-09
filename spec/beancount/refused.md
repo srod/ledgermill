@@ -30,11 +30,13 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
 | `plugin-check-commodity` | accepts, the plugin runs (it has nothing to say here) | `plugin` (`details.name`) |
 | `plugin-auto-accounts-config` | rejects: the plugin takes no configuration string, `<load>:0: Error applying plugin` | `plugin` (`details.name`) |
+| `plugin-implicit-prices-config` | rejects: the plugin takes no configuration string, `<load>:0: Error applying plugin`, and no price is added | `plugin` (`details.name`) |
+| `implicit-prices-zero-units-total` | accepts: `0 BTC @@ 10 EUR` with the plugin lists a price of `0` | `number-too-precise` |
 | `plugin-unknown-module` | rejects: `<load>:0: Error importing` the module | `plugin` (`details.name`) |
 | `plugin-escaped-name` | accepts, the plugin runs: `\o` in the module name is `o` (auto-accounts.md) | `plugin` (`details.name`, as written) |
 | `plugin-escaped-control` | rejects: `\n` in the module name is a line feed, `<load>:0: Error importing` | `plugin` (`details.name`, as written) |
 
-Why each is refused: `include` brings in files, and a `plugin` rewrites or checks the entries (only `beancount.plugins.auto_accounts` is built, auto-accounts.md; any other module, with or without a configuration string, is refused, and `details.name` is its module name); an option other than the ones in options-and-directives.md may
+Why each is refused: `include` brings in files, and a `plugin` rewrites or checks the entries (only `beancount.plugins.auto_accounts` and `beancount.plugins.implicit_prices` are built, auto-accounts.md and implicit-prices.md; any other module, with or without a configuration string, is refused, and `details.name` is its module name); an option other than the ones in options-and-directives.md may
 change tolerances, account names or booking; `cost-merge` (`{..., *}`) and AVERAGE booking merge
 lots. A sign in front of a sign and a tolerance that is a sum are read by the reference but not by the
 parser ledgermill is built on, which takes one sign and a plain number there; the same two inside

@@ -1,0 +1,22 @@
+plugin "beancount.plugins.implicit_prices"
+plugin "beancount.plugins.implicit_prices"
+
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Usd
+
+2026-01-02 price AAA 1 EUR
+
+2026-01-02 ! "postings of two currencies, rates of one pair on both sides"
+  Assets:A     1 AAA @ 5 EUR
+  Assets:B     1 BBB @ 6 USD
+  Assets:A     1 AAA @ 7 EUR
+  Assets:Bank  -12 EUR
+  Assets:Usd   -6 USD
+
+2026-01-02 price AAA 2 EUR
+
+2026-01-01 * "an earlier date written later"
+  Assets:A     1 AAA @ 3 EUR
+  Assets:Bank  -3 EUR

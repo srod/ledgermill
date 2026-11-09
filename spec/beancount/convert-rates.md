@@ -10,7 +10,10 @@ position (units, cost currency) is in convert-positions.md; this note is the rat
 The queries Plainledger runs are `convert(position, "V", date(Y, M, D))` for a value on a date, and
 `convert(position, "V")`, with no date, in the holdings query. The rate from commodity `F` to `V`:
 
-- **Only `price` directives make rates.** `@`, `@@` and a cost make none (convert-positions.md).
+- **Only `price` directives make rates,** unless the file names `plugin "beancount.plugins.implicit_prices"`: then the `@`, `@@` and
+  cost of its postings add `price` entries, which are rates like any other, listed on the line of their transaction
+  (implicit-prices.md). Without the plugin `@`, `@@` and a cost make none (convert-positions.md). Everything below
+  applies to the entries of the table, whichever way they got there.
 - **The latest entry on or before the date.** The entries of the pair are the prices of `F` in `V` and
   the inverse of the prices of `V` in `F`, taken together, in the order of the prices table
   (price-table.md: by date, the same date in the order written). A price dated on the day asked counts.
