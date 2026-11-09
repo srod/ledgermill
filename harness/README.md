@@ -375,7 +375,7 @@ a self-test of hand-written values): it never calls the engine. What it compares
   nothing in it. The questions are the first, middle and last date of the value questions and none, in at most three commodities
   (`setHoldingQuestions`). A commodity hledger cannot ask for alone (`cur:`, see "Holdings") is left out of every ledger and of ours; the
   verdict is a SKIP if the rest agrees.
-- **an `unsupported-syntax` finding anywhere in the set** (a Beancount file with a plugin, say): the whole set is a SKIP, as one such
+- **an `unsupported-syntax` finding anywhere in the set** (a Beancount file with a plugin other than `auto_accounts`, say): the whole set is a SKIP, as one such
   file always was. `plugin` is in `EXPECTED_SKIPS` for the probe that does this on purpose.
 
 Not asked of a set: `format()` (every file is formatted in its single-file case) and Plainledger's reads (single files and pairs only).

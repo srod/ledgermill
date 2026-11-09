@@ -48,7 +48,9 @@ Three classes.
 | `pushtag`/`poptag`, `pushmeta`/`popmeta` | supported | `directives-ignored`, `check-tags-and-meta` |
 | `option` in the harmless list (options-and-directives.md), repeated or not | supported | `options-harmless`, `option-title-twice`, `option-repeated-last-wins` |
 | any other `option` | unsupported | `option-tolerance`, `option-unknown` |
-| `plugin` | unsupported | `plugin` |
+| `plugin "beancount.plugins.auto_accounts"` (given once or more, anywhere in the file) | supported | `auto-accounts`, `auto-accounts-directives`, `auto-accounts-first-use`, `auto-accounts-mixed`, `auto-accounts-twice`, `auto-accounts-close-ok`, `auto-accounts-open-after-use`, `auto-accounts-use-after-close`, `auto-accounts-currencies`, `auto-accounts-booking-error`, `auto-accounts-errors-order` (auto-accounts.md) |
+| any other `plugin`, or `auto_accounts` with a configuration string | unsupported, `details.name` is the module | `refused/plugin-check-commodity`, `refused/plugin-auto-accounts-config`, `refused/plugin-unknown-module` |
+| a `plugin` line the reference rejects (`plugin beancount.x`, a number or a third string after the module) | error `parse-error` | auto-accounts.md |
 | `include` | unsupported | `include` |
 | a `price` of zero in a pair priced both ways (valuation only) | unsupported | `price-both-ways-zero` |
 | arithmetic in a number: `+ - * /`, parentheses, signs, in a posting, a price, a cost, a `balance` and its tolerance, a `price`, metadata | supported | `number-expression-operators`, `-division`, `-places`, `-zero`, `-tolerance`, `-tolerance-fails`, `-display`, `-positions`, `-balance`, `-price-directive`, `-metadata`, `-errors`, `-format` (number-expressions.md) |

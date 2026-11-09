@@ -1,0 +1,5 @@
+plugin "beancount.plugins.auto_acc\ounts"
+
+2026-01-02 * "a backslash before an ordinary letter is dropped, so the reference runs auto_accounts"
+  Assets:A  1 EUR
+  Assets:B

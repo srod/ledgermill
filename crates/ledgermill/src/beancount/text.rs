@@ -2,6 +2,7 @@
 //! the parser sees them (it would read the filesystem for `include`, and a few number
 //! expressions would make it panic).
 
+use super::auto_accounts;
 use super::expr::{self, Expressions};
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -22,7 +23,7 @@ pub(super) fn line_of(starts: &[usize], offset: usize) -> u32 {
 pub(super) struct Refusal {
     pub line: u32,
     pub construct: &'static str,
-    /// The option name for `option`.
+    /// The option name for `option`, the module name for `plugin`.
     pub name: Option<String>,
 }
 
@@ -146,6 +147,43 @@ fn has_partial_cost(code: &str) -> bool {
     false
 }
 
+/// A string literal at the start of `text`: what is between the quotes as written, and the rest
+/// of the line after the closing quote.
+fn quoted(text: &str) -> Option<(&str, &str)> {
+    let inner = text.strip_prefix('"')?;
+    let mut escaped = false;
+    for (at, c) in inner.char_indices() {
+        if escaped {
+            escaped = false;
+        } else if c == '\\' {
+            escaped = true;
+        } else if c == '"' {
+            return Some((&inner[..at], &inner[at + 1..]));
+        }
+    }
+    None
+}
+
+/// A well-formed `plugin` line: the module name, and whether a configuration string follows it.
+/// `None` for anything else (the parser reports those).
+fn plugin_line(line: &str) -> Option<(&str, bool)> {
+    let rest = line.strip_prefix("plugin")?.trim_start_matches([' ', '\t']);
+    let (name, rest) = quoted(rest)?;
+    let rest = rest.trim_start_matches([' ', '\t']);
+    let (config, rest) = match quoted(rest) {
+        Some((_, after)) => (true, after.trim_start_matches([' ', '\t'])),
+        None => (false, rest),
+    };
+    (rest.is_empty() || rest.starts_with(';')).then_some((name, config))
+}
+
+/// A directive keyword alone on its line, perhaps with a comment.
+fn bare_keyword(line: &str) -> bool {
+    let rest = line.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+    let rest = rest.trim_start_matches([' ', '\t']);
+    rest.is_empty() || rest.starts_with(';')
+}
+
 fn option_name(line: &str) -> Option<String> {
     let rest = line.strip_prefix("option")?;
     let start = rest.find('"')? + 1;
@@ -185,9 +223,16 @@ fn plainly_fine(raw: &str) -> bool {
     true
 }
 
+/// What `prescan` found: the lines to refuse, and whether the `auto_accounts` plugin is asked for.
+pub(super) struct Prescan {
+    pub refusals: Vec<Refusal>,
+    pub auto_accounts: bool,
+}
+
 /// Lines to refuse, found without the parser.
-pub(super) fn prescan(text: &str) -> Vec<Refusal> {
+pub(super) fn prescan(text: &str) -> Prescan {
     let mut out = Vec::new();
+    let mut wanted = false;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     for (index, raw) in text.split('\n').enumerate() {
         let line = u32::try_from(index + 1).unwrap_or(u32::MAX);
@@ -200,7 +245,15 @@ pub(super) fn prescan(text: &str) -> Vec<Refusal> {
         if starts_with_keyword(raw, "include") {
             out.push(refuse("include", None));
         } else if starts_with_keyword(raw, "plugin") {
-            out.push(refuse("plugin", None));
+            match plugin_line(raw) {
+                Some((auto_accounts::MODULE, false)) => wanted = true,
+                Some((name, _)) => out.push(refuse("plugin", Some(name.to_string()))),
+                // A keyword with no name: the reference puts its syntax error on the next line,
+                // which the parser does not, so it is refused rather than reported.
+                None if bare_keyword(raw) => out.push(refuse("plugin", None)),
+                // Not a plugin line the reference reads: the parser reports it.
+                None => {}
+            }
         } else if starts_with_keyword(raw, "option") {
             match option_name(raw) {
                 Some(name) if HARMLESS_OPTIONS.contains(&name.as_str()) => {}
@@ -226,7 +279,10 @@ pub(super) fn prescan(text: &str) -> Vec<Refusal> {
             }
         }
     }
-    out
+    Prescan {
+        refusals: out,
+        auto_accounts: wanted,
+    }
 }
 
 /// Whether a sign stands in front of another (`--4`, `+-6`): the reference reads that, the parser

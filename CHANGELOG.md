@@ -15,6 +15,9 @@ All notable changes to ledgermill are written here. The format follows
   `parse-error` and, like any parse error, leaves the file with no transactions. A sign in front of a sign and a `~`
   tolerance that is a sum, both without parentheses, are still refused (`number-expression`). `format()`
   aligns expressions as `bean-format` does. See `spec/beancount/number-expressions.md`.
+- Beancount: `plugin "beancount.plugins.auto_accounts"` is built: every account used and never opened gets an `open`
+  on the day of its first use, so a journal with no `open` lines is valid. Every other plugin is still refused
+  (`unsupported-syntax`), and the finding now names it in `details.name`. See `spec/beancount/auto-accounts.md`.
 - `fuzz.ts --beancount` writes arithmetic in numbers now and then.
 - Beancount: a posting flag `*` straight before the account (`*Assets:Bank`) is read.
 

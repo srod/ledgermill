@@ -9,6 +9,7 @@
 //! look complete.
 
 mod align;
+mod auto_accounts;
 mod book;
 mod check;
 mod expr;
@@ -75,7 +76,7 @@ fn unsupported(file: &str, line: u32, construct: &str, extra: Value, message: &s
 fn refusal_message(construct: &str) -> &'static str {
     match construct {
         "include" => "Including other files is not supported.",
-        "plugin" => "Plugins are not supported.",
+        "plugin" => "This plugin is not supported; only beancount.plugins.auto_accounts is.",
         "option" => "This option is not supported yet.",
         "number-expression" => {
             "This arithmetic is not supported yet: put a sign in front of a sign, or a sum after `~`, in parentheses."
@@ -244,7 +245,8 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
 
     // Lines refused before the parser runs: it would look for included files on disk, and a
     // few numbers would stop it.
-    for refusal in text::prescan(&file.content) {
+    let prescan = text::prescan(&file.content);
+    for refusal in prescan.refusals {
         let extra = match &refusal.name {
             Some(name) => json!({ "name": name }),
             None => json!({}),
@@ -265,7 +267,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         };
     }
 
-    let read = match lima::read(&file.content) {
+    let mut read = match lima::read(&file.content) {
         Ok(read) => read,
         Err(issues) => {
             let findings = issues
@@ -462,6 +464,10 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
             findings,
             prices: Vec::new(),
         };
+    }
+    if prescan.auto_accounts {
+        let added = auto_accounts::opens(&read.items, &kept);
+        read.items.extend(added);
     }
     // The checks come in the order the reference prints them, not in line order.
     let checked = check::run(&read.items, &kept);

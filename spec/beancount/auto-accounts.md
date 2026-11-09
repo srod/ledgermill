@@ -14,6 +14,13 @@ with the module name in `details.name`.
   is a syntax error of the reference, on that line: an unquoted name, a number or a third string after the
   module, text glued after the closing quote, an indented line. (A keyword with nothing after it is a syntax
   error too, but the reference puts it on the line after.)
+- **A module name written with a backslash is refused**, whatever it spells. The reference reads the escapes of
+  the string: a backslash makes the next character itself (`\o` is `o`, `\\` a backslash, `\"` a quote), except
+  `\n`, `\t`, `\r`, `\b` and `\f`, which are control characters (`\x6f`, `\157` and `\u006f` are not escapes:
+  `x6f`, `157`, `u006f`). So `plugin "beancount.plugins.auto_acc\ounts"` runs `auto_accounts` and
+  `"beancount.plugins.auto_accou\nts"` is another module. ledgermill compares the module as written, so both are
+  refused by name (as written); the parser behind it does not read these escapes in a `plugin` line either.
+  The same holds for `implicit_prices`.
 - `beancount.plugins.auto_accounts` with **no** configuration string is built. With one the reference fails
   to apply the plugin (an error on `<load>:0`), and ledgermill refuses it.
 - Any other module is refused: `unsupported-syntax`, `details.construct = "plugin"`,
@@ -78,7 +85,8 @@ Rejected, with the error that stays:
   be unknown, the plugin line last.
 
 Refused (`probes/refused/`, not run by the harness): `plugin-check-commodity.beancount`,
-`plugin-auto-accounts-config.beancount`, `plugin-unknown-module.beancount`.
+`plugin-auto-accounts-config.beancount`, `plugin-unknown-module.beancount`,
+`plugin-escaped-name.beancount`, `plugin-escaped-control.beancount`.
 
 Command:
 
@@ -186,6 +194,8 @@ plugin-auto-accounts-config:   bean-check: <load>:0: Error applying plugin "bean
                                bean-check: plugin-auto-accounts-config.beancount:3: Invalid reference to unknown account 'Assets:B'
                                bean-check: plugin-auto-accounts-config.beancount:3: Invalid reference to unknown account 'Assets:A'
 plugin-unknown-module:         bean-check: <load>:0: Error importing "no.such.module": [traceback hidden]
+plugin-escaped-name:           bean-check: (no output)   [the plugin runs: both accounts are opened]
+plugin-escaped-control:        bean-check: <load>:0: Error importing "beancount.plugins.auto_accou<line feed>ts": [traceback hidden]
 ```
 
 The same journal with other plugin lines, for the forms (a line `plugin LINE` in front of a journal with

@@ -18,7 +18,7 @@ These change no transaction and no posting, and ledgermill reads past them:
 - `pushtag`/`poptag` and `pushmeta`/`popmeta`: a transaction inside them has the same rows as one
   outside.
 
-Every other option is refused (refused.md), as are `include` and `plugin`. `pad` and `balance` are
+Every other option is refused (refused.md), as are `include` and every `plugin` but `beancount.plugins.auto_accounts` (auto-accounts.md). `pad` and `balance` are
 read (pad.md, balance-directive.md), and `document` is skipped with a warning (check-errors.md).
 
 A harmless option may be given more than once, and the **last** one counts: two `booking_method` lines with
