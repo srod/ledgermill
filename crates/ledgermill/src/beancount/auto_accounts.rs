@@ -1,49 +1,46 @@
-//! The `beancount.plugins.auto_accounts` plugin: every account that is named but never opened gets
-//! an `open` on the day of its first use (spec/beancount/auto-accounts.md).
+//! The `beancount.plugins.auto_accounts` plugin: an `open` for every account that is used and has
+//! none (spec/beancount/auto-accounts.md).
 
 use super::check::Kept;
 use super::plain::{Day, Item};
-use foldhash::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 /// The module name that turns the plugin on.
 pub(super) const MODULE: &str = "beancount.plugins.auto_accounts";
 
-fn record_use<'a>(first_use: &mut HashMap<&'a str, Day>, account: &'a str, date: Day) {
+/// Note a use of `account` on `date`, keeping the earliest.
+fn used<'a>(first_use: &mut BTreeMap<&'a str, Day>, account: &'a str, date: Day) {
     first_use
         .entry(account)
         .and_modify(|first| *first = (*first).min(date))
         .or_insert(date);
 }
 
-/// The `open` directives the plugin adds, by date and then account name.
-///
-/// An account is used by a posting of a transaction booking kept, by either account of a `pad`, and
-/// by a `balance`, `note`, `document` or `close`. `price`, `event`, `custom` and metadata values name
-/// no account for it. An account with an `open` anywhere in the file is left alone, whatever the
-/// date of that `open`: the errors for a use before it stay.
+/// The `open` directives the plugin adds, each on the day its account is first used. A use is a
+/// posting of a transaction booking kept (one it rejected is not seen), either account of a `pad`,
+/// and a `balance`, `note`, `document` or `close`. An account with an `open` anywhere in the file
+/// is left alone, even if the `open` comes late: the error that follows is the reference's own.
 pub(super) fn opens(items: &[Item], kept: &[Kept]) -> Vec<Item> {
-    let mut opened: HashSet<&str> = HashSet::default();
-    let mut first_use: HashMap<&str, Day> = HashMap::default();
-    let mut touch = |account, date| record_use(&mut first_use, account, date);
+    let mut first_use: BTreeMap<&str, Day> = BTreeMap::new();
+    let mut declared: HashSet<&str> = HashSet::new();
     for item in items {
         match item {
             Item::Open { account, .. } => {
-                opened.insert(account);
+                declared.insert(account);
             }
-            Item::Close { account, date, .. }
-            | Item::Note { account, date, .. }
-            | Item::Document { account, date, .. }
-            | Item::Balance { account, date, .. } => touch(account, *date),
             Item::Pad {
+                date,
                 account,
                 source,
-                date,
                 ..
             } => {
-                touch(account, *date);
-                touch(source, *date);
+                used(&mut first_use, account, *date);
+                used(&mut first_use, source, *date);
             }
-            // A transaction counts through `kept`: one rejected by booking is not seen by the plugin.
+            Item::Balance { date, account, .. }
+            | Item::Note { date, account, .. }
+            | Item::Document { date, account, .. }
+            | Item::Close { date, account, .. } => used(&mut first_use, account, *date),
             Item::Commodity { .. }
             | Item::Price { .. }
             | Item::Transaction(_)
@@ -52,19 +49,15 @@ pub(super) fn opens(items: &[Item], kept: &[Kept]) -> Vec<Item> {
     }
     for transaction in kept {
         for posting in &transaction.postings {
-            touch(&posting.account, transaction.date);
+            used(&mut first_use, &posting.account, transaction.date);
         }
     }
-    let mut added: Vec<(Day, &str)> = first_use
+    first_use
         .into_iter()
-        .filter(|(account, _)| !opened.contains(account))
-        .map(|(account, date)| (date, account))
-        .collect();
-    added.sort_unstable();
-    added
-        .into_iter()
-        .map(|(date, account)| Item::Open {
+        .filter(|(account, _)| !declared.contains(account))
+        .map(|(account, date)| Item::Open {
             date,
+            // The reference gives the entries it adds no line of the file.
             line: 0,
             account: account.to_string(),
             currencies: Vec::new(),

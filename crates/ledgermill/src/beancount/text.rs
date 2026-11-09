@@ -2,9 +2,8 @@
 //! the parser sees them (it would read the filesystem for `include`, and a few number
 //! expressions would make it panic).
 
-use super::auto_accounts;
 use super::expr::{self, Expressions};
-use super::implicit_prices;
+use super::{auto_accounts, implicit_prices};
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -148,43 +147,6 @@ fn has_partial_cost(code: &str) -> bool {
     false
 }
 
-/// A string literal at the start of `text`: what is between the quotes as written, and the rest
-/// of the line after the closing quote.
-fn quoted(text: &str) -> Option<(&str, &str)> {
-    let inner = text.strip_prefix('"')?;
-    let mut escaped = false;
-    for (at, c) in inner.char_indices() {
-        if escaped {
-            escaped = false;
-        } else if c == '\\' {
-            escaped = true;
-        } else if c == '"' {
-            return Some((&inner[..at], &inner[at + 1..]));
-        }
-    }
-    None
-}
-
-/// A well-formed `plugin` line: the module name, and whether a configuration string follows it.
-/// `None` for anything else (the parser reports those).
-fn plugin_line(line: &str) -> Option<(&str, bool)> {
-    let rest = line.strip_prefix("plugin")?.trim_start_matches([' ', '\t']);
-    let (name, rest) = quoted(rest)?;
-    let rest = rest.trim_start_matches([' ', '\t']);
-    let (config, rest) = match quoted(rest) {
-        Some((_, after)) => (true, after.trim_start_matches([' ', '\t'])),
-        None => (false, rest),
-    };
-    (rest.is_empty() || rest.starts_with(';')).then_some((name, config))
-}
-
-/// A directive keyword alone on its line, perhaps with a comment.
-fn bare_keyword(line: &str) -> bool {
-    let rest = line.trim_start_matches(|c: char| c.is_ascii_alphabetic());
-    let rest = rest.trim_start_matches([' ', '\t']);
-    rest.is_empty() || rest.starts_with(';')
-}
-
 fn option_name(line: &str) -> Option<String> {
     let rest = line.strip_prefix("option")?;
     let start = rest.find('"')? + 1;
@@ -224,6 +186,72 @@ fn plainly_fine(raw: &str) -> bool {
     true
 }
 
+/// What a `plugin` line says (spec/beancount/auto-accounts.md).
+enum PluginLine<'a> {
+    /// The keyword with nothing after it.
+    Bare,
+    /// A module name as written between the quotes, and whether a configuration string follows.
+    Named { module: &'a str, config: bool },
+    /// Any other form: the reference rejects it and so does the parser, which reports it.
+    Malformed,
+}
+
+/// The text of a string whose opening quote is already cut off, as written (escapes are not
+/// read: a backslash makes the next character part of the string, so `\"` does not end it), and
+/// what follows the closing quote.
+fn string_at(rest: &str) -> Option<(&str, &str)> {
+    let mut chars = rest.char_indices();
+    while let Some((at, c)) = chars.next() {
+        match c {
+            '\\' => {
+                chars.next();
+            }
+            '"' => return Some((rest.get(..at)?, rest.get(at + 1..)?)),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Whether only blanks and a `;` comment are left on the line.
+fn nothing_more(rest: &str) -> bool {
+    let rest = rest.trim_start_matches([' ', '\t']);
+    rest.is_empty() || rest.starts_with([';', '\n', '\r'])
+}
+
+/// Read a `plugin` line. `from_line` is the text from the start of the line to the end of the
+/// file: a string may run over several lines, and the name is then written with them.
+fn plugin_line(from_line: &str) -> PluginLine<'_> {
+    let rest = from_line.strip_prefix("plugin").unwrap_or(from_line);
+    if nothing_more(rest) {
+        return PluginLine::Bare;
+    }
+    let Some((module, rest)) = rest
+        .trim_start_matches([' ', '\t'])
+        .strip_prefix('"')
+        .and_then(string_at)
+    else {
+        return PluginLine::Malformed;
+    };
+    if nothing_more(rest) {
+        return PluginLine::Named {
+            module,
+            config: false,
+        };
+    }
+    match rest
+        .trim_start_matches([' ', '\t'])
+        .strip_prefix('"')
+        .and_then(string_at)
+    {
+        Some((_, rest)) if nothing_more(rest) => PluginLine::Named {
+            module,
+            config: true,
+        },
+        _ => PluginLine::Malformed,
+    }
+}
+
 /// What `prescan` found: the lines to refuse, whether the `auto_accounts` plugin is asked for and
 /// how many `plugin` lines name `implicit_prices` (each one runs it).
 pub(super) struct Prescan {
@@ -238,8 +266,11 @@ pub(super) fn prescan(text: &str) -> Prescan {
     let mut wanted = false;
     let mut implicit_runs = 0usize;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+    let mut offset = 0;
     for (index, raw) in text.split('\n').enumerate() {
         let line = u32::try_from(index + 1).unwrap_or(u32::MAX);
+        let from_line = text.get(offset..).unwrap_or_default();
+        offset += raw.len() + 1;
         let raw = raw.strip_suffix('\r').unwrap_or(raw);
         let refuse = |construct, name| Refusal {
             line,
@@ -249,15 +280,23 @@ pub(super) fn prescan(text: &str) -> Prescan {
         if starts_with_keyword(raw, "include") {
             out.push(refuse("include", None));
         } else if starts_with_keyword(raw, "plugin") {
-            match plugin_line(raw) {
-                Some((auto_accounts::MODULE, false)) => wanted = true,
-                Some((implicit_prices::MODULE, false)) => implicit_runs += 1,
-                Some((name, _)) => out.push(refuse("plugin", Some(name.to_string()))),
-                // A keyword with no name: the reference puts its syntax error on the next line,
-                // which the parser does not, so it is refused rather than reported.
-                None if bare_keyword(raw) => out.push(refuse("plugin", None)),
-                // Not a plugin line the reference reads: the parser reports it.
-                None => {}
+            // Each `implicit_prices` line runs it again; `auto_accounts` runs once however often it
+            // is named. Any configuration string makes the reference fail to apply the plugin.
+            match plugin_line(from_line) {
+                PluginLine::Named {
+                    module: auto_accounts::MODULE,
+                    config: false,
+                } => wanted = true,
+                PluginLine::Named {
+                    module: implicit_prices::MODULE,
+                    config: false,
+                } => implicit_runs += 1,
+                PluginLine::Named { module, .. } => {
+                    out.push(refuse("plugin", Some(module.to_string())));
+                }
+                PluginLine::Bare => out.push(refuse("plugin", None)),
+                // The parser gives the syntax error, on the line the reference gives it.
+                PluginLine::Malformed => {}
             }
         } else if starts_with_keyword(raw, "option") {
             match option_name(raw) {

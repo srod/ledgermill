@@ -239,3 +239,21 @@ fn a_plugin_line_the_reference_rejects_is_a_parse_error() {
         assert_eq!(found[0]["line"], json!(1), "{line}");
     }
 }
+
+#[test]
+fn a_module_name_over_two_lines_is_refused_as_written() {
+    // The reference fails to import a module with a line feed in its name.
+    let journal = "plugin \"beancount.plugins.auto_accounts\n\"\n";
+    assert_eq!(
+        refusals(journal),
+        json!([[1, "plugin", "beancount.plugins.auto_accounts\n"]])
+    );
+}
+
+#[test]
+fn a_configuration_string_may_follow_the_module_with_no_blank() {
+    assert_eq!(
+        refusals("plugin \"beancount.plugins.auto_accounts\"\"x\"\n"),
+        json!([[1, "plugin", "beancount.plugins.auto_accounts"]])
+    );
+}

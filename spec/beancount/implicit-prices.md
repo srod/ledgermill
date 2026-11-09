@@ -173,14 +173,21 @@ implicit-prices-dedupe-values (one entry a day; the first written stays, as writ
 ```
 
 implicit-prices-duplicates (directives at 90.00 above and 110.00 below the transaction; on 01-04 a directive and a posting of
-100.00 are both listed):
+100.00 are both listed; on 01-05 two postings at 100.00 give one entry; on 01-06 two rates in one transaction and a third in
+another give three entries, the two of the first on the same line):
 
 ```text
 2026-01-02,BTC,90.00,EUR      directive, line 6
 2026-01-02,BTC,100.00,EUR     posting, line 8
 2026-01-02,BTC,110.00,EUR     directive, line 12
-2026-01-04,BTC,100.00,EUR
-2026-01-04,BTC,100.00,EUR
+2026-01-03,BTC,100.00,EUR     posting, line 14
+2026-01-03,BTC,90.00,EUR      directive, line 18
+2026-01-04,BTC,100.00,EUR     posting, line 20
+2026-01-04,BTC,100.00,EUR     directive, line 24
+2026-01-05,BTC,100.00,EUR     posting, line 26
+2026-01-06,BTC,100.00,EUR     posting, line 31
+2026-01-06,BTC,120.00,EUR     posting, line 31
+2026-01-06,BTC,130.00,EUR     posting, line 36
 ```
 
 implicit-prices-numbers:

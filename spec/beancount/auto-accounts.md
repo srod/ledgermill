@@ -21,6 +21,9 @@ with the module name in `details.name`.
   `"beancount.plugins.auto_accou\nts"` is another module. ledgermill's parser does not decode these escapes in a
   `plugin` line, and it compares the module as written, so both are refused by name (as written).
   The same holds for `implicit_prices`.
+- A string may run over several lines. A module name with a line feed in it is another module: the reference
+  fails to import it (`<load>:0`), and ledgermill refuses it by name, the line feed included. A configuration string
+  may follow the module with no blank between the two quotes (`"a""b"`).
 - `beancount.plugins.auto_accounts` with **no** configuration string is built. With one the reference fails
   to apply the plugin (an error on `<load>:0`), and ledgermill refuses it.
 - Any other module is refused: `unsupported-syntax`, `details.construct = "plugin"`,
@@ -84,14 +87,19 @@ Rejected, with the error that stays:
 - `probes/auto-accounts-errors-order.beancount`: eight errors of different steps next to accounts that would
   be unknown, the plugin line last.
 
+Rejected by both tools (the harness compares the first error only): `probes/plugin-unquoted-name.beancount`
+(`plugin beancount.plugins.auto_accounts`), `probes/plugin-number-argument.beancount` (a number after the module),
+`probes/plugin-three-strings.beancount` (a third string).
+
 Refused (`probes/refused/`, not run by the harness): `plugin-check-commodity.beancount`,
 `plugin-auto-accounts-config.beancount`, `plugin-unknown-module.beancount`,
-`plugin-escaped-name.beancount`, `plugin-escaped-control.beancount`.
+`plugin-escaped-name.beancount`, `plugin-escaped-control.beancount`, `plugin-multiline-name.beancount`
+(a module name with a line feed inside the quotes), `plugin-glued-config.beancount` (`"module""config"`).
 
 Command:
 
 ```sh
-spec/beancount/show-opens.sh spec/beancount/probes/auto-accounts-*.beancount spec/beancount/probes/refused/plugin-*.beancount
+spec/beancount/show-opens.sh spec/beancount/probes/auto-accounts-*.beancount spec/beancount/probes/plugin-*.beancount spec/beancount/probes/refused/plugin-*.beancount
 spec/beancount/show.sh spec/beancount/probes/auto-accounts.beancount
 ```
 
@@ -196,12 +204,25 @@ plugin-auto-accounts-config:   bean-check: <load>:0: Error applying plugin "bean
 plugin-unknown-module:         bean-check: <load>:0: Error importing "no.such.module": [traceback hidden]
 plugin-escaped-name:           bean-check: (no output)   [the plugin runs: both accounts are opened]
 plugin-escaped-control:        bean-check: <load>:0: Error importing "beancount.plugins.auto_accou<line feed>ts": [traceback hidden]
+plugin-multiline-name:         bean-check: <load>:0: Error importing "beancount.plugins.auto_accou
+                               [the module name has a line feed inside the quotes; the filter keeps only the line the
+                               message starts on, so the rest of the name is not shown; both accounts keep their opens]
+plugin-glued-config:           bean-check: <load>:0: Error applying plugin "beancount.plugins.auto_accounts": [traceback hidden]
+                               [`"module""config"` is read as a module and a configuration string]
 ```
 
-The same journal with other plugin lines, for the forms (a line `plugin LINE` in front of a journal with
-two opens): `plugin beancount.plugins.auto_accounts` is `Invalid token` on line 1; a number as the second argument, a
-third string and `plugin "x" foo` are syntax errors on line 1; `plugin` alone is a syntax error on line 2; an
-indented plugin line is a syntax error (`unexpected INDENT`); `plugin ""` is the import error `Empty module name`.
+The plugin lines both tools reject (`show-opens.sh`; each probe is a line in front of a journal with two opens, which the
+second part of every listing shows; ledgermill gives a `parse-error` on line 1, and the harness says "both fail, same
+first error"):
+
+```text
+plugin-unquoted-name:    bean-check: plugin-unquoted-name.beancount:1: Invalid token: 'beancount.plugins.auto_accounts'
+plugin-number-argument:  bean-check: plugin-number-argument.beancount:1: syntax error, unexpected NUMBER, expecting end of file or EOL or STRING
+plugin-three-strings:    bean-check: plugin-three-strings.beancount:1: syntax error, unexpected STRING, expecting end of file or EOL
+```
+
+The other malformed forms in the rule above (text glued after the string, a keyword alone, an indented line) were
+tried by hand and have no probe journal yet.
 
 ## What ledgermill does
 

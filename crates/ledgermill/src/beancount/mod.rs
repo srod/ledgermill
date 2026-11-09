@@ -78,7 +78,7 @@ fn refusal_message(construct: &str) -> &'static str {
     match construct {
         "include" => "Including other files is not supported.",
         "plugin" => {
-            "This plugin is not supported; only beancount.plugins.auto_accounts and beancount.plugins.implicit_prices are."
+            "This plugin is not supported: only beancount.plugins.auto_accounts and beancount.plugins.implicit_prices are, without a configuration string."
         }
         "option" => "This option is not supported yet.",
         "number-expression" => {
@@ -270,7 +270,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         };
     }
 
-    let mut read = match lima::read(&file.content) {
+    let read = match lima::read(&file.content) {
         Ok(read) => read,
         Err(issues) => {
             let findings = issues
@@ -473,12 +473,14 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
             prices: Vec::new(),
         };
     }
-    if prescan.auto_accounts {
-        let added = auto_accounts::opens(&read.items, &kept);
-        read.items.extend(added);
-    }
+    // The checks must see the `open` directives the plugin adds.
+    let added = if prescan.auto_accounts {
+        auto_accounts::opens(&read.items, &kept)
+    } else {
+        Vec::new()
+    };
     // The checks come in the order the reference prints them, not in line order.
-    let checked = check::run(&read.items, &kept);
+    let checked = check::run(&read.items, &added, &kept);
     findings.extend(checked.documents.iter().map(|&line| Finding {
         code: "ignored-syntax".into(),
         severity: Severity::Warning,
