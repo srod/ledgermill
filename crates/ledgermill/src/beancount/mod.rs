@@ -13,6 +13,7 @@ mod auto_accounts;
 mod book;
 mod check;
 mod expr;
+mod implicit_prices;
 mod lima;
 mod plain;
 mod pydec;
@@ -76,7 +77,9 @@ fn unsupported(file: &str, line: u32, construct: &str, extra: Value, message: &s
 fn refusal_message(construct: &str) -> &'static str {
     match construct {
         "include" => "Including other files is not supported.",
-        "plugin" => "This plugin is not supported; only beancount.plugins.auto_accounts is.",
+        "plugin" => {
+            "This plugin is not supported; only beancount.plugins.auto_accounts and beancount.plugins.implicit_prices are."
+        }
         "option" => "This option is not supported yet.",
         "number-expression" => {
             "This arithmetic is not supported yet: put a sign in front of a sign, or a sum after `~`, in parentheses."
@@ -310,6 +313,8 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     let mut unbalanced: Vec<Finding> = Vec::new();
     let mut average_accounts: HashSet<String> = HashSet::default();
     let mut refused = false;
+    // The entries the `implicit_prices` plugin adds, when a `plugin` line asks for it.
+    let mut implicit = (prescan.implicit_prices > 0).then(implicit_prices::Run::default);
 
     for item in &read.items {
         match item {
@@ -421,6 +426,9 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                                 "The postings do not add up to zero.",
                             ));
                         }
+                        if let Some(run) = implicit.as_mut() {
+                            run.transaction(tx.date, tx.line, &booked.postings);
+                        }
                         let postings = booked.postings.iter().map(posting).collect();
                         // The checks take what the postings hold; nothing is copied for them.
                         kept.push(check::Kept {
@@ -496,10 +504,11 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     // The items arrive in date order already; the sort pins the order the reference tool uses.
     transactions
         .sort_by(|a, b| (a.date.as_str(), a.source.line).cmp(&(b.date.as_str(), b.source.line)));
+    let implied = implicit.map_or_else(Vec::new, |run| run.repeated(prescan.implicit_prices));
     Loaded {
         transactions,
         findings,
-        prices: listed_prices(&file.name, &read.items),
+        prices: listed_prices(&file.name, &read.items, &implied),
     }
 }
 
@@ -531,10 +540,12 @@ fn amount_lines(file: &SourceFile) -> Option<HashSet<u32>> {
 }
 
 /// The `price` directives as the `prices` table lists them: by date, the same date in the order
-/// written (spec/beancount/price-table.md).
-fn listed_prices(file: &str, items: &[Item]) -> Vec<PriceDirective> {
+/// written (spec/beancount/price-table.md). The entries `implicit_prices` added stand on the line of
+/// their transaction (spec/beancount/implicit-prices.md).
+fn listed_prices(file: &str, items: &[Item], implied: &[Item]) -> Vec<PriceDirective> {
     let mut prices: Vec<(Day, u32, PriceDirective)> = items
         .iter()
+        .chain(implied)
         .filter_map(|item| match item {
             Item::Price {
                 date,

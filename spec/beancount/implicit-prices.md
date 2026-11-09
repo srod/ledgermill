@@ -92,6 +92,7 @@ Accepted:
 - `probes/implicit-prices-numbers.beancount`: expressions, an inexact total price, a very small and a large rate, places.
 - `probes/implicit-prices-cost-places.beancount`: the places of a cost per unit, a total cost on fractional units, a cost of zero.
 - `probes/implicit-prices-duplicates.beancount`, `probes/implicit-prices-dedupe.beancount`: the entries dropped, and `price` directives beside them.
+- `probes/implicit-prices-dedupe-values.beancount`: equal by value, not by text: `1 BTC @ 200 EUR` and `0.5 BTC @@ 100 EUR` (booked `2.0E+2`), `200.00` after `2.0E+2`, `0.001 BTC @@ 1000 EUR` (`1.000E+6`) and `1 BTC @ 1000000 EUR`.
 - `probes/implicit-prices-twice.beancount`, `probes/implicit-prices-order.beancount`: several plugin lines, the order of the entries.
 - `probes/implicit-prices-rejected.beancount`: a transaction that does not balance, with an unknown account, with a closed account (kept), two postings to work out (rejected).
 - `probes/implicit-prices-convert.beancount`, `probes/implicit-prices-both-ways.beancount`: valuation with implicit entries, directives on the same day, a pair priced both ways.
@@ -161,6 +162,14 @@ implicit-prices-dedupe (dropped: the second 100.00 of 01-02, the 100.000 of 01-0
 2026-01-07,BTC,100,EUR
 2026-01-08,BTC,100,EUR
 2026-01-08,BTC,101,EUR
+```
+
+implicit-prices-dedupe-values (one entry a day; the first written stays, as written, so the exponent is kept when it comes first):
+
+```text
+2026-01-02,BTC,200,EUR
+2026-01-03,BTC,2.0E+2,EUR
+2026-01-04,BTC,1.000E+6,EUR
 ```
 
 implicit-prices-duplicates (directives at 90.00 above and 110.00 below the transaction; on 01-04 a directive and a posting of

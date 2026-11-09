@@ -9,14 +9,6 @@ use ledgermill::load;
 use serde_json::{Value, json};
 use support::*;
 
-fn probe(name: &str) -> String {
-    std::fs::read_to_string(format!(
-        "{}/../../spec/beancount/probes/{name}.beancount",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-}
-
 /// The padding transactions, in the order `transactions()` gives them:
 /// `[line, narration, [[account, quantity, line]]]`.
 fn paddings(name: &str) -> Vec<Value> {

@@ -208,6 +208,9 @@ pub(super) struct Lot {
     pub currency: String,
     pub date: Day,
     pub label: Option<String>,
+    /// The posting opened this lot; false when it reduced a lot held. Only an opened lot is a
+    /// price for `implicit_prices` (spec/beancount/implicit-prices.md).
+    pub opened: bool,
 }
 
 /// Why booking a transaction failed.

@@ -9,14 +9,6 @@ use ledgermill::load;
 use serde_json::json;
 use support::*;
 
-fn probe(name: &str) -> String {
-    std::fs::read_to_string(format!(
-        "{}/../../spec/beancount/probes/{name}.beancount",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-}
-
 #[test]
 fn an_assertion_that_holds_adds_nothing_and_reports_nothing() {
     for name in [

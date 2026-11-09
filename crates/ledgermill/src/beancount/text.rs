@@ -4,6 +4,7 @@
 
 use super::auto_accounts;
 use super::expr::{self, Expressions};
+use super::implicit_prices;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -223,16 +224,19 @@ fn plainly_fine(raw: &str) -> bool {
     true
 }
 
-/// What `prescan` found: the lines to refuse, and whether the `auto_accounts` plugin is asked for.
+/// What `prescan` found: the lines to refuse, whether the `auto_accounts` plugin is asked for and
+/// how many `plugin` lines name `implicit_prices` (each one runs it).
 pub(super) struct Prescan {
     pub refusals: Vec<Refusal>,
     pub auto_accounts: bool,
+    pub implicit_prices: usize,
 }
 
 /// Lines to refuse, found without the parser.
 pub(super) fn prescan(text: &str) -> Prescan {
     let mut out = Vec::new();
     let mut wanted = false;
+    let mut implicit_runs = 0usize;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     for (index, raw) in text.split('\n').enumerate() {
         let line = u32::try_from(index + 1).unwrap_or(u32::MAX);
@@ -247,6 +251,7 @@ pub(super) fn prescan(text: &str) -> Prescan {
         } else if starts_with_keyword(raw, "plugin") {
             match plugin_line(raw) {
                 Some((auto_accounts::MODULE, false)) => wanted = true,
+                Some((implicit_prices::MODULE, false)) => implicit_runs += 1,
                 Some((name, _)) => out.push(refuse("plugin", Some(name.to_string()))),
                 // A keyword with no name: the reference puts its syntax error on the next line,
                 // which the parser does not, so it is refused rather than reported.
@@ -282,6 +287,7 @@ pub(super) fn prescan(text: &str) -> Prescan {
     Prescan {
         refusals: out,
         auto_accounts: wanted,
+        implicit_prices: implicit_runs,
     }
 }
 

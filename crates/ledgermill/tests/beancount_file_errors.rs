@@ -9,14 +9,6 @@ use ledgermill::load;
 use serde_json::{Value, json};
 use support::*;
 
-fn probe(name: &str) -> String {
-    std::fs::read_to_string(format!(
-        "{}/../../spec/beancount/probes/{name}.beancount",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-}
-
 /// `[line, code]` of each finding, in order.
 fn lines_and_codes(name: &str) -> Value {
     Value::Array(

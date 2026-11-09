@@ -1,0 +1,28 @@
+plugin "beancount.plugins.implicit_prices"
+
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "a rate with no exponent"
+  Assets:Btc    1 BTC @ 200 EUR
+  Assets:Bank  -200 EUR
+
+2026-01-02 * "the same value, booked with an exponent (2.0E+2)"
+  Assets:Btc    0.5 BTC @@ 100 EUR
+  Assets:Bank  -100 EUR
+
+2026-01-03 * "a total price booked with an exponent first"
+  Assets:Btc    0.5 BTC @@ 100 EUR
+  Assets:Bank  -100 EUR
+
+2026-01-03 * "the same value, per unit"
+  Assets:Btc    1 BTC @ 200.00 EUR
+  Assets:Bank  -200.00 EUR
+
+2026-01-04 * "1000000 as 1.000E+6"
+  Assets:Btc    0.001 BTC @@ 1000 EUR
+  Assets:Bank  -1000 EUR
+
+2026-01-04 * "1000000 written out"
+  Assets:Btc    1 BTC @ 1000000 EUR
+  Assets:Bank  -1000000 EUR

@@ -99,6 +99,10 @@ const severalSets: string[][] = [
   // Valid on their own, each with its own opens (a root renamed by an option is refused: `rename-a` is not here).
   ["open-a.beancount", "open-b.beancount"],
   ["open-a.beancount", "open-b.beancount", "c.journal"],
+  // A plugin belongs to its file (spec/beancount/implicit-prices.md): the prices of one file's postings are not the other's.
+  ["implicit-a.beancount", "implicit-b.beancount"],
+  ["implicit-b.beancount", "implicit-a.beancount"],
+  ["implicit-a.beancount", "c.journal", "implicit-b.beancount"],
   // A ledger the reference rejects: the first error is that of the file first in the manifest.
   ["unbalanced.beancount", "unbalanced.journal"],
   ["unbalanced.journal", "unbalanced.beancount"],

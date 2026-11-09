@@ -1017,6 +1017,9 @@ impl Books {
                                 currency: cost_currency.to_string(),
                                 date: c.date,
                                 label: c.label.as_ref().map(|l| l.to_string()),
+                                // Under NONE booking a posting never reduces a lot (no lot is matched), so each cost adds one.
+                                opened: adds.get(origin) == Some(&true)
+                                    || self.method_of(account) == Method::None,
                             }),
                         });
                     }

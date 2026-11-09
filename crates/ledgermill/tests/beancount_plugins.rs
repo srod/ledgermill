@@ -10,14 +10,6 @@ use ledgermill::load;
 use serde_json::{Value, json};
 use support::*;
 
-fn probe(name: &str) -> String {
-    std::fs::read_to_string(format!(
-        "{}/../../spec/beancount/probes/{name}.beancount",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-}
-
 /// `[line, code]` of each error, in order.
 fn errors(journal: &str) -> Value {
     Value::Array(
@@ -135,13 +127,13 @@ fn the_other_errors_keep_their_order() {
 }
 
 #[test]
-fn a_transaction_booking_rejects_opens_nothing() {
-    let journal = probe("auto-accounts-booking-error");
-    assert_eq!(errors(&journal), json!([[5, "booking-error"]]));
-    // Only the second transaction is listed; the rejected one used Assets:X and Assets:Y, and a
-    // `balance` on them would be the first use.
-    let with_balance = format!("{journal}\n2026-04-01 balance Assets:X  0 EUR\n");
-    assert_eq!(errors(&with_balance), json!([[5, "booking-error"]]));
+fn a_transaction_booking_rejects_gives_its_booking_error_and_no_other() {
+    // The `open` dates the plugin picks are not output, so which accounts the rejected
+    // transaction opens cannot be told from here (auto-accounts.md).
+    assert_eq!(
+        errors(&probe("auto-accounts-booking-error")),
+        json!([[5, "booking-error"]])
+    );
 }
 
 #[test]
@@ -181,6 +173,7 @@ fn any_other_plugin_is_refused_by_its_module_name() {
     for (name, line) in [
         ("plugin-check-commodity", 1),
         ("plugin-auto-accounts-config", 1),
+        ("plugin-implicit-prices-config", 1),
         ("plugin-unknown-module", 1),
         ("plugin-escaped-name", 1),
         ("plugin-escaped-control", 1),
