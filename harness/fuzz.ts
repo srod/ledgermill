@@ -483,6 +483,110 @@ const BEAN_UNITS = ["1", "3", "9", "0.9", "2.50", "0.207", "100", "1.5", "2.25",
 const BEAN_ACCOUNTS = ["Assets:A", "Assets:B", "Assets:C", "Assets:A:Sub"] as const;
 const BEAN_LOT_ACCOUNTS = ["Assets:L1", "Assets:L2", "Assets:L2:Sub"] as const;
 
+// ───────────── Beancount number expressions ─────────────
+// Which numbers become expressions, and which, comes from this stream (like oddDigits): the journals a seed gives stay the same
+// apart from the numbers it rewrites. Only the shapes ledgermill reads: no stacked signs, no tolerance that is a bare sum, no division
+// by zero, operands of 20 characters or fewer, and always a blank around a binary operator (`2026-01-02` would be a date).
+const re = rng(seed ^ 0x3c6ef372);
+const rint = (n: number) => Math.floor(re() * n);
+const rpick = <T>(xs: readonly T[]): T => xs[rint(xs.length)] as T;
+const rchance = (p: number) => re() < p;
+/** The share of the eligible numbers that are written as an expression. */
+const EXPRESSION_RATE = 0.15;
+const pow10 = (n: number) => 10n ** BigInt(n);
+const randomUpTo = (max: bigint) => BigInt(Math.floor(re() * (Number(max) + 1)));
+
+function parseN(text: string): N {
+  const [whole = "", frac = ""] = text.replace(/^-/, "").split(".");
+  const v = BigInt(whole + frac);
+  return { v: text.startsWith("-") ? -v : v, dp: frac.length };
+}
+/** The fewest places that still show `x` exactly. */
+function fewestPlaces(x: N): number {
+  let { v, dp } = x;
+  while (dp > 0 && v % 10n === 0n) {
+    v /= 10n;
+    dp--;
+  }
+  return dp;
+}
+/** A non-negative `x` at its places, at fewer (trailing zeros dropped) or at one more; now and then with digit groups. */
+function operand(x: N): string {
+  const p = fewestPlaces(x) + rint(x.dp - fewestPlaces(x) + 2);
+  const v = p >= x.dp ? x.v * pow10(p - x.dp) : x.v / pow10(x.dp - p);
+  return digits({ v, dp: p }, rchance(0.1) ? { mark: ".", group: "," } : PLAIN);
+}
+
+/** An expression of the same value as the number `text`, in one of several shapes, with or without parentheses. */
+function exactExpression(text: string): string {
+  const x = parseN(text);
+  const negative = x.v < 0n;
+  const m = negative ? -x.v : x.v;
+  const at = (v: bigint): N => ({ v, dp: x.dp });
+  const sign = negative ? "-" : "";
+  const difference = (unary: boolean) => {
+    // b - a (or -a + b) with b = x + a, so that b is not negative
+    const a = (negative ? m : 0n) + BigInt(unary ? 1 + rint(10) : rint(10));
+    return unary ? `-${operand(at(a))} + ${operand(at(x.v + a))}` : `${operand(at(x.v + a))} - ${operand(at(a))}`;
+  };
+  let body: string;
+  let sum = false;
+  const shape = rint(6);
+  const k = rpick([2, 3, 4, 5, 8, 10]);
+  if (shape === 0 || shape === 1) body = difference(shape === 1);
+  else if (shape === 2) {
+    sum = true;
+    const a = randomUpTo(m);
+    body = `${operand(at(a))} + ${operand(at(m - a))}`;
+  } else if (shape === 3 && m % BigInt(k) === 0n) {
+    // a product: the factor may have a place, which the result keeps
+    const factor = `${k}${rchance(0.15) ? ".0" : ""}`;
+    body = rchance(0.2) ? `${sign}${factor} * ${operand(at(m / BigInt(k)))}` : `${sign}${operand(at(m / BigInt(k)))} * ${factor}`;
+  } else if (shape === 4) {
+    // a quotient that is exact: the dividend is the value times the divisor
+    body = `${sign}${operand(at(m * BigInt(k)))} / ${k}`;
+  } else if (shape === 5 && m >= BigInt(k)) {
+    // a + b * k: the product binds first
+    sum = true;
+    const b = randomUpTo(m / BigInt(k));
+    body = `${operand(at(m - b * BigInt(k)))} + ${operand(at(b))} * ${k}`;
+  } else body = difference(false);
+  if (negative && sum) body = `-(${body})`;
+  if (/[0-9.,]{21,}/.test(body)) return text;
+  return rchance(0.7) ? `(${body})` : body;
+}
+
+/**
+ * A positive quotient that is not exact (28 digits), or such a quotient plus or times a small number. Only where nothing
+ * else is added to it: bean-check crashes (decimal.InvalidOperation, in the interpolation) when an elided amount needs more than
+ * 28 digits, as the sum of such a quotient and a larger number does.
+ */
+function inexactExpression(negative: boolean): string {
+  const d = rpick([3, 6, 7, 9, 11, 13]);
+  const n = 1 + rint(99);
+  const body = rpick([`${n} / ${d}`, `${n}.50 / ${d}`, `${n} / ${d} + ${1 + rint(9)}`, `${n} * ${1 + rint(9)} / ${d}`, `${n} / ${d} * ${d}`, `1 / ${d} / 100`]);
+  return negative ? `-(${body})` : rchance(0.7) ? `(${body})` : body;
+}
+
+/** `text` for a number, or now and then an expression: of the same value, or (when `inexact`) a quotient that is not. */
+function numberText(text: string, inexact = false): string {
+  if (!rchance(EXPRESSION_RATE)) return text;
+  return inexact && rchance(0.3) ? inexactExpression(text.startsWith("-")) : exactExpression(text);
+}
+
+/** `@ p` or `{p base}`, or now and then the total form (`@@ t`, `{{t base}}`) or an expression: the part after the operator. */
+function priceText(units: string, price: string, base: string, total: "@@" | "{{", unit: "@" | "{"): string {
+  const close = (open: string, n: string) => (open === "{" ? `{${n} ${base}}` : open === "{{" ? `{{${n} ${base}}}` : `${open} ${n} ${base}`);
+  if (!rchance(EXPRESSION_RATE)) return close(unit, price);
+  if (rchance(0.4)) {
+    const u = parseN(units);
+    const p = parseN(price);
+    const t = digits({ v: u.v * p.v, dp: u.dp + p.dp }, PLAIN);
+    return close(total, exactExpression(t));
+  }
+  return close(unit, exactExpression(price));
+}
+
 /**
  * A Beancount journal that bean-check accepts: prices of random pairs on random days (out of order, twice a day,
  * zero and negative now and then, one in 2099 now and then), and transactions whose postings are plain units of
@@ -497,14 +601,16 @@ function beanJournal(): { text: string; used: string[] } {
   if (!multi && rx() < 0.3) used.push("X");
   const others = (c: string) => used.filter((u) => u !== c);
   let text = 'option "operating_currency" "EUR"\n';
-  for (const a of [...BEAN_ACCOUNTS, ...BEAN_LOT_ACCOUNTS, "Equity:O"]) text += `2026-01-01 open ${a}\n`;
+  // An account of its own for a balance assertion on a number that is an expression (see the end).
+  const asserted = rchance(0.25);
+  for (const a of [...BEAN_ACCOUNTS, ...BEAN_LOT_ACCOUNTS, "Equity:O", ...(asserted ? ["Assets:Z"] : [])]) text += `2026-01-01 open ${a}\n`;
   text += "\n";
   for (let k = 0, n = int(14); k < n; k++) {
     const from = pick(used);
     const to = pick(others(from));
     const day = chance(0.05) ? "2099-01-01" : `2026-01-0${1 + int(6)}`;
     const rate = pick(BEAN_RATES);
-    text += `${day} price ${from} ${chance(0.1) ? rate.replace(/^-/, "") : rate} ${to}\n`;
+    text += `${day} price ${from} ${numberText(chance(0.1) ? rate.replace(/^-/, "") : rate, true)} ${to}\n`;
   }
   text += "\n";
   for (let k = 0, n = 1 + int(5); k < n; k++) {
@@ -519,14 +625,28 @@ function beanJournal(): { text: string; used: string[] } {
       const account = pick(BEAN_ACCOUNTS);
       const units = pick(BEAN_UNITS);
       const roll = r();
-      if (roll < 0.3) text += `  ${pick(BEAN_LOT_ACCOUNTS)}  ${units} ${c} {${pick(["3", "4.5", "1.25", "0.1", "2"])} ${base}}\n`;
-      else if (roll < 0.4) text += `  ${account}  ${units} ${c} @ ${pick(["2", "3.5", "0.8"])} ${base}\n`;
+      if (roll < 0.3) {
+        const lotAccount = pick(BEAN_LOT_ACCOUNTS);
+        const cost = pick(["3", "4.5", "1.25", "0.1", "2"]);
+        text += `  ${lotAccount}  ${numberText(units)} ${c} ${priceText(units, cost, base, "{{", "{")}\n`;
+      } else if (roll < 0.4) text += `  ${account}  ${numberText(units)} ${c} ${priceText(units, pick(["2", "3.5", "0.8"]), base, "@@", "@")}\n`;
       else if (roll < 0.7) {
         const sign = chance(0.4) ? "-" : "";
-        text += `  ${account}  ${sign}${units} ${c}\n  Equity:O  ${sign ? "" : "-"}${units} ${c}\n`;
-      } else text += `  ${account}  ${chance(0.4) ? "-" : ""}${units} ${base}\n`;
+        text += `  ${account}  ${numberText(sign + units)} ${c}\n  Equity:O  ${numberText((sign ? "" : "-") + units)} ${c}\n`;
+      } else {
+        const sign = chance(0.4) ? "-" : "";
+        text += `  ${account}  ${numberText(sign + units)} ${base}\n`;
+      }
     }
     text += "  Equity:O\n\n";
+  }
+  if (asserted) {
+    // EUR put into Assets:Z, then asserted: both numbers have the same value (or are the same quotient), so the assertion holds.
+    const value = rpick(BEAN_UNITS);
+    const quotient = rchance(0.2) ? inexactExpression(false) : null;
+    const tolerance = rchance(0.3) ? ` ~ (${rpick(["1 / 100", "1 / 1000", "5 / 100", "0.5 * 0.1"])})` : "";
+    text += `2026-01-02 * "z"\n  Assets:Z  ${quotient ?? exactExpression(value)} EUR\n  Equity:O\n\n`;
+    text += `2026-01-08 balance Assets:Z  ${quotient ?? exactExpression(value)}${tolerance} EUR\n`;
   }
   return { text, used };
 }

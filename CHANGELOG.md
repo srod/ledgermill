@@ -14,6 +14,7 @@ All notable changes to ledgermill are written here. The format follows
   by zero is a `division-by-zero` finding that leaves out its entry. A sign in front of a sign and a `~`
   tolerance that is a sum, both without parentheses, are still refused (`number-expression`). `format()`
   aligns expressions as `bean-format` does. See `spec/beancount/number-expressions.md`.
+- `fuzz.ts --beancount` writes arithmetic in numbers now and then.
 - Beancount: a posting flag `*` straight before the account (`*Assets:Bank`) is read.
 
 ## 0.1.3 – 2026-11-03

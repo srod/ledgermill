@@ -315,7 +315,9 @@ zero and negative, one in 2099 now and then; lots, price annotations and plain u
 One journal in five has one ASCII digit replaced by another kind of digit (Arabic-Indic, fullwidth, superscript...), which
 both must refuse on the same line (the parser used to panic on such a date). Three journals in ten also have the
 one-letter currency `X`, which bean-check reads only before a space or a line end: fine as units or a price, refused in a cost
-(`{3 X}`), and both must agree. `--multi` keeps `XX` and `YY`, so that its sets do not mostly carry a refused ledger.
+(`{3 X}`), and both must agree. About one number in seven (units, `@`, `@@`, `{}`, `{{}}`, `price`) is written as
+arithmetic of the same value (`(90.00 / 3)`, `4 + 1 * 2`), or, in a `price` directive, as an inexact quotient; one journal in
+four ends with a `balance` on such an expression. `--multi` keeps `XX` and `YY`, so that its sets do not mostly carry a refused ledger.
 
 The fuzzer (`fuzz.ts`) writes random, mostly valid hledger journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
