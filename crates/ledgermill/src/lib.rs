@@ -293,9 +293,15 @@ fn hledger_ledger(mut out: parse::Output) -> Ledger {
     // they were made in, which is hledger's: file by file; in each file what the lines gave, the
     // problems of plain transactions, then the walk's.
     out.transactions.sort_by_key(|(_, _, _, date)| *date);
-    let mut transactions = Vec::new();
-    let mut exact = Vec::new();
-    let mut postings = Vec::new();
+    let count = out.transactions.len();
+    let row_count = out
+        .transactions
+        .iter()
+        .map(|(_, _, rows, _)| rows.len())
+        .sum();
+    let mut transactions = Vec::with_capacity(count);
+    let mut exact = Vec::with_capacity(count);
+    let mut postings = Vec::with_capacity(row_count);
     for (transaction, kept, rows, _) in out.transactions {
         transactions.push(transaction);
         exact.push(kept);

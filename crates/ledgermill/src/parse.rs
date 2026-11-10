@@ -1105,18 +1105,23 @@ impl FileParser<'_> {
             })
             .unzip();
         let issues = walk::process(&mut txs, self.reported == 0);
+        self.out.findings.reserve(issues.len());
         for issue in &issues {
             let finding = self.issue_finding(issue);
             self.out.findings.push((self.file_index, finding));
         }
+        // A dropped transaction leaves a little unused room, which is cheaper than regrowing.
+        self.out.transactions.reserve(txs.len());
+        self.out.layouts.reserve(txs.len());
         for ((tx, walked), plan) in done.into_iter().zip(txs).zip(plans) {
             if walked.dropped {
                 continue;
             }
-            let mut lines = Vec::new();
-            let mut layouts = Vec::new();
-            let mut postings = Vec::new();
-            let mut exact_postings = Vec::new();
+            let count = tx.postings.len();
+            let mut lines = Vec::with_capacity(count);
+            let mut layouts = Vec::with_capacity(count);
+            let mut postings = Vec::with_capacity(count);
+            let mut exact_postings = Vec::with_capacity(count);
             for (((p, d), info), &tagged) in tx
                 .postings
                 .into_iter()
