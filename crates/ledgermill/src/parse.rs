@@ -1072,26 +1072,19 @@ impl FileParser<'_> {
     fn conclude(&mut self) {
         let mut done = std::mem::take(&mut self.done);
         let conversion = std::mem::take(&mut self.conversion);
-        // Which postings `--cost` drops is decided on the transaction as written.
-        let plans: Vec<cost::Plan> = done
-            .iter()
+        // Which postings `--cost` drops is decided on the transaction as written, so the plan is
+        // made from the drafts before the walk balances them.
+        let (plans, mut txs): (Vec<cost::Plan>, Vec<Tx>) = done
+            .iter_mut()
             .zip(&conversion)
             .map(|(tx, flags)| {
                 let assignment = tx
                     .postings
                     .iter()
                     .any(|p| p.assertion.is_some() && p.amount.is_none());
-                cost::plan(&drafts_of(tx, flags), assignment)
-            })
-            .collect();
-        let mut txs: Vec<Tx> = done
-            .iter_mut()
-            .zip(&conversion)
-            .map(|(tx, flags)| Tx {
-                date: tx.date,
-                line: tx.line,
-                dropped: false,
-                info: tx
+                let drafts = drafts_of(tx, flags);
+                let plan = cost::plan(&drafts, assignment);
+                let info = tx
                     .postings
                     .iter_mut()
                     .map(|p| PostingInfo {
@@ -1100,10 +1093,17 @@ impl FileParser<'_> {
                         date: posting_date(&p.comment_lines, tx.date.year()),
                         assertion: p.assertion.take(),
                     })
-                    .collect(),
-                drafts: drafts_of(tx, flags),
+                    .collect();
+                let walked = Tx {
+                    date: tx.date,
+                    line: tx.line,
+                    dropped: false,
+                    info,
+                    drafts,
+                };
+                (plan, walked)
             })
-            .collect();
+            .unzip();
         let issues = walk::process(&mut txs, self.reported == 0);
         for issue in &issues {
             let finding = self.issue_finding(issue);
