@@ -55,10 +55,10 @@ impl Group {
 }
 
 /// What an amount contributes to its group's sum: the cost if it has one, else itself.
-fn contribution(a: &WrittenAmount) -> (String, Decimal) {
+fn contribution(a: &WrittenAmount) -> (&str, Decimal) {
     match &a.cost {
-        Some(c) => (c.commodity.clone(), cost_value(a, c)),
-        None => (a.commodity.clone(), a.quantity.clone()),
+        Some(c) => (&c.commodity, cost_value(a, c)),
+        None => (&a.commodity, a.quantity.clone()),
     }
 }
 
@@ -224,15 +224,15 @@ fn balance_group(postings: &mut [Draft], group: Group, exempt: &[bool]) -> Resul
     let members: Vec<usize> = (0..postings.len())
         .filter(|&i| Group::of(postings[i].kind) == Some(group))
         .collect();
-    let elided: Vec<usize> = members
+    let mut elided = members
         .iter()
         .copied()
-        .filter(|&i| postings[i].amounts.is_none())
-        .collect();
-    if elided.len() > 1 {
+        .filter(|&i| postings[i].amounts.is_none());
+    let first_elided = elided.next();
+    if elided.next().is_some() {
         return Err(Unbalanced::TwoElided { group });
     }
-    if let Some(&e) = elided.first() {
+    if let Some(e) = first_elided {
         // An elided amount next to a matched conversion pair: the reference tool rejects
         // the transaction (conversion.md).
         if members.iter().any(|&i| exempt[i]) {
@@ -248,8 +248,7 @@ fn balance_group(postings: &mut [Draft], group: Group, exempt: &[bool]) -> Resul
     if !members.is_empty() {
         infer_prices(postings, &members);
     }
-    let everyone: Vec<usize> = (0..postings.len()).collect();
-    let residual = residual(postings, &members, &everyone, exempt);
+    let residual = residual(postings, &members, exempt);
     if residual.is_empty() {
         Ok(())
     } else {
@@ -259,16 +258,20 @@ fn balance_group(postings: &mut [Draft], group: Group, exempt: &[bool]) -> Resul
 
 /// Sum per commodity of each member's contribution, in posting order. Exact; a zero term gives
 /// back the other term, places included, as the reference tool adds amounts.
-fn sums(postings: &[Draft], members: &[usize], exempt: &[bool]) -> BTreeMap<String, Decimal> {
-    let mut sums: BTreeMap<String, Decimal> = BTreeMap::new();
+fn sums<'a>(
+    postings: &'a [Draft],
+    members: &[usize],
+    exempt: &[bool],
+) -> BTreeMap<&'a str, Decimal> {
+    let mut sums: BTreeMap<&str, Decimal> = BTreeMap::new();
     for &i in members {
         for a in postings[i].amounts.iter().flatten() {
             let (commodity, value) = if exempt[i] {
-                (a.commodity.clone(), a.quantity.clone())
+                (a.commodity.as_str(), a.quantity.clone())
             } else {
                 contribution(a)
             };
-            match sums.get_mut(&commodity) {
+            match sums.get_mut(commodity) {
                 Some(sum) => *sum = sum.combine(&value, ZeroTie::KeepLater),
                 None => {
                     sums.insert(commodity, value);
@@ -281,45 +284,40 @@ fn sums(postings: &[Draft], members: &[usize], exempt: &[bool]) -> BTreeMap<Stri
 
 /// Commodities whose sum is not zero at the precision their amounts were written with.
 /// Precision comes from every posting of the transaction, virtual ones included.
-fn residual(
-    postings: &[Draft],
-    members: &[usize],
-    everyone: &[usize],
-    exempt: &[bool],
-) -> Vec<(String, String)> {
-    let precision = precisions(postings, everyone);
+fn residual(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec<(String, String)> {
+    let precision = precisions(postings);
     sums(postings, members, exempt)
         .into_iter()
         .filter(|(commodity, sum)| {
             let places = precision.get(commodity).copied().unwrap_or(0);
             !sum.rounded(places).is_zero()
         })
-        .map(|(commodity, sum)| (commodity, sum.output()))
+        .map(|(commodity, sum)| (commodity.to_string(), sum.output()))
         .collect()
 }
 
 /// The places a commodity is checked to: the most places among the amounts written in it, or,
 /// if none is, among the prices written in it. Capped at ten.
-fn precisions(postings: &[Draft], members: &[usize]) -> BTreeMap<String, u32> {
-    let mut written: BTreeMap<String, u32> = BTreeMap::new();
-    let mut priced: BTreeMap<String, u32> = BTreeMap::new();
-    for &i in members {
-        for a in postings[i].amounts.iter().flatten() {
-            let w = written.entry(a.commodity.clone()).or_insert(0);
-            *w = (*w).max(a.quantity.places());
+fn precisions(postings: &[Draft]) -> BTreeMap<&str, u32> {
+    let mut written: BTreeMap<&str, u32> = BTreeMap::new();
+    let mut priced: BTreeMap<&str, u32> = BTreeMap::new();
+    for p in postings {
+        for a in p.amounts.iter().flatten() {
+            let most = written.entry(&a.commodity).or_insert(0);
+            *most = (*most).max(a.quantity.places());
             if let Some(c) = &a.cost {
-                let p = priced.entry(c.commodity.clone()).or_insert(0);
-                *p = (*p).max(c.value.places());
+                let most = priced.entry(&c.commodity).or_insert(0);
+                *most = (*most).max(c.value.places());
             }
         }
     }
     for (commodity, places) in priced {
         written.entry(commodity).or_insert(places);
     }
+    for places in written.values_mut() {
+        *places = (*places).min(OUTPUT_PLACES);
+    }
     written
-        .into_iter()
-        .map(|(c, p)| (c, p.min(OUTPUT_PLACES)))
-        .collect()
 }
 
 /// The amounts of an elided posting: per commodity, the negated sum of the others, worked out
@@ -456,10 +454,10 @@ fn infer_prices(postings: &mut [Draft], members: &[usize]) {
     }
     let none = vec![false; postings.len()];
     let sums = sums(postings, members, &none);
-    let open: Vec<&String> = sums
+    let open: Vec<&str> = sums
         .iter()
         .filter(|(_, s)| !s.is_zero())
-        .map(|(c, _)| c)
+        .map(|(&c, _)| c)
         .collect();
     let [x, y] = open.as_slice() else { return };
     // The commodity of the first amount (in posting order) among the two gets the price.
@@ -468,15 +466,14 @@ fn infer_prices(postings: &mut [Draft], members: &[usize]) {
             .amounts
             .iter()
             .flatten()
-            .map(|a| &a.commodity)
+            .map(|a| a.commodity.as_str())
             .find(|c| c == x || c == y)
     });
-    let Some(first) = first.cloned() else { return };
-    let other = if &first == *x {
-        (*y).clone()
-    } else {
-        (*x).clone()
+    // Owned: the postings are changed below, while these are still needed.
+    let Some(first) = first.map(str::to_string) else {
+        return;
     };
+    let other = if first == *x { *y } else { *x }.to_string();
     let holders: Vec<usize> = members
         .iter()
         .copied()
@@ -494,7 +491,8 @@ fn infer_prices(postings: &mut [Draft], members: &[usize]) {
     if !holders.iter().all(|&i| single(i)) {
         return;
     }
-    let (Some(this_sum), Some(other_sum)) = (sums.get(&first), sums.get(&other)) else {
+    let (Some(this_sum), Some(other_sum)) = (sums.get(first.as_str()), sums.get(other.as_str()))
+    else {
         return;
     };
     if this_sum.is_negative() == other_sum.is_negative() {

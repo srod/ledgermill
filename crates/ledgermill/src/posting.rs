@@ -113,11 +113,16 @@ fn split_account(text: &str) -> (&str, &str) {
     (text, "")
 }
 
+/// `text` with every blank as a plain space. Sized up front: `collect` from `chars` only
+/// reserves a quarter of the length and regrows.
+fn blanks_as_spaces(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    out.extend(text.chars().map(|c| if is_blank(c) { ' ' } else { c }));
+    out
+}
+
 fn account_name(text: &str) -> String {
-    trim_blank(text)
-        .chars()
-        .map(|c| if is_blank(c) { ' ' } else { c })
-        .collect()
+    blanks_as_spaces(trim_blank(text))
 }
 
 /// Read a posting line's content (indentation removed). `year` says where a lot date without a
@@ -165,10 +170,7 @@ pub(crate) fn parse_posting(
     let account = match kind {
         PostingKind::Regular => account_name(name),
         // Inside brackets the name keeps its spaces as written (`( a )` is ` a `).
-        _ => unwrap_pairs(name)
-            .chars()
-            .map(|c| if is_blank(c) { ' ' } else { c })
-            .collect(),
+        _ => blanks_as_spaces(unwrap_pairs(name)),
     };
     if rest.is_empty() {
         return Ok(PostingLine {
@@ -183,6 +185,8 @@ pub(crate) fn parse_posting(
     }
     let rest_start = content.len() - rest.len();
     let mut cur = Cursor::new(rest);
+    // Where the amount alone ends, when the first read of it already says so.
+    let mut amount_end = None;
     let amount = if cur.peek() == Some('=') {
         None
     } else if mode == Mode::AutomatedRule && cur.eat('*') {
@@ -199,14 +203,31 @@ pub(crate) fn parse_posting(
             Some(parse_amount_tail(&mut cur, styles, year, Tail::Multiplier)?)
         }
     } else {
-        Some(parse_amount_tail(&mut cur, styles, year, Tail::Posting)?)
+        let main = read_amount(&mut cur, styles, Default::Apply)?;
+        // Read again with `Default::Ignore` below, that read gives the same amount (and so stops
+        // at the same place) unless `D` could give this one a commodity and so another mark.
+        if main.named || styles.default_commodity.is_none() {
+            amount_end = Some(content.len() - cur.rest().len());
+        }
+        Some(finish_amount_tail(
+            &mut cur,
+            main,
+            styles,
+            year,
+            Tail::Posting,
+        )?)
     };
     // The amount alone: read again from its start, which stops where the first read did.
     let amount_span = if amount.is_some() && mode == Mode::Transaction {
-        let mut again = Cursor::new(rest);
-        read_amount(&mut again, styles, Default::Ignore)
-            .ok()
-            .map(|_| (rest_start, content.len() - again.rest().len()))
+        match amount_end {
+            Some(end) => Some((rest_start, end)),
+            None => {
+                let mut again = Cursor::new(rest);
+                read_amount(&mut again, styles, Default::Ignore)
+                    .ok()
+                    .map(|_| (rest_start, content.len() - again.rest().len()))
+            }
+        }
     } else {
         None
     };
@@ -318,6 +339,17 @@ fn parse_amount_tail(
     tail: Tail,
 ) -> Parsed<WrittenAmount> {
     let main = read_amount(cur, styles, Default::Apply)?;
+    finish_amount_tail(cur, main, styles, year, tail)
+}
+
+/// [`parse_amount_tail`] from the point where the amount itself has been read.
+fn finish_amount_tail(
+    cur: &mut Cursor,
+    main: ReadAmount,
+    styles: &Styles,
+    year: YearSource,
+    tail: Tail,
+) -> Parsed<WrittenAmount> {
     let mut valued = false;
     let mut cost = None;
     let mut lot: Option<WrittenLot> = None;

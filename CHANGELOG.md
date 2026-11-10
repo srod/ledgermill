@@ -50,6 +50,12 @@ All notable changes to ledgermill are written here. The format follows
   compression. Every answer is the same: seven probes with numbers on both sides of the limit
   (in `spec/hledger/probes/`: the four `decimal-*-across-128-bit`, `decimal-inferred-prices-255`,
   `decimal-many-places` and `decimal-small-around-zero`) are compared with hledger.
+- hledger: a posting's amount is read once. It was read a second time only to find where it ends,
+  for `format()`; the first read says so unless a `D` directive could give the amount a commodity.
+  Balancing a transaction borrows the commodity names it used to copy. Against the commit before,
+  on 10,000 transactions: a native load takes 18% less time (36.7 ms to 30.1 ms, median of 9
+  alternated rounds); in the wasm `load` and `transactions()` take 13% less (42.0 ms to 36.7 ms,
+  median of 11 runs) and `format()` 12% less (103.5 ms to 91.4 ms). Every answer is the same.
 
 ## 0.1.3 – 2026-11-03
 
