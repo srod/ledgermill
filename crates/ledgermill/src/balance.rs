@@ -83,7 +83,7 @@ pub(crate) fn within_half_unit(value: &Decimal, target: &Decimal, places: u32) -
     } else {
         gap
     };
-    gap.cmp_value(&Decimal::new(5u8.into(), places + 1)).is_le()
+    gap.cmp_value(&Decimal::new(5, places + 1)).is_le()
 }
 
 /// A pair goes with a priced posting when its two amounts are the negated quantity and the

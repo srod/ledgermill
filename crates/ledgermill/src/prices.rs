@@ -44,7 +44,7 @@ impl Graph {
             forward: Edges::new(),
             inverse: Edges::new(),
         };
-        let one = Decimal::new(1u8.into(), 0);
+        let one = Decimal::new(1, 0);
         for ((from, to), (_, rate)) in latest {
             let back = one
                 .divided(rate, DIVISION_PLACES)
