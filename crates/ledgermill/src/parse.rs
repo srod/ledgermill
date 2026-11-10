@@ -28,6 +28,7 @@ use regex_lite::Regex;
 use serde_json::json;
 use std::sync::OnceLock;
 
+#[derive(Default)]
 pub(crate) struct Output {
     /// `(transaction, what `at_cost` and `value` need of it, its flat posting rows, date)`; sorted
     /// by the caller.

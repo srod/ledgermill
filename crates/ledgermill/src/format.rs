@@ -3,7 +3,7 @@
 use crate::chars::is_blank;
 use crate::model::{Finding, SourceFile};
 use crate::parse::{self, PostingLayout};
-use crate::{Ledger, beancount, load};
+use crate::{Ledger, beancount, beancount_ledger, hledger_ledger, load};
 
 /// Posting lines start with this many spaces.
 const INDENT: usize = 4;
@@ -24,33 +24,40 @@ const GAP: usize = 2;
 /// whole file in one column and the file's usual indent. A file ledgermill refuses or cannot
 /// parse is returned as it was.
 pub fn format(file: &SourceFile) -> String {
-    let formatted = if beancount::is_beancount(&file.name) {
-        beancount::realign(file)
+    // The first read of the file serves both the rewrite and the "before" side of the comparison.
+    if beancount::is_beancount(&file.name) {
+        let mut loaded = beancount::load_with_amount_lines(file);
+        let Some(lines) = loaded.amount_lines.take() else {
+            return file.content.clone();
+        };
+        keep_if_same(file, beancount::realign(file, &lines), || {
+            beancount_ledger(loaded)
+        })
     } else {
-        realign(file)
-    };
-    if formatted != file.content && same_ledger(file, &formatted) {
+        let mut out = parse::Output::default();
+        parse::parse_file(0, file, &mut out);
+        keep_if_same(file, realign(file, &out.layouts), || hledger_ledger(out))
+    }
+}
+
+/// `formatted` when it differs from the file and reads as the same ledger as `before`, which is
+/// the file as loaded; else the file as it was. `before` is only built when it is needed.
+fn keep_if_same(file: &SourceFile, formatted: String, before: impl FnOnce() -> Ledger) -> String {
+    if formatted != file.content && same_ledger(&before(), &formatted, &file.name) {
         formatted
     } else {
         file.content.clone()
     }
 }
 
-/// The file with its posting lines rewritten.
-fn realign(file: &SourceFile) -> String {
+/// The file with its posting lines rewritten, given the layouts the parser found in it.
+fn realign(file: &SourceFile, layouts: &[Vec<PostingLayout>]) -> String {
     let (bom, text) = match file.content.strip_prefix('\u{feff}') {
         Some(text) => ("\u{feff}", text),
         None => ("", file.content.as_str()),
     };
-    let mut out = parse::Output {
-        transactions: Vec::new(),
-        prices: Vec::new(),
-        findings: Vec::new(),
-        layouts: Vec::new(),
-    };
-    parse::parse_file(0, file, &mut out);
     let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
-    for tx in &out.layouts {
+    for tx in layouts {
         for (index, rewritten) in rewrite_transaction(&lines, tx) {
             if let Some(line) = lines.get_mut(index) {
                 *line = rewritten;
@@ -135,17 +142,16 @@ impl<'a> Pieces<'a> {
     }
 }
 
-/// Whether `formatted` reads as the same ledger as `file`.
-fn same_ledger(file: &SourceFile, formatted: &str) -> bool {
-    let before = load(std::slice::from_ref(file));
+/// Whether `formatted`, which has the name `name`, reads as the same ledger as `before`.
+fn same_ledger(before: &Ledger, formatted: &str, name: &str) -> bool {
     let after = load(&[SourceFile {
-        name: file.name.clone(),
+        name: name.to_string(),
         content: formatted.to_string(),
     }]);
     before.transactions() == after.transactions()
         && before.postings() == after.postings()
         && before.prices() == after.prices()
-        && findings(&before) == findings(&after)
+        && findings(before) == findings(&after)
 }
 
 /// The findings without what moves with the posting lines (the column and the message), sorted
