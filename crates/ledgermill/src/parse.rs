@@ -1113,47 +1113,45 @@ impl FileParser<'_> {
             if walked.dropped {
                 continue;
             }
-            let exact = Exact {
-                date: tx.date,
-                postings: tx
-                    .postings
-                    .iter()
-                    .zip(&walked.drafts)
-                    .zip(&walked.info)
-                    .zip(&plan.tagged)
-                    .map(|(((p, d), info), &tagged)| ExactPosting {
-                        date: info.date.unwrap_or(tx.date),
-                        amounts: d.amounts.clone().unwrap_or_default(),
-                        conversion_tagged: tagged
-                            || p.comment_lines
-                                .iter()
-                                .any(|c| tags(c).iter().any(|(n, _)| *n == "_conversion-posting")),
-                    })
-                    .collect(),
-                cost_refused: plan.refused,
-            };
-            let lines: Vec<u32> = tx.postings.iter().map(|p| p.line).collect();
-            self.out
-                .layouts
-                .push(tx.postings.iter().map(|p| p.layout).collect());
-            let postings = tx
+            let mut lines = Vec::new();
+            let mut layouts = Vec::new();
+            let mut postings = Vec::new();
+            let mut exact_postings = Vec::new();
+            for (((p, d), info), &tagged) in tx
                 .postings
                 .into_iter()
                 .zip(walked.drafts)
-                .map(|(p, d)| Posting {
+                .zip(&walked.info)
+                .zip(&plan.tagged)
+            {
+                // The public amounts are made from a borrow, then the amounts move into `Exact`.
+                let amounts = d.amounts.unwrap_or_default();
+                let reported = amounts.iter().map(report_amount).collect();
+                lines.push(p.line);
+                layouts.push(p.layout);
+                exact_postings.push(ExactPosting {
+                    date: info.date.unwrap_or(tx.date),
+                    amounts,
+                    conversion_tagged: tagged
+                        || p.comment_lines
+                            .iter()
+                            .any(|c| tags(c).iter().any(|(n, _)| *n == "_conversion-posting")),
+                });
+                postings.push(Posting {
                     account: p.account,
                     kind: p.kind,
                     comment: join_comment(&p.comment_lines),
-                    amounts: d
-                        .amounts
-                        .unwrap_or_default()
-                        .iter()
-                        .map(report_amount)
-                        .collect(),
+                    amounts: reported,
                     flag: None,
                     line: None,
-                })
-                .collect();
+                });
+            }
+            let exact = Exact {
+                date: tx.date,
+                postings: exact_postings,
+                cost_refused: plan.refused,
+            };
+            self.out.layouts.push(layouts);
             let transaction = Transaction {
                 date: tx.date.to_string(),
                 status: tx.status,
