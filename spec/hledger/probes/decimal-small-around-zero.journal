@@ -1,0 +1,70 @@
+; Ordinary amounts around zero: signs, zeros with places, sums that pass through zero, and
+; assertions and assignments on small balances.
+2026-01-01 zeros with different places
+    a  0 X
+    b  0.00 X
+    c  -0.0 X
+    d  0.000 X
+    e
+
+2026-01-02 a sum that returns to zero keeps the places of its terms
+    a  12.50 X
+    b  -12.5 X
+    c  0.00 Y
+    d  -0 Y
+
+2026-01-03 ordinary amounts
+    a  12.50 X
+    b  -7 X
+    c  -5.5 X
+
+2026-01-04 balances through zero
+    p  -12.50 X = -12.50 X
+    q  12.5 X
+    r  0 Y
+    s  0.00 Y
+
+2026-01-05 back to zero, sign changes
+    p  12.50 X = 0 X
+    q  -12.5 X
+    r  7 X = 7 X
+    s  -7 X = -7 X
+
+2026-01-06 and again
+    r  -7 X = 0.0 X
+    s  7 X = 0 X
+    p  -3 X = -3 X
+    q  3 X
+
+2026-01-07 assignment up from zero
+    t  = 5 X
+    u
+
+2026-01-07 assignment down through zero
+    t  = -5 X
+    u
+
+2026-01-07 assignment back to zero
+    t  = 0 X
+    u
+
+2026-01-08 a price of zero and a quantity of zero
+    a  0 X @ 3 Y
+    b  3 X @ 0 Y
+    c  2 X @@ 0.00 Y
+    d  0 X @@ 5 Y
+    e
+
+2026-01-09 a unit price from amounts that cancel
+    a  3 X
+    b  -3 X
+    c  1 Y
+    d  -1 Y
+
+2026-01-10 a tenth
+    a  10 X
+    b  -1 Y
+
+2026-01-11 an inferred price with places on both sides
+    a  0.30 X
+    b  -0.1 Y

@@ -1,0 +1,59 @@
+; Prices inferred from two commodities, with operands of every size and sign. The division goes to 255 places and what is listed has ten, so these check the
+; listed price and the amounts at cost, not how the 255th place is rounded. 2^256 is 115792089237316195423570985008687907853269984665640564039457584007913129639936;
+; one over it has 256 places, so the last one is a tie.
+2026-01-01 a seventh
+    a  3 X
+    b  4 X
+    c  -1 Y
+
+2026-01-02 large and small operands
+    a  123456789012345678901234567890 X
+    b  1 X
+    c  -98765432109876543210 Y
+
+2026-01-03 a negative quantity against a positive amount
+    a  -1 X
+    b  -2 X
+    c  3 Y
+
+2026-01-04 a tie at the 255th place, the digit before it is even
+    a  115792089237316195423570985008687907853269984665640564039457584007913129639936 X
+    b  0 X
+    c  -1 Y
+
+2026-01-05 a tie, the digit before it is odd
+    a  115792089237316195423570985008687907853269984665640564039457584007913129639936 X
+    b  0 X
+    c  -3 Y
+
+2026-01-06 a tie with the sign turned, even digit
+    a  -115792089237316195423570985008687907853269984665640564039457584007913129639936 X
+    b  0 X
+    c  1 Y
+
+2026-01-07 a tie with the sign turned, odd digit
+    a  -115792089237316195423570985008687907853269984665640564039457584007913129639936 X
+    b  0 X
+    c  3 Y
+
+2026-01-08 places in both commodities
+    a  1.5 X
+    b  2.0 X
+    c  -1.25 Y
+
+2026-01-09 a price of the other commodity in total and a unit price from three postings
+    a  1 X
+    b  1 X
+    c  1 X
+    d  -1 Y
+    e  -0.0000000000000000000000000000001 Y
+
+2026-01-10 a quantity beyond 128 bits and a total of one
+    a  340282366920938463463374607431768211456 X
+    b  340282366920938463463374607431768211456 X
+    c  -1 Y
+
+2026-01-11 a total beyond 128 bits and a quantity of one
+    a  1 X
+    b  1 X
+    c  -340282366920938463463374607431768211457 Y
