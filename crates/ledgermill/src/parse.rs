@@ -1264,15 +1264,16 @@ fn unbalanced_finding(file: &str, line: u32, u: &Unbalanced) -> Finding {
     }
 }
 
-/// The drafts balancing starts from: the postings as written.
-fn drafts_of(tx: &TxDraft, conversion_flags: &[bool]) -> Vec<Draft> {
+/// The drafts balancing starts from: the postings as written. The written amounts move into
+/// them, since nothing reads them on the posting afterwards.
+fn drafts_of(tx: &mut TxDraft, conversion_flags: &[bool]) -> Vec<Draft> {
     tx.postings
-        .iter()
+        .iter_mut()
         .zip(conversion_flags)
         .map(|(p, &conversion_account)| Draft {
             kind: p.kind,
             conversion_account,
-            amounts: p.amount.clone().map(|a| vec![a]),
+            amounts: p.amount.take().map(|a| vec![a]),
         })
         .collect()
 }
