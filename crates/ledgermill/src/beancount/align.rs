@@ -2,19 +2,17 @@
 //! `price` lines of a whole file end in one column, and every posting has the file's usual indent.
 //!
 //! The line shapes come from the spec note (found by running `bean-format`); which lines they are
-//! tried on comes from the loader (`amount_lines`), so text that only looks like a posting (a
+//! tried on comes from the loader (`Loaded::amount_lines`), so text that only looks like a posting (a
 //! multi-line string, say) is never touched.
 
 use crate::model::SourceFile;
+use foldhash::HashSet;
 use std::collections::HashMap;
 use unicode_properties::{GeneralCategory, GeneralCategoryGroup, UnicodeGeneralCategory};
 
-/// The file with its posting, `balance` and `price` lines rewritten; the file as it was when
-/// ledgermill reads none of it.
-pub(crate) fn realign(file: &SourceFile) -> String {
-    let Some(read) = super::amount_lines(file) else {
-        return file.content.clone();
-    };
+/// The file with its posting, `balance` and `price` lines rewritten; `read` are the lines the
+/// loader reads as such.
+pub(crate) fn realign(file: &SourceFile, read: &HashSet<u32>) -> String {
     // A CR belongs to the line ending, not to the line (rule 7).
     let lines: Vec<(&str, &str)> = file
         .content

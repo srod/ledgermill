@@ -28,6 +28,7 @@ use regex_lite::Regex;
 use serde_json::json;
 use std::sync::OnceLock;
 
+#[derive(Default)]
 pub(crate) struct Output {
     /// `(transaction, what `at_cost` and `value` need of it, its flat posting rows, date)`; sorted
     /// by the caller.
@@ -1071,26 +1072,19 @@ impl FileParser<'_> {
     fn conclude(&mut self) {
         let mut done = std::mem::take(&mut self.done);
         let conversion = std::mem::take(&mut self.conversion);
-        // Which postings `--cost` drops is decided on the transaction as written.
-        let plans: Vec<cost::Plan> = done
-            .iter()
+        // Which postings `--cost` drops is decided on the transaction as written, so the plan is
+        // made from the drafts before the walk balances them.
+        let (plans, mut txs): (Vec<cost::Plan>, Vec<Tx>) = done
+            .iter_mut()
             .zip(&conversion)
             .map(|(tx, flags)| {
                 let assignment = tx
                     .postings
                     .iter()
                     .any(|p| p.assertion.is_some() && p.amount.is_none());
-                cost::plan(&drafts_of(tx, flags), assignment)
-            })
-            .collect();
-        let mut txs: Vec<Tx> = done
-            .iter_mut()
-            .zip(&conversion)
-            .map(|(tx, flags)| Tx {
-                date: tx.date,
-                line: tx.line,
-                dropped: false,
-                info: tx
+                let drafts = drafts_of(tx, flags);
+                let plan = cost::plan(&drafts, assignment);
+                let info = tx
                     .postings
                     .iter_mut()
                     .map(|p| PostingInfo {
@@ -1099,59 +1093,70 @@ impl FileParser<'_> {
                         date: posting_date(&p.comment_lines, tx.date.year()),
                         assertion: p.assertion.take(),
                     })
-                    .collect(),
-                drafts: drafts_of(tx, flags),
+                    .collect();
+                let walked = Tx {
+                    date: tx.date,
+                    line: tx.line,
+                    dropped: false,
+                    info,
+                    drafts,
+                };
+                (plan, walked)
             })
-            .collect();
+            .unzip();
         let issues = walk::process(&mut txs, self.reported == 0);
+        self.out.findings.reserve(issues.len());
         for issue in &issues {
             let finding = self.issue_finding(issue);
             self.out.findings.push((self.file_index, finding));
         }
+        // A dropped transaction leaves a little unused room, which is cheaper than regrowing.
+        self.out.transactions.reserve(txs.len());
+        self.out.layouts.reserve(txs.len());
         for ((tx, walked), plan) in done.into_iter().zip(txs).zip(plans) {
             if walked.dropped {
                 continue;
             }
-            let exact = Exact {
-                date: tx.date,
-                postings: tx
-                    .postings
-                    .iter()
-                    .zip(&walked.drafts)
-                    .zip(&plan.tagged)
-                    .map(|((p, d), &tagged)| ExactPosting {
-                        date: posting_date(&p.comment_lines, tx.date.year()).unwrap_or(tx.date),
-                        amounts: d.amounts.clone().unwrap_or_default(),
-                        conversion_tagged: tagged
-                            || p.comment_lines
-                                .iter()
-                                .any(|c| tags(c).iter().any(|(n, _)| *n == "_conversion-posting")),
-                    })
-                    .collect(),
-                cost_refused: plan.refused,
-            };
-            let lines: Vec<u32> = tx.postings.iter().map(|p| p.line).collect();
-            self.out
-                .layouts
-                .push(tx.postings.iter().map(|p| p.layout).collect());
-            let postings = tx
+            let count = tx.postings.len();
+            let mut lines = Vec::with_capacity(count);
+            let mut layouts = Vec::with_capacity(count);
+            let mut postings = Vec::with_capacity(count);
+            let mut exact_postings = Vec::with_capacity(count);
+            for (((p, d), info), &tagged) in tx
                 .postings
                 .into_iter()
                 .zip(walked.drafts)
-                .map(|(p, d)| Posting {
+                .zip(&walked.info)
+                .zip(&plan.tagged)
+            {
+                // The public amounts are made from a borrow, then the amounts move into `Exact`.
+                let amounts = d.amounts.unwrap_or_default();
+                let reported = amounts.iter().map(report_amount).collect();
+                lines.push(p.line);
+                layouts.push(p.layout);
+                exact_postings.push(ExactPosting {
+                    date: info.date.unwrap_or(tx.date),
+                    amounts,
+                    conversion_tagged: tagged
+                        || p.comment_lines
+                            .iter()
+                            .any(|c| tags(c).iter().any(|(n, _)| *n == "_conversion-posting")),
+                });
+                postings.push(Posting {
                     account: p.account,
                     kind: p.kind,
                     comment: join_comment(&p.comment_lines),
-                    amounts: d
-                        .amounts
-                        .unwrap_or_default()
-                        .iter()
-                        .map(report_amount)
-                        .collect(),
+                    amounts: reported,
                     flag: None,
                     line: None,
-                })
-                .collect();
+                });
+            }
+            let exact = Exact {
+                date: tx.date,
+                postings: exact_postings,
+                cost_refused: plan.refused,
+            };
+            self.out.layouts.push(layouts);
             let transaction = Transaction {
                 date: tx.date.to_string(),
                 status: tx.status,
@@ -1259,15 +1264,16 @@ fn unbalanced_finding(file: &str, line: u32, u: &Unbalanced) -> Finding {
     }
 }
 
-/// The drafts balancing starts from: the postings as written.
-fn drafts_of(tx: &TxDraft, conversion_flags: &[bool]) -> Vec<Draft> {
+/// The drafts balancing starts from: the postings as written. The written amounts move into
+/// them, since nothing reads them on the posting afterwards.
+fn drafts_of(tx: &mut TxDraft, conversion_flags: &[bool]) -> Vec<Draft> {
     tx.postings
-        .iter()
+        .iter_mut()
         .zip(conversion_flags)
         .map(|(p, &conversion_account)| Draft {
             kind: p.kind,
             conversion_account,
-            amounts: p.amount.clone().map(|a| vec![a]),
+            amounts: p.amount.take().map(|a| vec![a]),
         })
         .collect()
 }

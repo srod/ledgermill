@@ -38,6 +38,8 @@ pub(crate) fn is_beancount(name: &str) -> bool {
 }
 
 pub(crate) struct Loaded {
+    /// The lines `format` may rewrite (see [`amount_lines`]); only filled when asked for.
+    pub amount_lines: Option<HashSet<u32>>,
     /// By date, then source line.
     pub transactions: Vec<Transaction>,
     /// In the order the reference tool prints them (spec/beancount/check-order.md).
@@ -244,6 +246,15 @@ pub(crate) fn flatten(transactions: &[Transaction]) -> Vec<FlatPosting> {
 
 /// Read, book and report one Beancount file.
 pub(crate) fn load(file: &SourceFile) -> Loaded {
+    load_for(file, false)
+}
+
+/// [`load`], and the `amount_lines` of the file, which `format` reads from the same parse.
+pub(crate) fn load_with_amount_lines(file: &SourceFile) -> Loaded {
+    load_for(file, true)
+}
+
+fn load_for(file: &SourceFile, with_amount_lines: bool) -> Loaded {
     let mut findings = Vec::new();
 
     // Lines refused before the parser runs: it would look for included files on disk, and a
@@ -264,6 +275,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     }
     if !findings.is_empty() {
         return Loaded {
+            amount_lines: None,
             transactions: Vec::new(),
             findings,
             prices: Vec::new(),
@@ -278,6 +290,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
                 .map(|i| parse_finding(&file.name, i))
                 .collect();
             return Loaded {
+                amount_lines: None,
                 transactions: Vec::new(),
                 findings,
                 prices: Vec::new(),
@@ -468,6 +481,7 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
         transactions.clear();
         findings.sort_by_key(|f| f.line);
         return Loaded {
+            amount_lines: None,
             transactions,
             findings,
             prices: Vec::new(),
@@ -507,7 +521,11 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
     transactions
         .sort_by(|a, b| (a.date.as_str(), a.source.line).cmp(&(b.date.as_str(), b.source.line)));
     let implied = implicit.map_or_else(Vec::new, |run| run.repeated(prescan.implicit_prices));
+    // A refused file never gets here, so this is the same answer as "no `unsupported-syntax`
+    // finding" without looking through them.
+    let amount_lines = with_amount_lines.then(|| amount_lines(&read));
     Loaded {
+        amount_lines,
         transactions,
         findings,
         prices: listed_prices(&file.name, &read.items, &implied),
@@ -516,18 +534,9 @@ pub(crate) fn load(file: &SourceFile) -> Loaded {
 
 /// The lines (1-based) that ledgermill reads as a posting of a transaction, a `balance` or a
 /// `price`: the only ones `format` may rewrite, so a line inside a multi-line string or a
-/// metadata line never is. `None` when the file is refused or does not parse: then ledgermill
-/// reads nothing of it and a rewrite could not be checked.
-fn amount_lines(file: &SourceFile) -> Option<HashSet<u32>> {
-    if load(file)
-        .findings
-        .iter()
-        .any(|f| f.code == "unsupported-syntax")
-    {
-        return None;
-    }
-    // shortcut: the file is parsed twice (here and in `load`), upgrade if format() gets slow
-    let read = lima::read(&file.content).ok()?;
+/// metadata line never is. A file that is refused or does not parse has none (`Loaded` holds
+/// `None`): then ledgermill reads nothing of it and a rewrite could not be checked.
+fn amount_lines(read: &plain::Read) -> HashSet<u32> {
     let mut lines: HashSet<u32> = read.left_out.iter().copied().collect();
     for item in &read.items {
         match item {
@@ -538,7 +547,7 @@ fn amount_lines(file: &SourceFile) -> Option<HashSet<u32>> {
             _ => {}
         }
     }
-    Some(lines)
+    lines
 }
 
 /// The `price` directives as the `prices` table lists them: by date, the same date in the order

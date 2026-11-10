@@ -14,7 +14,8 @@ pub(crate) fn rows(tx: &Transaction, exact: &Exact, lines: &[u32]) -> Vec<FlatPo
         Status::Pending => "!",
         Status::Cleared => "*",
     };
-    let mut out = Vec::new();
+    // At least one row per posting; a posting with several commodities makes more.
+    let mut out = Vec::with_capacity(tx.postings.len());
     for ((posting, written), &line) in tx.postings.iter().zip(&exact.postings).zip(lines) {
         for (number, currency) in amounts_of(&written.amounts) {
             out.push(FlatPosting {

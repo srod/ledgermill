@@ -185,7 +185,11 @@ pub fn load(files: &[SourceFile]) -> Ledger {
 }
 
 fn load_beancount(file: &SourceFile) -> Ledger {
-    let loaded = beancount::load(file);
+    beancount_ledger(beancount::load(file))
+}
+
+/// The ledger of one loaded Beancount file.
+fn beancount_ledger(loaded: beancount::Loaded) -> Ledger {
     Ledger {
         postings: beancount::flatten(&loaded.transactions),
         transactions: loaded.transactions,
@@ -276,22 +280,28 @@ fn merge_ledgers(files: &[SourceFile], mut parts: Vec<(usize, Ledger)>) -> Ledge
 }
 
 fn load_hledger(files: &[&SourceFile]) -> Ledger {
-    let mut out = parse::Output {
-        transactions: Vec::new(),
-        prices: Vec::new(),
-        findings: Vec::new(),
-        layouts: Vec::new(),
-    };
+    let mut out = parse::Output::default();
     for (index, file) in files.iter().enumerate() {
         parse::parse_file(index, file, &mut out);
     }
+    hledger_ledger(out)
+}
+
+/// The ledger of parsed hledger files.
+fn hledger_ledger(mut out: parse::Output) -> Ledger {
     // The sort is stable: same date keeps file order, then line order. Findings stay in the order
     // they were made in, which is hledger's: file by file; in each file what the lines gave, the
     // problems of plain transactions, then the walk's.
     out.transactions.sort_by_key(|(_, _, _, date)| *date);
-    let mut transactions = Vec::new();
-    let mut exact = Vec::new();
-    let mut postings = Vec::new();
+    let count = out.transactions.len();
+    let row_count = out
+        .transactions
+        .iter()
+        .map(|(_, _, rows, _)| rows.len())
+        .sum();
+    let mut transactions = Vec::with_capacity(count);
+    let mut exact = Vec::with_capacity(count);
+    let mut postings = Vec::with_capacity(row_count);
     for (transaction, kept, rows, _) in out.transactions {
         transactions.push(transaction);
         exact.push(kept);
