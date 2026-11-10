@@ -31,6 +31,18 @@ All notable changes to ledgermill are written here. The format follows
   dropped) and the summary counts the journals that had each.
 - Beancount: a posting flag `*` straight before the account (`*Assets:Bank`) is read.
 
+### Changed
+
+- `format()` reads the original file once. A Beancount file used to be loaded three times and parsed
+  once more, an hledger file parsed and then loaded again; a format is now two loads, the original
+  and the result. On 10,000 transactions, against 0.1.3 from npm on one desktop (median of 7 runs,
+  alternated): Beancount 287 ms to 179 ms, hledger 154 ms to 104 ms. The formatted text is the same.
+- hledger: a load copies less. The drafts of a transaction are built once, and a posting's amounts
+  are moved, not copied, into what `at_cost()`, `value()` and `holdings()` keep; the lists of a
+  load get their size up front. A native load of 10,000 transactions takes about 9% less time
+  (45.6 ms to 41.6 ms); in the wasm the gain is within what the bench can tell apart (46.9 ms to
+  45.6 ms for `load` and `transactions()`).
+
 ## 0.1.3 – 2026-11-03
 
 ### Added
