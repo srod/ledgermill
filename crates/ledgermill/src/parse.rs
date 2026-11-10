@@ -1119,9 +1119,10 @@ impl FileParser<'_> {
                     .postings
                     .iter()
                     .zip(&walked.drafts)
+                    .zip(&walked.info)
                     .zip(&plan.tagged)
-                    .map(|((p, d), &tagged)| ExactPosting {
-                        date: posting_date(&p.comment_lines, tx.date.year()).unwrap_or(tx.date),
+                    .map(|(((p, d), info), &tagged)| ExactPosting {
+                        date: info.date.unwrap_or(tx.date),
                         amounts: d.amounts.clone().unwrap_or_default(),
                         conversion_tagged: tagged
                             || p.comment_lines
