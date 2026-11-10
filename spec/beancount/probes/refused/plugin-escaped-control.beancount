@@ -1,0 +1,5 @@
+plugin "beancount.plugins.auto_accou\nts"
+
+2026-01-02 * "a backslash and n is a line feed, so this is not the module"
+  Assets:A  1 EUR
+  Assets:B

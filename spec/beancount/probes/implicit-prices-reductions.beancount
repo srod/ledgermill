@@ -1,0 +1,31 @@
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "buy"
+  Assets:Btc    4 BTC {10 EUR}
+  Assets:Bank  -40 EUR
+
+2026-01-03 * "sell at cost, any lot"
+  Assets:Btc   -1 BTC {}
+  Assets:Bank   10 EUR
+
+2026-01-04 * "sell naming the cost"
+  Assets:Btc   -1 BTC {10 EUR}
+  Assets:Bank   10 EUR
+
+2026-01-05 * "sell with a price"
+  Assets:Btc   -1 BTC {10 EUR} @ 14 EUR
+  Assets:Bank   14 EUR
+  Income:Gain  -4 EUR
+
+2026-01-06 * "sell with a price, cost open"
+  Assets:Btc   -1 BTC {} @ 15 EUR
+  Assets:Bank   15 EUR
+  Income:Gain  -5 EUR
+
+2026-01-07 * "sell naming the date"
+  Assets:Btc   -1 BTC {2026-01-02}
+  Assets:Bank   10 EUR
+
+plugin "beancount.plugins.implicit_prices"

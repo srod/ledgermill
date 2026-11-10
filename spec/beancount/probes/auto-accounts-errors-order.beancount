@@ -1,0 +1,33 @@
+2026-01-01 open Assets:Eur EUR
+2026-01-01 open Assets:Dup
+2026-01-01 open Assets:Dup
+2026-01-01 open Assets:Opening
+2026-01-01 open Assets:Later
+2026-06-01 open Assets:LaterStill
+
+2026-02-01 commodity ZZZ
+2026-02-02 commodity ZZZ
+
+2026-02-03 * "unbalanced"
+  Assets:Eur  1 EUR
+  Assets:Opening  -2 EUR
+
+2026-02-04 * "wrong currency in an explicit account"
+  Assets:Eur  1 USD
+  Assets:Opening  -1 USD
+
+2026-02-05 * "used before its open"
+  Assets:LaterStill  1 EUR
+  Assets:Opening  -1 EUR
+
+2026-02-06 balance Assets:Opening  9 EUR
+2026-02-07 balance Assets:Never  0 EUR
+
+2026-02-08 pad Assets:Nowhere Assets:Opening
+
+2026-02-09 * "rejected by booking"
+  Assets:Eur
+  Assets:Later
+  Assets:Opening
+
+plugin "beancount.plugins.auto_accounts"

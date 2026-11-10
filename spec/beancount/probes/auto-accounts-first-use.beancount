@@ -1,0 +1,12 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-01-05 * "written first, used second"
+  Assets:A  1 EUR
+  Assets:B
+
+2026-01-02 * "written second, used first"
+  Assets:C  1 EUR
+  Assets:B
+
+2026-01-08 balance Assets:C  1 EUR
+2026-01-09 balance Assets:A  1 EUR

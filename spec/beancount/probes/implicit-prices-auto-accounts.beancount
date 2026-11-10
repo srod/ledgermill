@@ -1,0 +1,6 @@
+plugin "beancount.plugins.auto_accounts"
+plugin "beancount.plugins.implicit_prices"
+
+2026-01-02 * "x"
+  Assets:Btc    2 BTC @ 100 EUR
+  Assets:Bank  -200 EUR

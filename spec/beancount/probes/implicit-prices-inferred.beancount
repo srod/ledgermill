@@ -1,0 +1,36 @@
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "inferred cost"
+  Assets:Btc    4 BTC {}
+  Assets:Bank  -50.00 EUR
+
+2026-01-03 * "inferred cost, in a currency"
+  Assets:Btc    4 BTC {EUR}
+  Assets:Bank  -50.00 EUR
+
+2026-01-04 * "inferred price"
+  Assets:Btc    4 BTC @ EUR
+  Assets:Bank  -50.00 EUR
+
+2026-01-05 * "inferred total price, inexact"
+  Assets:Btc    3 BTC @@ EUR
+  Assets:Bank  -10.00 EUR
+
+2026-01-06 * "inferred price, number only"
+  Assets:Btc    4 BTC @ 
+  Assets:Bank  -50.00 EUR
+
+2026-01-07 * "inferred price, negative units"
+  Assets:Btc   -4 BTC @ EUR
+  Assets:Bank   50.00 EUR
+
+2026-01-08 * "inferred cost, inexact"
+  Assets:Btc    3 BTC {}
+  Assets:Bank  -10.00 EUR
+
+2026-01-09 * "inferred cost and a price"
+  Assets:Btc    4 BTC {} @ 13 EUR
+  Assets:Bank  -50.00 EUR
+
+plugin "beancount.plugins.implicit_prices"

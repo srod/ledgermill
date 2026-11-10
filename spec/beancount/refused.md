@@ -28,9 +28,15 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `number-expression-result-too-large` | accepts: `(12345678901234567890 * 12345678901234567890) EUR` is `1.524157875323883675019051999E+38` | `number-too-precise` |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
-| `plugin` | accepts, the plugin runs | `plugin` |
+| `plugin-check-commodity` | accepts, the plugin runs (it has nothing to say here) | `plugin` (`details.name`) |
+| `plugin-auto-accounts-config` | rejects: the plugin takes no configuration string, `<load>:0: Error applying plugin` | `plugin` (`details.name`) |
+| `plugin-implicit-prices-config` | rejects: the plugin takes no configuration string, `<load>:0: Error applying plugin`, and no price is added | `plugin` (`details.name`) |
+| `implicit-prices-zero-units-total` | accepts: `0 BTC @@ 10 EUR` with the plugin lists a price of `0` | `number-too-precise` |
+| `plugin-unknown-module` | rejects: `<load>:0: Error importing` the module | `plugin` (`details.name`) |
+| `plugin-escaped-name` | accepts, the plugin runs: `\o` in the module name is `o` (auto-accounts.md) | `plugin` (`details.name`, as written) |
+| `plugin-escaped-control` | rejects: `\n` in the module name is a line feed, `<load>:0: Error importing` | `plugin` (`details.name`, as written) |
 
-Why each is refused: `include` and `plugin` bring in files or rewrite the entries; an option other than the ones in options-and-directives.md may
+Why each is refused: `include` brings in files, and a `plugin` rewrites or checks the entries (only `beancount.plugins.auto_accounts` and `beancount.plugins.implicit_prices` are built, auto-accounts.md and implicit-prices.md; any other module, with or without a configuration string, is refused, and `details.name` is its module name); an option other than the ones in options-and-directives.md may
 change tolerances, account names or booking; `cost-merge` (`{..., *}`) and AVERAGE booking merge
 lots. A sign in front of a sign and a tolerance that is a sum are read by the reference but not by the
 parser ledgermill is built on, which takes one sign and a plain number there; the same two inside
@@ -41,7 +47,9 @@ construct is one it would refuse anyway, so the harness reports SKIP, not "both 
 Also refused, without a probe because nothing needs a reference to confirm it:
 
 - `number-too-large`: more than 22 characters in a number. `number-too-precise`: a figure that
-  needs more digits than ledgermill handles.
+  needs more digits than ledgermill handles, and the per-unit rate of a total price on zero units
+  (`0 BTC @@ 10 EUR`: booking would divide by zero; the reference lists a price of `0` with the
+  `implicit_prices` plugin, and ledgermill has no such rate).
 - `inferred-price`: a price with its number or currency left out, next to a cost on the same
   posting, or with zero units. `inferred-cost`: a cost to work out in a transaction that also has
   a reduction with an open cost, or with zero units and nothing to pay. Everything else about
@@ -51,7 +59,7 @@ Also refused, without a probe because nothing needs a reference to confirm it:
 
 ## Probe
 
-`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression-operands-too-large.beancount`, `probes/refused/number-expression-result-too-large.beancount`, `probes/refused/number-expression-stacked-sign.beancount`, `probes/refused/number-expression-tolerance-sum.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin.beancount`
+`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/implicit-prices-zero-units-total.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression-operands-too-large.beancount`, `probes/refused/number-expression-result-too-large.beancount`, `probes/refused/number-expression-stacked-sign.beancount`, `probes/refused/number-expression-tolerance-sum.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin-auto-accounts-config.beancount`, `probes/refused/plugin-check-commodity.beancount`, `probes/refused/plugin-escaped-control.beancount`, `probes/refused/plugin-escaped-name.beancount`, `probes/refused/plugin-implicit-prices-config.beancount`, `probes/refused/plugin-unknown-module.beancount`
 
 Command:
 
@@ -65,10 +73,12 @@ spec/beancount/show.sh spec/beancount/probes/refused/number-expression-stacked-s
 spec/beancount/show.sh spec/beancount/probes/refused/number-expression-tolerance-sum.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/option-tolerance.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/option-unknown.beancount
-spec/beancount/show.sh spec/beancount/probes/refused/plugin.beancount
+spec/beancount/show.sh spec/beancount/probes/refused/plugin-check-commodity.beancount
+spec/beancount/show-opens.sh spec/beancount/probes/refused/plugin-auto-accounts-config.beancount spec/beancount/probes/refused/plugin-unknown-module.beancount
+spec/beancount/show-implicit.sh spec/beancount/probes/refused/implicit-prices-zero-units-total.beancount spec/beancount/probes/refused/plugin-implicit-prices-config.beancount
 ```
 
-`show.sh` prints one row per posting: `id` (the first 6 characters of its transaction's id), account, posting flag, number, currency, cost number, cost currency, cost date, cost label, price number, price currency, line (here without the file name). A transaction row is `id,type,line,date,flag,payee,narration`. `bean-check:` is the first line it printed, if any.
+`show.sh` prints one row per posting: `id` (the first 6 characters of its transaction's id), account, posting flag, number, currency, cost number, cost currency, cost date, cost label, price number, price currency, line (here without the file name). A transaction row is `id,type,line,date,flag,payee,narration`. `bean-check:` is the first line it printed, if any. `show-opens.sh` and `show-implicit.sh` print their own sections (see their headers).
 
 ## Output
 
@@ -153,12 +163,35 @@ ebffa0,Expenses:Food,,1,EUR,,,,,,,7
 ebffa0,Actifs:Bank,,-1,EUR,,,,,,,8
 ```
 
-plugin:
+plugin-check-commodity:
 
 ```text
 bean-check: (no output, exit 0)
-bd4aba,transaction,3,2026-01-02,*,,no open directives needed with the plugin
-bd4aba,Assets:A,,1,EUR,,,,,,,4
-bd4aba,Assets:B,,-1,EUR,,,,,,,5
+97bd44,transaction,7,2026-01-02,*,,the plugin checks every commodity has a directive; this one does
+97bd44,Assets:A,,1,EUR,,,,,,,8
+97bd44,Assets:B,,-1,EUR,,,,,,,9
 ```
 
+plugin-auto-accounts-config and plugin-unknown-module (`show-opens.sh`, a Python traceback replaced by a marker):
+
+```text
+bean-check: <load>:0: Error applying plugin "beancount.plugins.auto_accounts": [traceback hidden]
+bean-check: plugin-auto-accounts-config.beancount:3: Invalid reference to unknown account 'Assets:B'
+bean-check: plugin-auto-accounts-config.beancount:3: Invalid reference to unknown account 'Assets:A'
+bean-check: <load>:0: Error importing "no.such.module": [traceback hidden]
+```
+
+
+implicit-prices-zero-units-total (`show-implicit.sh`: the prices table, then each price entry's date, line and file):
+
+```text
+bean-check: (no output)
+2026-01-05,BTC,0,EUR
+2026-01-05,5,implicit-prices-zero-units-total.beancount
+```
+
+plugin-implicit-prices-config (`show-implicit.sh`; the same marker line is printed again by each query, and the table is empty):
+
+```text
+bean-check: <load>:0: Error applying plugin "beancount.plugins.implicit_prices": [traceback hidden]
+```

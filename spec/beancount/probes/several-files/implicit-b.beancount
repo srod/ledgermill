@@ -1,0 +1,8 @@
+2026-01-01 open Assets:Bank
+2026-01-01 open Assets:Stock
+
+2026-01-05 * "b buys with a price, and has no plugin"
+  Assets:Stock   3 STOCK @ 11 EUR
+  Assets:Bank  -33 EUR
+
+2026-01-07 price STOCK 11.5 EUR

@@ -317,7 +317,12 @@ both must refuse on the same line (the parser used to panic on such a date). Thr
 one-letter currency `X`, which bean-check reads only before a space or a line end: fine as units or a price, refused in a cost
 (`{3 X}`), and both must agree. About one number in seven (units, `@`, `@@`, `{}`, `{{}}`, `price`) is written as
 arithmetic of the same value (`(90.00 / 3)`, `4 + 1 * 2`), or, in a `price` directive, as an inexact quotient; one journal in
-four ends with a `balance` on such an expression. `--multi` keeps `XX` and `YY`, so that its sets do not mostly carry a refused ledger.
+four ends with a `balance` on such an expression. One journal in four has the line `plugin "beancount.plugins.implicit_prices"` (one in
+seven of those writes it twice, which repeats the entries) and one in four `plugin "beancount.plugins.auto_accounts"`, each at a random top-level line
+(never inside a transaction), independently; with `auto_accounts` on, seven journals in ten lose some or all of their `open` lines, which is where
+the plugin matters. Without the plugin no `open` is dropped, so the journals stay as valid as before. The fuzzer never writes a configuration string
+or another plugin (both are refused). The summary has a `plugins:` line with the counts, which shows that a run exercised them. `--multi` does the same for
+each of its Beancount files. `--both-ways` writes no plugin line (its journals come from their own generator) and prints no `plugins:` line. `--multi` keeps `XX` and `YY`, so that its sets do not mostly carry a refused ledger.
 
 The fuzzer (`fuzz.ts`) writes random, mostly valid hledger journals covering number forms and marks,
 directives, prices, lots, elided amounts, inferred prices, conversion postings, virtual postings
@@ -375,7 +380,7 @@ a self-test of hand-written values): it never calls the engine. What it compares
   nothing in it. The questions are the first, middle and last date of the value questions and none, in at most three commodities
   (`setHoldingQuestions`). A commodity hledger cannot ask for alone (`cur:`, see "Holdings") is left out of every ledger and of ours; the
   verdict is a SKIP if the rest agrees.
-- **an `unsupported-syntax` finding anywhere in the set** (a Beancount file with a plugin, say): the whole set is a SKIP, as one such
+- **an `unsupported-syntax` finding anywhere in the set** (a Beancount file with a plugin other than `auto_accounts` and `implicit_prices`, say): the whole set is a SKIP, as one such
   file always was. `plugin` is in `EXPECTED_SKIPS` for the probe that does this on purpose.
 
 Not asked of a set: `format()` (every file is formatted in its single-file case) and Plainledger's reads (single files and pairs only).

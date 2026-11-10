@@ -1,0 +1,38 @@
+plugin "beancount.plugins.implicit_prices"
+
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 price BTC 90.00 EUR
+
+2026-01-02 * "after an explicit price, same day"
+  Assets:Btc    2 BTC @ 100.00 EUR
+  Assets:Bank  -200.00 EUR
+
+2026-01-02 price BTC 110.00 EUR
+
+2026-01-03 * "before an explicit price, same day"
+  Assets:Btc    2 BTC @ 100.00 EUR
+  Assets:Bank  -200.00 EUR
+
+2026-01-03 price BTC 90.00 EUR
+
+2026-01-04 * "same rate as the explicit one"
+  Assets:Btc    2 BTC @ 100.00 EUR
+  Assets:Bank  -200.00 EUR
+
+2026-01-04 price BTC 100.00 EUR
+
+2026-01-05 * "two postings, same pair, same rate"
+  Assets:Btc    2 BTC @ 100.00 EUR
+  Assets:Btc    3 BTC @ 100.00 EUR
+  Assets:Bank  -500.00 EUR
+
+2026-01-06 * "two postings, same pair, different rates"
+  Assets:Btc    2 BTC @ 100.00 EUR
+  Assets:Btc    3 BTC @ 120.00 EUR
+  Assets:Bank  -560.00 EUR
+
+2026-01-06 * "another transaction, same day, other rate"
+  Assets:Btc    1 BTC @ 130.00 EUR
+  Assets:Bank  -130.00 EUR

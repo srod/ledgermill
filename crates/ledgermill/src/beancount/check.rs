@@ -198,10 +198,12 @@ fn within_tolerance(difference: &Num, tolerance: &Num) -> bool {
     difference.abs().cmp_value(tolerance) != Ordering::Greater
 }
 
-/// Run the checks that come after booking, in the order the reference prints them.
-pub(super) fn run(items: &[Item], kept: &[Kept]) -> Checked {
+/// Run the checks that come after booking, in the order the reference prints them. `added` are
+/// the directives a plugin made; they are checked like the ones written.
+pub(super) fn run(items: &[Item], added: &[Item], kept: &[Kept]) -> Checked {
     let mut entries: Vec<Entry> = items
         .iter()
+        .chain(added)
         .filter_map(|item| {
             item.place()
                 .map(|(date, line)| Entry::Directive(item, date, line))

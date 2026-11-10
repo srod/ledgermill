@@ -9,14 +9,6 @@ use ledgermill::load;
 use serde_json::json;
 use support::*;
 
-fn probe(name: &str) -> String {
-    std::fs::read_to_string(format!(
-        "{}/../../spec/beancount/probes/{name}.beancount",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-}
-
 #[test]
 fn org_headings_and_hash_lines_at_the_margin_are_comments() {
     for name in ["org-heading-lines", "hash-line", "margin-lines"] {

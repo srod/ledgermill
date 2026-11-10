@@ -11,14 +11,6 @@ use ledgermill::load;
 use serde_json::{Value, json};
 use support::*;
 
-fn probe(name: &str) -> String {
-    std::fs::read_to_string(format!(
-        "{}/../../spec/beancount/probes/{name}.beancount",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-}
-
 /// `[line, code]` of each error, in order.
 fn errors(name: &str) -> Value {
     let found = findings("c.beancount", &probe(name));

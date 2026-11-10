@@ -28,10 +28,10 @@ fn refused(name: &str, content: &str, line: u32, construct: &str) {
 }
 
 #[test]
-fn plugin_include_and_unchecked_options_are_refused() {
+fn other_plugins_include_and_unchecked_options_are_refused() {
     refused(
         "p.beancount",
-        include_str!("../../../spec/beancount/probes/refused/plugin.beancount"),
+        include_str!("../../../spec/beancount/probes/refused/plugin-check-commodity.beancount"),
         1,
         "plugin",
     );

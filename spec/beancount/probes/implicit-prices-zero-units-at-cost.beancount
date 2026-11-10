@@ -1,0 +1,13 @@
+; Zero units at a cost is an error of the reference (Amount is zero); the transaction stays and so does its price.
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "zero units with a cost"
+  Assets:Btc    0 BTC {10 EUR}
+  Assets:Bank   0 EUR
+
+2026-01-03 * "a normal one"
+  Assets:Btc    1 BTC {11 EUR}
+  Assets:Bank  -11 EUR
+
+plugin "beancount.plugins.implicit_prices"

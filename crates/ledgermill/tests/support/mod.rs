@@ -239,3 +239,12 @@ pub fn post_lines(files: &[(&str, &str)]) -> Vec<String> {
         })
         .collect()
 }
+
+/// The text of `spec/beancount/probes/NAME.beancount`.
+pub fn probe(name: &str) -> String {
+    std::fs::read_to_string(format!(
+        "{}/../../spec/beancount/probes/{name}.beancount",
+        env!("CARGO_MANIFEST_DIR")
+    ))
+    .unwrap()
+}

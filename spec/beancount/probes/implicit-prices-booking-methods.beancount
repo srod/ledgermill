@@ -1,0 +1,28 @@
+plugin "beancount.plugins.implicit_prices"
+
+2026-01-01 open Assets:Fifo "FIFO"
+2026-01-01 open Assets:Lifo "LIFO"
+2026-01-01 open Assets:Hifo "HIFO"
+2026-01-01 open Assets:None "NONE"
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "buy in four accounts"
+  Assets:Fifo   2 AAA {10 EUR}
+  Assets:Lifo   2 BBB {20 EUR}
+  Assets:Hifo   2 CCC {30 EUR}
+  Assets:None   2 DDD {40 EUR}
+  Assets:Bank  -200 EUR
+
+2026-01-03 * "a second lot in each"
+  Assets:Fifo   2 AAA {11 EUR}
+  Assets:Lifo   2 BBB {21 EUR}
+  Assets:Hifo   2 CCC {31 EUR}
+  Assets:None   2 DDD {41 EUR}
+  Assets:Bank  -208 EUR
+
+2026-01-04 * "sell where the cost is open or named: reductions, except under NONE"
+  Assets:Fifo  -3 AAA {}
+  Assets:Lifo  -1 BBB {20 EUR}
+  Assets:Hifo  -1 CCC {}
+  Assets:None  -1 DDD {42 EUR}
+  Assets:Bank   124 EUR

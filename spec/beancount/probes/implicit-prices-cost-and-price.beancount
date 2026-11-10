@@ -1,0 +1,25 @@
+plugin "beancount.plugins.implicit_prices"
+
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+2026-01-01 open Income:Gain
+
+2026-01-02 * "cost and price, different"
+  Assets:Btc    2 BTC {10 EUR} @ 12.50 EUR
+  Assets:Bank  -20 EUR
+
+2026-01-04 * "cost and price, same number"
+  Assets:Btc    2 BTC {10 EUR} @ 10 EUR
+  Assets:Bank  -20 EUR
+
+2026-01-05 * "total cost and total price"
+  Assets:Btc    2 BTC {{20 EUR}} @@ 50 EUR
+  Assets:Bank  -20 EUR
+
+2026-01-06 * "cost with date and label"
+  Assets:Btc    2 BTC {10 EUR, 2026-01-02, "lot"}
+  Assets:Bank  -20 EUR
+
+2026-01-07 * "cost and per-unit plus total"
+  Assets:Btc    2 BTC {10 # 4 EUR}
+  Assets:Bank  -24 EUR

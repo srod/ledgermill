@@ -1,0 +1,9 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-03-01 * "rejected by booking: two elided postings"
+  Assets:X
+  Assets:Y
+
+2026-03-05 * "fine"
+  Assets:Q  1 EUR
+  Assets:R

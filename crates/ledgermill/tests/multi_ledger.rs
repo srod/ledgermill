@@ -351,7 +351,10 @@ fn an_error_of_the_first_ledger_wins_and_a_refused_file_makes_every_valuation_fa
     let l = load(&[a(), probe!("refused.beancount"), b()]);
     let refusal = l.value("2026-01-31", "EUR").unwrap_err();
     assert_eq!(refusal.file, "refused.beancount");
-    assert_eq!(refusal.details, json!({ "construct": "plugin" }));
+    assert_eq!(
+        refusal.details,
+        json!({ "construct": "plugin", "name": "beancount.plugins.check_commodity" })
+    );
     assert_eq!(l.at_cost().unwrap_err().file, "refused.beancount");
     assert_eq!(l.holdings(&query()).unwrap_err().file, "refused.beancount");
     // Two refused files: the first in ledger order.

@@ -1,0 +1,17 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-03-01 * "first use"
+  Assets:A  1 EUR
+  Assets:B
+
+2026-03-05 close Assets:A
+2026-03-05 close Assets:A
+
+2026-03-10 * "use after the close"
+  Assets:A  1 EUR
+  Assets:B
+
+2026-03-20 close Assets:NoUse
+2026-03-25 * "the first use of this account is after its close"
+  Assets:NoUse  1 EUR
+  Assets:B

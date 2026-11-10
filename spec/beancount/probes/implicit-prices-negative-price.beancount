@@ -1,0 +1,9 @@
+; A price written with a minus sign is an error of the reference; its entry has the price without the sign.
+2026-01-01 open Assets:Btc
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "negative price"
+  Assets:Btc    1 BTC @ -3 EUR
+  Assets:Bank   3 EUR
+
+plugin "beancount.plugins.implicit_prices"

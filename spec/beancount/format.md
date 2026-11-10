@@ -728,11 +728,13 @@ stated, the one that satisfies the acceptance (equality with `bean-format`).
    into LF and adds a final newline; that is not alignment, so the equality with `bean-format` is checked after
    turning CRLF into LF and adding the final newline to our output. Lines never move or merge.
 8. **Files ledgermill refuses.** If loading the file reports anything ledgermill refuses (`unsupported-syntax`: an
-   `include`, a `plugin`, an `option` that changes names or tolerances, a number expression, a cost to merge, …) the
-   file is returned unchanged: ledgermill then reads no transaction of the file, so the safety check (rule 9)
-   compares two empty ledgers and proves nothing. The same goes for a file ledgermill cannot parse (a syntax error,
-   an unknown account root, a duplicate metadata key, an unbalanced `pushtag`, or a byte order mark, which
-   Beancount rejects too): it reads nothing, and the file comes back as it was.
+   `include`, a `plugin` other than a bare `auto_accounts` or `implicit_prices` (one with a configuration
+   string or a backslash escape is refused too), an `option` that changes names or tolerances, a number
+   expression, a cost to merge, …) the file is returned unchanged: ledgermill then reads no transaction of
+   the file, so the safety check (rule 9) compares two empty ledgers and proves nothing. The same goes for a
+   file ledgermill cannot parse (a syntax error, an unknown account root, a duplicate metadata key, an
+   unbalanced `pushtag`, or a byte order mark, which Beancount rejects too): it reads nothing, and the file
+   comes back as it was.
    **Decision O4: refused files (settled: returned unchanged).** The default is the safe one. The alternative is to format them anyway with
    the same text rules (as `bean-format` does): it equals `bean-format` on those files too, but nothing checks that
    the ledger is kept.

@@ -1,0 +1,17 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-03-01 balance Assets:Bal  0 EUR
+2026-03-02 pad Assets:PadTo Equity:PadFrom
+2026-03-03 balance Assets:PadTo  5 EUR
+2026-03-04 note Assets:Note "a note opens its account"
+2026-03-05 document Assets:Doc "auto-accounts-directives.beancount"
+2026-03-06 price EUR 1.1 USD
+2026-03-07 event "location" "Paris"
+2026-03-08 commodity EUR
+2026-03-09 custom "budget" Expenses:Custom 5 EUR
+2026-03-10 close Assets:Closed
+
+2026-03-11 * "metadata values are not uses"
+  Assets:A  1 EUR
+    ref: Assets:Meta
+  Assets:B

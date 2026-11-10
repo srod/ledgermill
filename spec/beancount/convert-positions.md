@@ -8,6 +8,10 @@ is in convert-rates.md; this note is what `convert(position, "V")`, `convert(pos
 
 ## Rule
 
+A price annotation or a cost is never a rate of its own here. With `plugin "beancount.plugins.implicit_prices"`
+in the file, a price annotation adds a `price` entry, and so does a cost on a posting that has no price
+annotation and opens a lot; that entry is a rate (implicit-prices.md). The probes of this note have no plugin line.
+
 `convert(position, V, D)` turns a posting's position, units and cost, into one amount: `number()` and
 `currency()` of the result are what the value query reads. In order:
 

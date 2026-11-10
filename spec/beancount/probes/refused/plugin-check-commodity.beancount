@@ -1,0 +1,9 @@
+plugin "beancount.plugins.check_commodity"
+
+2026-01-01 commodity EUR
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+
+2026-01-02 * "the plugin checks every commodity has a directive; this one does"
+  Assets:A  1 EUR
+  Assets:B

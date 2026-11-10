@@ -104,8 +104,10 @@ ledgermill does with it.
 For Beancount, `check()` gives the verdict `bean-check` gives, with the same first error (file and line):
 unknown or closed accounts, balance assertions and their tolerance, unused pads, currency
 constraints, duplicates, unbalanced transactions and more (`spec/README.md` lists the codes).
-Beancount `pad` is read and its padding transactions are built; `include`, `plugin`, unusual options
-and AVERAGE booking are refused with a finding.
+Beancount `pad` is read and its padding transactions are built; `include`, plugins other than
+`beancount.plugins.auto_accounts` and `beancount.plugins.implicit_prices` (those two are built, but not with
+a configuration string or a backslash escape; an indented `plugin` line is read with no finding, a known
+parser gap), unusual options and AVERAGE booking are refused with a finding.
 
 `format(file)` realigns the posting lines of an hledger journal and changes nothing but whitespace; if the result would not read as the same ledger, it returns the file as it was. A Beancount file is formatted like `bean-format` does (postings, `balance` and `price` lines: the amounts of the whole file in one column, the file's usual indent), also whitespace only; one ledgermill refuses or cannot parse is returned as it was.
 

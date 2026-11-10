@@ -1,0 +1,7 @@
+plugin "beancount.plugins.auto_accounts"   ; once
+plugin "beancount.plugins.auto_accounts"
+plugin	"beancount.plugins.auto_accounts"
+
+2026-01-02 * "a plugin named twice runs once"
+  Assets:A  1 EUR
+  Assets:B

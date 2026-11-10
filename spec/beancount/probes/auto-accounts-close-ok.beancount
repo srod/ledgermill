@@ -1,0 +1,8 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-03-01 * "used, then closed"
+  Assets:A  1 EUR
+  Assets:B
+
+2026-03-05 close Assets:A
+2026-03-06 close Assets:NeverUsed
