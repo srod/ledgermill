@@ -8,10 +8,10 @@ and never read their source.
 ## Set up
 
 You need [Bun](https://bun.sh), `hledger` 1.52.4 on `PATH`, Beancount (below), Rust (the
-toolchain in `rust-toolchain.toml`) and `wasm-bindgen-cli` 0.2.129:
+toolchain in `rust-toolchain.toml`) and `wasm-bindgen-cli` 0.2.130:
 
 ```sh
-cargo install --locked wasm-bindgen-cli@0.2.129
+cargo install --locked wasm-bindgen-cli@0.2.130
 crates/ledgermill-wasm/build.sh
 ```
 

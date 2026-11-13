@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the npm package into pkg/: the release wasm, its wasm-bindgen glue, package.json, the README and the licences.
-# Needs the toolchain in rust-toolchain.toml and wasm-bindgen-cli 0.2.129 on PATH.
+# Needs the toolchain in rust-toolchain.toml and wasm-bindgen-cli 0.2.130 on PATH.
 # Before the first release an app uses it with `cd pkg && bun link`.
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
