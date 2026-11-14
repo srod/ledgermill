@@ -795,6 +795,11 @@ function multiSet(k: number): { name: string; text: string }[] {
     const m = int(i + 1);
     [files[i], files[m]] = [files[m] as (typeof files)[number], files[i] as (typeof files)[number]];
   }
+  // The Beancount files are one ledger: each opens the same accounts, so most of the files after the first leave their opens to it. The
+  // others keep them, and the duplicate is the reference's first error, at the same file and line as ours.
+  const firstBean = files.findIndex((o) => o.ext === "beancount");
+  for (const [i, f] of files.entries())
+    if (f.ext === "beancount" && i !== firstBean && chance(0.8)) f.text = f.text.replace(/^2026-01-01 open .*\n/gm, "");
   return files.map((f, i) => ({ name: `multi${k}-${i}.${f.ext}`, text: f.text }));
 }
 

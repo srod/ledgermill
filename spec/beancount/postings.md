@@ -37,8 +37,9 @@ and a transaction written last with an earlier date comes first. Within a transa
 follow the line, that is the order the postings were written: bean-query's unsorted postings list
 groups them by currency instead (numbers-and-interpolation.md), and this query puts them back
 (`interpolation-groups`, below). Rows tied on a line keep their booking order. Directives other
-than transactions take no part. A Beancount file is its own ledger, so within it the file never breaks a
-tie; several ledgers are merged by date and then by the file's place in the manifest (several-files.md).
+than transactions take no part. With several Beancount files in one ledger, a tie on date is broken by the file's
+place in the manifest and then the line; a padding's rows stand in the file of its `balance`; a mix with hledger
+files is merged by date and then by the file's place in the manifest (several-files.md).
 
 ## Probe
 

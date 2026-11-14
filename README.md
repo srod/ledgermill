@@ -85,8 +85,8 @@ cost's currency when both rates exist. `holdings` takes `end` as exclusive here 
 the latest prices there are, as `convert(position, V)` does, and does not use `today`. Beancount's numbers come with its own
 arithmetic: 28 significant digits, `holdings` strings in plain digits, `value` strings as `number()` prints them (`1E-7`).
 
-`load` takes any mix of files. Each Beancount file is its own ledger (`include` is refused) and all the hledger files
-together are one. With more than one ledger, `transactions()`, `postings()` and `prices()` are merged by date, then by the
+`load` takes any mix of files. All the Beancount files together are one ledger, read in the order given (`include` is
+refused), and all the hledger files together are one. With both, `transactions()`, `postings()` and `prices()` are merged by date, then by the
 position of the item's file in the list; `check()` lists the findings by the position of their file; `atCost()` and
 `value()` are answered per ledger and line up with `transactions()`; `holdings()` adds the rows of one account and commodity
 ([several-files](spec/beancount/several-files.md)).

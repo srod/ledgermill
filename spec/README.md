@@ -121,7 +121,7 @@ Reference: Beancount 3.2.3 and beanquery 0.2.0.
 | [postings](beancount/postings.md) | the flat posting list: row order, lot rows, flags |
 | [options-and-directives](beancount/options-and-directives.md) | options and directives that change nothing |
 | [refused](beancount/refused.md) | what ledgermill refuses, and what the reference says |
-| [several-files](beancount/several-files.md) | several Beancount files, or hledger and Beancount, in one `load`: one ledger per Beancount file, the merge order, summed holdings |
+| [several-files](beancount/several-files.md) | several Beancount files, or hledger and Beancount, in one `load`: the Beancount files are one ledger (root, options, order of the walk), the merge order, summed holdings |
 | [price-table](beancount/price-table.md) | the `prices` table: the `price` directives by date, the numbers as parsed |
 | [convert-rates](beancount/convert-rates.md) | `convert()`: the latest price of a pair on or before the date, inverse prices, zero, no chain |
 | [convert-positions](beancount/convert-positions.md) | `convert()` of a position: the units' rate, else the cost currency as a bridge; `@` and a cost are no rates |
@@ -197,8 +197,8 @@ can differ from hledger's when a partial sum is exactly zero ([assignments](hled
 
 ### Beancount
 
-Each `.beancount` or `.bean` file is its own ledger, and so is the set of all the hledger files; a `load` with
-several ledgers merges their lists ([several-files](beancount/several-files.md)). `include` is refused
+All the `.beancount` and `.bean` files of a `load` are one ledger, and so are all the hledger files; a `load` with
+both merges their lists ([several-files](beancount/several-files.md)). `include` is refused
 (see [refused](beancount/refused.md)).
 
 `unsupported-syntax` (error): `details.construct` is one of

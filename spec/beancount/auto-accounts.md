@@ -33,8 +33,8 @@ with the module name in `details.name`.
   tell it from one it does not know, and refuses it by name as well.
 - A refused plugin line next to an `auto_accounts` one still refuses the file.
 - Naming `auto_accounts` twice runs it once. The line may stand anywhere in the file: first, last, between
-  directives. A plugin belongs to its file only, as options do (several-files.md): in a manifest of several
-  Beancount files, the others do not get it.
+  directives. Only the first file of a manifest of several Beancount files (the root) can switch it on, and then it
+  serves all of them; the line of any other file does nothing (several-files.md).
 
 ### What `auto_accounts` does
 

@@ -63,7 +63,7 @@ Three classes.
 | cost merge `{..., *}` | unsupported | `cost-merge` |
 | booking method AVERAGE | unsupported | `average-booking` |
 | price left to work out next to a cost | unsupported | `inferred-price-with-cost` |
-| more than one Beancount file, or Beancount with hledger files | supported: one ledger per Beancount file | `probes/several-files/` (several-files.md) |
+| more than one Beancount file, or Beancount with hledger files | supported: the Beancount files are one ledger | `probes/several-files/` (several-files.md) |
 
 The probes are under `probes/` or `probes/refused/`.
 

@@ -1,8 +1,8 @@
 // bun test harness/lib.test.ts (needs the wasm built into pkg/, like the harness itself)
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   type Comparison,
   counts,
@@ -61,8 +61,11 @@ import {
   projectFlatPostings,
   projectHledger,
   withoutTrailingZeros,
+  alignTo,
   attributePrices,
+  beancountRoot,
   diffSetHoldings,
+  inSetOrder,
   expectedFirstError,
   isMultiLedger,
   ledgersOf,
@@ -817,16 +820,46 @@ test("tally counts a Beancount format check apart from the hledger one, and bean
 /** A `COMMODITY\0QUANTITY` line, or an `ACCOUNT\0COMMODITY` key. */
 const n = (a: string, b: string): string => `${a}\0${b}`;
 
-test("ledgersOf makes a ledger of each Beancount file and one of all the hledger files, in the order of their first file", () => {
+test("ledgersOf makes a ledger of all the Beancount files and one of all the hledger files, in the order of their first file", () => {
   expect(ledgersOf(["/x/a.beancount", "/x/h1.journal", "/x/b.bean", "/x/h2.journal"])).toEqual([
-    { format: "beancount", paths: ["/x/a.beancount"] },
+    { format: "beancount", paths: ["/x/a.beancount", "/x/b.bean"] },
     { format: "hledger", paths: ["/x/h1.journal", "/x/h2.journal"] },
-    { format: "beancount", paths: ["/x/b.bean"] },
   ]);
+  expect(ledgersOf(["/x/h1.journal", "/x/a.beancount"]).map((l) => l.format)).toEqual(["hledger", "beancount"]);
   expect(isMultiLedger(["/x/h1.journal", "/x/h2.journal"])).toBe(false);
   expect(isMultiLedger(["/x/a.beancount"])).toBe(false);
   expect(isMultiLedger(["/x/h1.journal", "/x/a.beancount"])).toBe(true);
   expect(isMultiLedger(["/x/a.beancount", "/y/a.beancount"])).toBe(true);
+});
+
+test("beancountRoot is the first file followed by an include of each other file, in order; one file is its own root", () => {
+  expect(beancountRoot(["/x/a.beancount"])).toEqual({ root: "/x/a.beancount", dir: null });
+  const [a, b] = ["a.beancount", "b.beancount"].map((f) => join(SEVERAL, f)) as [string, string];
+  const { root, dir } = beancountRoot([a, b]);
+  try {
+    expect(dir).not.toBeNull();
+    expect(basename(root)).toBe("a.beancount");
+    const lines = readFileSync(root, "utf8").split("\n");
+    expect(lines.slice(-2)).toEqual([`include "${b}"`, ""]);
+    expect(readFileSync(root, "utf8").startsWith(readFileSync(a, "utf8"))).toBe(true);
+  } finally {
+    if (dir) rmSync(dir, { recursive: true });
+  }
+});
+
+test("inSetOrder puts a ledger's rows by date and the position of the file, keeping the order of one file", () => {
+  const rows = [{ d: "2", f: 1, n: 0 }, { d: "1", f: 1, n: 1 }, { d: "1", f: 0, n: 2 }, { d: "1", f: 0, n: 3 }];
+  expect(inSetOrder(rows, (r) => ({ date: r.d, file: r.f })).map((r) => r.n)).toEqual([2, 3, 1, 0]);
+});
+
+test("alignTo puts ours in the order of the reference's keys, matching equal keys in turn, and refuses other lists", () => {
+  const ours = ["b1", "a", "b2"];
+  const key = (s: string) => s.replace(/\d/, "");
+  expect(alignTo(ours, key, ["b", "a", "b"])).toEqual(["b1", "a", "b2"]);
+  expect(alignTo(ours, key, ["a", "b", "b"])).toEqual(["a", "b1", "b2"]);
+  expect(alignTo(ours, key, ["a", "b"])).toBeNull();
+  expect(alignTo(ours, key, ["a", "b", "b", "b"])).toBeNull();
+  expect(alignTo(ours, key, ["a", "a", "b"])).toBeNull();
 });
 
 test("manifestIndex is the first path equal to the file, else the first with its basename", () => {
@@ -873,10 +906,11 @@ test("mergeLists and splitLists are each other's inverse, and splitLists refuses
 
 test("expectedFirstError takes the rejection whose file comes first in the manifest, the earlier ledger on a tie", () => {
   const paths = ["/x/a.beancount", "/x/h.journal", "/x/b.beancount"];
+  // Both Beancount files are one ledger: a rejection of it is ranked by the file its error is in.
   const ledgers = ledgersOf(paths);
   const at = (ledger: number, file: string, line: number) => ({ ledger, format: (ledgers[ledger] as { format: "hledger" | "beancount" }).format, message: `m${ledger}`, first: { file, line } });
   expect(expectedFirstError([], paths, ledgers)).toBeNull();
-  expect(expectedFirstError([at(2, "b.beancount", 1), at(1, "h.journal", 9)], paths, ledgers)).toEqual(at(1, "h.journal", 9));
+  expect(expectedFirstError([at(0, "b.beancount", 1), at(1, "h.journal", 9)], paths, ledgers)).toEqual(at(1, "h.journal", 9));
   expect(expectedFirstError([at(1, "h.journal", 9), at(0, "a.beancount", 20)], paths, ledgers)).toEqual(at(0, "a.beancount", 20));
   // An error in a file of the hledger ledger that is not its first: the rank is the file's.
   const two = ["/x/h1.journal", "/x/a.beancount", "/x/h2.journal"];
