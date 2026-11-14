@@ -416,8 +416,9 @@ fn implicit_prices_of_the_root_cover_the_transactions_of_every_file() {
     assert_eq!(
         rows(&load(&[x.clone(), y.clone()])),
         [
-            row("2026-01-05", "implicit-a.beancount", 6, "10"),
+            // The table lists by line within a day (and a valuation takes the later one: 10).
             row("2026-01-05", "implicit-b.beancount", 4, "11"),
+            row("2026-01-05", "implicit-a.beancount", 6, "10"),
             row("2026-01-07", "implicit-b.beancount", 8, "11.5"),
             row("2026-01-09", "implicit-a.beancount", 10, "12"),
         ]

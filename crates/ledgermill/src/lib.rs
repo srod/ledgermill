@@ -126,6 +126,8 @@ impl Ledger {
     /// A set of several ledgers (see [`load`]): each ledger's findings in the order above, stable-sorted
     /// by the position in `files` of the finding's `file` (a finding whose file is not in the set
     /// takes the position of its ledger's first file), so a ledger's own order is kept within a file.
+    /// The Beancount ledger's findings stay one block in its own order, placed by the file of its
+    /// first finding.
     pub fn check(&self) -> &[Finding] {
         &self.findings
     }
@@ -262,8 +264,16 @@ fn merge_ledgers(files: &[SourceFile], mut parts: Vec<(usize, Ledger)>) -> Ledge
     .collect();
     let mut findings: Vec<(usize, Finding)> = Vec::new();
     for (first, ledger) in &parts {
+        // The checks of the Beancount ledger run over all its files at once, so its findings keep
+        // their order as one block, where its first finding's file stands.
+        let block = ledger
+            .beancount
+            .then(|| ledger.findings.first())
+            .flatten()
+            .map(|f| position_of(files, &f.file, *first));
         for f in &ledger.findings {
-            findings.push((position_of(files, &f.file, *first), f.clone()));
+            let at = block.unwrap_or_else(|| position_of(files, &f.file, *first));
+            findings.push((at, f.clone()));
         }
     }
     findings.sort_by_key(|(position, _)| *position);

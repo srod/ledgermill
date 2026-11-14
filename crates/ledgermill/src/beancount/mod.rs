@@ -620,7 +620,7 @@ fn amount_lines(read: &plain::Read) -> HashSet<u32> {
 }
 
 /// The `price` directives as the `prices` table lists them: by date, the same date in the order
-/// written (spec/beancount/price-table.md), the files in the order given. The entries
+/// written (spec/beancount/price-table.md), a line shared by two files in file order. The entries
 /// `implicit_prices` added stand on the line and in the file of their transaction
 /// (spec/beancount/implicit-prices.md).
 fn listed_prices(
@@ -656,6 +656,8 @@ fn listed_prices(
             _ => None,
         })
         .collect();
-    prices.sort_by_key(|(date, file, line, _)| (*date, *file, *line));
+    // By line before file, as the table does: with two prices of a pair on one day the later one
+    // in this order is the one a valuation takes.
+    prices.sort_by_key(|(date, file, line, _)| (*date, *line, *file));
     prices.into_iter().map(|(.., price)| price).collect()
 }
