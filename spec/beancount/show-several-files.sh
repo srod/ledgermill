@@ -63,6 +63,15 @@ check auto-b.beancount auto-a.beancount
 prices implicit-a.beancount implicit-b.beancount
 prices implicit-b.beancount implicit-a.beancount
 
+echo "##### files that hold nothing, and settings in a file that is not the root"
+check a.beancount empty.beancount b.beancount
+check empty.beancount a.beancount b.beancount
+check a.beancount options-only.beancount b.beancount
+check options-only.beancount a.beancount b.beancount
+check lots-a.beancount settings-only.beancount
+check settings-only.beancount lots-a.beancount
+prices settings-only.beancount lots-a.beancount
+
 echo "##### roots that only include"
 for f in include-open include-rename; do
   echo "== $f.beancount"

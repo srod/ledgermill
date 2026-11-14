@@ -394,6 +394,67 @@ fn the_booking_method_and_plugins_of_the_first_file_serve_the_set() {
 }
 
 #[test]
+fn a_file_with_no_entry_adds_nothing_as_root_or_not() {
+    let alone = load(&[a(), b()]);
+    // An empty file, and one that only has options ledgermill reads, in any position.
+    for nothing in [probe!("empty.beancount"), probe!("options-only.beancount")] {
+        for files in [
+            [a(), nothing.clone(), b()],
+            [nothing.clone(), a(), b()],
+            [a(), b(), nothing],
+        ] {
+            let l = load(&files);
+            assert!(l.check().is_empty());
+            assert_eq!(titles(&l), titles(&alone));
+            assert_eq!(l.postings(), alone.postings());
+            assert_eq!(l.prices(), alone.prices());
+        }
+    }
+    // On its own it is a ledger that holds nothing.
+    let empty = load(&[probe!("empty.beancount")]);
+    assert!(empty.check().is_empty() && empty.transactions().is_empty());
+}
+
+#[test]
+fn settings_alone_in_a_file_that_is_not_the_root_change_nothing() {
+    // `settings-only` has booking_method FIFO and both plugins. After `lots-a` (no settings) the
+    // sale stays ambiguous, the gift's accounts stay unopened, and no price is added.
+    let ignored = load(&[
+        probe!("lots-a.beancount"),
+        probe!("settings-only.beancount"),
+    ]);
+    let mut found: Vec<(&str, u32)> = findings_of_ledger(&ignored)
+        .iter()
+        .map(|(f, c, line)| {
+            assert!(*f == "lots-a.beancount");
+            (*c, *line)
+        })
+        .collect();
+    found.sort_unstable();
+    assert_eq!(
+        found,
+        [
+            ("account-not-open", 18),
+            ("account-not-open", 18),
+            ("booking-error", 14)
+        ]
+    );
+    assert!(ignored.prices().is_empty());
+    // As the root they apply to the other file: no finding, and the lots' prices are added.
+    let served = load(&[
+        probe!("settings-only.beancount"),
+        probe!("lots-a.beancount"),
+    ]);
+    assert!(served.check().is_empty());
+    let prices: Vec<(&str, u32, &str)> = served
+        .prices()
+        .iter()
+        .map(|p| (p.date.as_str(), p.line, p.rate.quantity.as_str()))
+        .collect();
+    assert_eq!(prices, [("2026-01-02", 6, "10"), ("2026-01-03", 10, "20")]);
+}
+
+#[test]
 fn implicit_prices_of_the_root_cover_the_transactions_of_every_file() {
     let (x, y) = (
         probe!("implicit-a.beancount"),

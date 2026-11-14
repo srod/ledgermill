@@ -530,6 +530,7 @@ fn load_for(files: &[&SourceFile], with_amount_lines: bool) -> Loaded {
     }
     if refused {
         // A partial answer would look complete, and the later checks would run on it.
+        // This finding order is ledgermill's own: the reference is not compared on refused sets.
         let ranks = ranks(files);
         findings.sort_by_key(|f| (ranks.get(f.file.as_str()).copied(), f.line));
         return nothing_but(findings);

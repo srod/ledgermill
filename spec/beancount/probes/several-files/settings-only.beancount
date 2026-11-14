@@ -1,0 +1,3 @@
+option "booking_method" "FIFO"
+plugin "beancount.plugins.auto_accounts"
+plugin "beancount.plugins.implicit_prices"

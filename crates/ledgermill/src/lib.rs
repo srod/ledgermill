@@ -98,7 +98,8 @@ impl Ledger {
     /// `unsupported-syntax` finding: a Beancount file with a refused construct lists nothing.
     ///
     /// A set of several ledgers (see [`load`]): by date, then the position in `files` of the
-    /// directive's file, then the order of its own ledger.
+    /// directive's file, then the order of its own ledger. The Beancount ledger's own order is the
+    /// price table's: date, line, file.
     pub fn prices(&self) -> &[PriceDirective] {
         &self.price_list
     }

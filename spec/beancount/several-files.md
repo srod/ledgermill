@@ -49,10 +49,16 @@ in an included file does nothing (`fifo-a`, `sale-b`: the sale is booked first-i
 and is an ambiguous match when `sale-b` is). A `plugin` line likewise: `auto_accounts` of the root opens the accounts that
 the other files use, in an included file it opens nothing (`auto-a`, `auto-b`), and `implicit_prices` of the root adds
 a price for every transaction of every file, on the transaction's own file and line, where one in an included file
-adds none (`implicit-a`, `implicit-b`). So ledgermill takes the options and plugins of the first Beancount file of the
+adds none (`implicit-a`, `implicit-b`). `settings-only` holds a `booking_method` and both plugins and nothing else: as an
+included file after `lots-a` it changes nothing there (the sale stays ambiguous, the gift's accounts stay unopened, no
+price is added), and as the root it applies to `lots-a`. So ledgermill takes the options and plugins of the first Beancount file of the
 manifest for the whole ledger and ignores those of the others. (A file read as an included file is parsed with its own
 options, the account names of `name_assets` among them: `include-rename`. ledgermill refuses every option of that
 kind, in any file, so that cannot show.)
+
+**Files that hold nothing.** An empty file, or one with only options that ledgermill reads (`options-only`: `title`,
+`operating_currency`), adds no entry and no error, as the root or as an included file (`a`, `empty`, `b` and the other
+orders). The ledger is that of the other files.
 
 ### Our order
 
@@ -126,6 +132,9 @@ The Beancount files are one ledger and so one part: one price table, valued at t
 - `fifo-a.beancount`, `sale-b.beancount`: `booking_method` in a file and a sale that needs it in another.
 - `auto-a.beancount`, `auto-b.beancount`: `auto_accounts` in a file and a use of accounts in another.
 - `implicit-a.beancount`, `implicit-b.beancount`: `implicit_prices` in a file; the other file has the transactions.
+- `empty.beancount`, `options-only.beancount`: files that hold no entry; the second only has options.
+- `settings-only.beancount`, `lots-a.beancount`: a `booking_method` and two plugins alone in a file; the other file has
+  an ambiguous sale, accounts nobody opened and lots.
 - `include-open.beancount`, `include-rename.beancount`, `rename-a.beancount`: hand-made roots that only include.
 
 The merge, check, valuation and holdings rules are tested in `crates/ledgermill/tests/multi_ledger.rs` on `a.beancount`,
@@ -216,6 +225,37 @@ date,currency,number(amount),currency(amount)
 2026-01-07,STOCK,11.5,EUR
 date,lineno,filename
 2026-01-07,8,implicit-b.beancount
+##### files that hold nothing, and settings in a file that is not the root
+== a.beancount empty.beancount b.beancount
+bean-check: (no output)
+== empty.beancount a.beancount b.beancount
+bean-check: (no output)
+== a.beancount options-only.beancount b.beancount
+bean-check: (no output)
+== options-only.beancount a.beancount b.beancount
+bean-check: (no output)
+== lots-a.beancount settings-only.beancount
+bean-check: lots-a.beancount:14: Ambiguous matches for "-1 STOCK {}": 1 STOCK {10 EUR, 2026-01-02}, 1 STOCK {20 EUR, 2026-01-03}
+   2026-01-04 * "sell one"
+     Assets:Stock  -1 STOCK {}
+     Assets:Bank
+lots-a.beancount:18: Invalid reference to unknown account 'Income:Gift'
+   2026-01-05 * "gift"
+     Assets:Cash   5 EUR
+     Income:Gift  -5 EUR
+lots-a.beancount:18: Invalid reference to unknown account 'Assets:Cash'
+   2026-01-05 * "gift"
+     Assets:Cash   5 EUR
+     Income:Gift  -5 EUR
+== settings-only.beancount lots-a.beancount
+bean-check: (no output)
+== settings-only.beancount lots-a.beancount (prices)
+date,currency,number(amount),currency(amount)
+2026-01-02,STOCK,10,EUR
+2026-01-03,STOCK,20,EUR
+date,lineno,filename
+2026-01-02,6,lots-a.beancount
+2026-01-03,10,lots-a.beancount
 ##### roots that only include
 == include-open.beancount
 bean-check: open-b.beancount:1: Duplicate open directive for Assets:Bank
