@@ -1,4 +1,5 @@
-//! Beancount: reads one file, books its transactions and reports them in our model.
+//! Beancount: reads the files of one ledger, books their transactions and reports them in our
+//! model.
 //!
 //! The parser and the lot matching come from two forks (see `lima.rs`, the only module that
 //! names their types). The figures are derived here, following the spec notes in
@@ -40,8 +41,10 @@ pub(crate) fn is_beancount(name: &str) -> bool {
 pub(crate) struct Loaded {
     /// The lines `format` may rewrite (see [`amount_lines`]); only filled when asked for.
     pub amount_lines: Option<HashSet<u32>>,
-    /// By date, then source line.
+    /// By date, then the position of the file in the set, then source line.
     pub transactions: Vec<Transaction>,
+    /// The rows of `transactions`, one per posting and commodity, in the same order of keys.
+    pub postings: Vec<FlatPosting>,
     /// In the order the reference tool prints them (spec/beancount/check-order.md).
     pub findings: Vec<Finding>,
     /// The `price` directives, by date and then line (spec/beancount/price-table.md).
@@ -183,6 +186,7 @@ fn posting(p: &book::BookedPosting) -> Posting {
 /// The transaction a `pad` adds: on the pad's line, with its postings on the balance's line
 /// (spec/beancount/pad.md).
 fn padding_transaction(file: &str, padding: &check::Padding) -> Transaction {
+    let balance_line = padding.balance_at.line;
     let currency = &padding.currency;
     let posting = |(account, units): (&str, pydec::Num)| Posting {
         account: account.to_string(),
@@ -195,7 +199,7 @@ fn padding_transaction(file: &str, padding: &check::Padding) -> Transaction {
             lot: None,
         }],
         flag: None,
-        line: Some(padding.balance_line),
+        line: Some(balance_line),
     };
     Transaction {
         date: padding.date.to_string(),
@@ -210,20 +214,33 @@ fn padding_transaction(file: &str, padding: &check::Padding) -> Transaction {
         comment: String::new(),
         source: Source {
             file: file.to_string(),
-            line: padding.line,
+            line: padding.at.line,
         },
         postings: padding.legs().into_iter().map(posting).collect(),
     }
 }
 
-/// The flat posting list of booked transactions: sorted by date and line like the reference's
-/// `ORDER BY date, filename, lineno`. A transaction lists its postings grouped by currency, so the
-/// line sort puts them back in the order written; rows tied on a line (a posting split over lots)
-/// keep booking order because the sort is stable.
-pub(crate) fn flatten(transactions: &[Transaction]) -> Vec<FlatPosting> {
+/// The position of each file name in the set (the first, for a name given twice).
+fn ranks<'a>(files: &[&'a SourceFile]) -> HashMap<&'a str, usize> {
+    let mut ranks = HashMap::default();
+    for (at, file) in files.iter().enumerate() {
+        ranks.entry(file.name.as_str()).or_insert(at);
+    }
+    ranks
+}
+
+/// The flat posting list of booked transactions, each with the file its postings stand in (a
+/// padding's postings stand in the file of its `balance`): sorted by date, the position of the
+/// file in the set and line, like the reference's `ORDER BY date, filename, lineno` with the files
+/// in the order given. A transaction lists its postings grouped by currency, so the line sort puts
+/// them back in the order written; rows tied on a line (a posting split over lots) keep booking
+/// order because the sort is stable.
+fn flatten<'a>(
+    ranks: &HashMap<&str, usize>,
+    transactions: impl Iterator<Item = (&'a Transaction, &'a str)>,
+) -> Vec<FlatPosting> {
     let mut rows: Vec<FlatPosting> = transactions
-        .iter()
-        .flat_map(|t| {
+        .flat_map(|(t, file)| {
             t.postings.iter().flat_map(move |p| {
                 p.amounts.iter().map(move |a| FlatPosting {
                     date: t.date.clone(),
@@ -234,81 +251,99 @@ pub(crate) fn flatten(transactions: &[Transaction]) -> Vec<FlatPosting> {
                     kind: PostingKind::Regular,
                     number: a.quantity.clone(),
                     currency: a.commodity.clone(),
-                    file: t.source.file.clone(),
+                    file: file.to_string(),
                     line: p.line.unwrap_or(t.source.line),
                 })
             })
         })
         .collect();
-    rows.sort_by(|a, b| (&a.date, &a.file, a.line).cmp(&(&b.date, &b.file, b.line)));
+    rows.sort_by(|a, b| {
+        let (a_rank, b_rank) = (ranks.get(&*a.file), ranks.get(&*b.file));
+        (&a.date, a_rank, a.line).cmp(&(&b.date, b_rank, b.line))
+    });
     rows
 }
 
-/// Read, book and report one Beancount file.
-pub(crate) fn load(file: &SourceFile) -> Loaded {
-    load_for(file, false)
+/// A ledger that lists nothing and only says what was found.
+fn nothing_but(findings: Vec<Finding>) -> Loaded {
+    Loaded {
+        amount_lines: None,
+        transactions: Vec::new(),
+        postings: Vec::new(),
+        findings,
+        prices: Vec::new(),
+    }
 }
 
-/// [`load`], and the `amount_lines` of the file, which `format` reads from the same parse.
+/// Read, book and report Beancount files as one ledger, in the order given. The first file is the
+/// root: its `booking_method` and `plugin` lines apply to all, those of the others are ignored, as
+/// the reference does for an included file (spec/beancount/several-files.md).
+pub(crate) fn load(files: &[&SourceFile]) -> Loaded {
+    load_for(files, false)
+}
+
+/// [`load`] of one file, and its `amount_lines`, which `format` reads from the same parse.
 pub(crate) fn load_with_amount_lines(file: &SourceFile) -> Loaded {
-    load_for(file, true)
+    load_for(&[file], true)
 }
 
-fn load_for(file: &SourceFile, with_amount_lines: bool) -> Loaded {
+fn load_for(files: &[&SourceFile], with_amount_lines: bool) -> Loaded {
     let mut findings = Vec::new();
 
     // Lines refused before the parser runs: it would look for included files on disk, and a
-    // few numbers would stop it.
-    let prescan = text::prescan(&file.content);
-    for refusal in prescan.refusals {
-        let extra = match &refusal.name {
-            Some(name) => json!({ "name": name }),
-            None => json!({}),
-        };
-        findings.push(unsupported(
-            &file.name,
-            refusal.line,
-            refusal.construct,
-            extra,
-            refusal_message(refusal.construct),
-        ));
+    // few numbers would stop it. A refusal in any file refuses the ledger: what the other files
+    // would give next to it is not the answer.
+    let mut root_plugins = (false, 0);
+    for (at, file) in files.iter().enumerate() {
+        let prescan = text::prescan(&file.content);
+        if at == 0 {
+            root_plugins = (prescan.auto_accounts, prescan.implicit_prices);
+        }
+        for refusal in prescan.refusals {
+            let extra = match &refusal.name {
+                Some(name) => json!({ "name": name }),
+                None => json!({}),
+            };
+            findings.push(unsupported(
+                &file.name,
+                refusal.line,
+                refusal.construct,
+                extra,
+                refusal_message(refusal.construct),
+            ));
+        }
     }
     if !findings.is_empty() {
-        return Loaded {
-            amount_lines: None,
-            transactions: Vec::new(),
-            findings,
-            prices: Vec::new(),
-        };
+        return nothing_but(findings);
     }
+    let (auto_accounts_asked, implicit_runs) = root_plugins;
 
-    let read = match lima::read(&file.content) {
-        Ok(read) => read,
-        Err(issues) => {
-            let findings = issues
-                .into_iter()
-                .map(|i| parse_finding(&file.name, i))
-                .collect();
-            return Loaded {
-                amount_lines: None,
-                transactions: Vec::new(),
-                findings,
-                prices: Vec::new(),
-            };
+    let mut reads = Vec::with_capacity(files.len());
+    for file in files {
+        match lima::read(&file.content) {
+            Ok(read) => reads.push(read),
+            Err(issues) => {
+                findings.extend(issues.into_iter().map(|i| parse_finding(&file.name, i)))
+            }
         }
-    };
+    }
+    if !findings.is_empty() {
+        return nothing_but(findings);
+    }
 
     // Entries left out for a division by zero are reported first, as the reference reports
     // what it cannot read before it checks anything.
-    findings.extend(
-        read.errors
-            .iter()
-            .cloned()
-            .map(|issue| parse_finding(&file.name, issue)),
-    );
+    for (file, read) in files.iter().zip(&reads) {
+        findings.extend(
+            read.errors
+                .iter()
+                .cloned()
+                .map(|issue| parse_finding(&file.name, issue)),
+        );
+    }
 
     let mut methods: HashMap<String, Method> = HashMap::default();
-    for item in &read.items {
+    for item in reads.iter().flat_map(|read| &read.items) {
         if let Item::Open {
             account,
             method: Some(method),
@@ -318,7 +353,8 @@ fn load_for(file: &SourceFile, with_amount_lines: bool) -> Loaded {
             methods.insert(account.clone(), *method);
         }
     }
-    let mut books = lima::Books::new(methods, read.default_method);
+    let default_method = reads.first().map_or(Method::Strict, |r| r.default_method);
+    let mut books = lima::Books::new(methods, default_method);
     let mut transactions = Vec::new();
     // What the checks need of each transaction that booking keeps, and the one error that is
     // printed last, after every other check.
@@ -327,9 +363,22 @@ fn load_for(file: &SourceFile, with_amount_lines: bool) -> Loaded {
     let mut average_accounts: HashSet<String> = HashSet::default();
     let mut refused = false;
     // The entries the `implicit_prices` plugin adds, when a `plugin` line asks for it.
-    let mut implicit = (prescan.implicit_prices > 0).then(implicit_prices::Run::default);
+    let mut implicit = (implicit_runs > 0).then(implicit_prices::Run::default);
 
-    for item in &read.items {
+    // Booking sees the entries of all the files as one list, by date and then line (a line shared
+    // by two files in file order, as the sort is stable), which is the order of one file as read.
+    let mut ordered: Vec<(usize, &SourceFile, &Item)> = files
+        .iter()
+        .zip(&reads)
+        .enumerate()
+        .flat_map(|(index, (file, read))| read.items.iter().map(move |item| (index, *file, item)))
+        .filter(|(.., item)| matches!(item, Item::Transaction(_) | Item::Refused { .. }))
+        .collect();
+    ordered.sort_by_key(|(.., item)| match item {
+        Item::Transaction(tx) => Some((tx.date, tx.line)),
+        _ => None,
+    });
+    for (index, file, item) in ordered {
         match item {
             Item::Open { .. }
             | Item::Close { .. }
@@ -440,13 +489,16 @@ fn load_for(file: &SourceFile, with_amount_lines: bool) -> Loaded {
                             ));
                         }
                         if let Some(run) = implicit.as_mut() {
-                            run.transaction(tx.date, tx.line, &booked.postings);
+                            run.transaction(index, tx.date, tx.line, &booked.postings);
                         }
                         let postings = booked.postings.iter().map(posting).collect();
                         // The checks take what the postings hold; nothing is copied for them.
                         kept.push(check::Kept {
                             date: tx.date,
-                            line: tx.line,
+                            at: check::At {
+                                file: index,
+                                line: tx.line,
+                            },
                             postings: booked
                                 .postings
                                 .into_iter()
@@ -478,28 +530,25 @@ fn load_for(file: &SourceFile, with_amount_lines: bool) -> Loaded {
     }
     if refused {
         // A partial answer would look complete, and the later checks would run on it.
-        transactions.clear();
-        findings.sort_by_key(|f| f.line);
-        return Loaded {
-            amount_lines: None,
-            transactions,
-            findings,
-            prices: Vec::new(),
-        };
+        let ranks = ranks(files);
+        findings.sort_by_key(|f| (ranks.get(f.file.as_str()).copied(), f.line));
+        return nothing_but(findings);
     }
+    let items: Vec<&[Item]> = reads.iter().map(|read| read.items.as_slice()).collect();
     // The checks must see the `open` directives the plugin adds.
-    let added = if prescan.auto_accounts {
-        auto_accounts::opens(&read.items, &kept)
+    let added = if auto_accounts_asked {
+        auto_accounts::opens(&items, &kept)
     } else {
         Vec::new()
     };
     // The checks come in the order the reference prints them, not in line order.
-    let checked = check::run(&read.items, &added, &kept);
-    findings.extend(checked.documents.iter().map(|&line| Finding {
+    let checked = check::run(&items, &added, &kept);
+    let name_of = |at: check::At| files.get(at.file).map_or("", |file| file.name.as_str());
+    findings.extend(checked.documents.iter().map(|&at| Finding {
         code: "ignored-syntax".into(),
         severity: Severity::Warning,
-        file: file.name.clone(),
-        line,
+        file: name_of(at).into(),
+        line: at.line,
         column: None,
         details: json!({ "construct": "document" }),
         message: "The file of a document is not looked for; a missing one is not reported.".into(),
@@ -508,27 +557,47 @@ fn load_for(file: &SourceFile, with_amount_lines: bool) -> Loaded {
         checked
             .problems
             .into_iter()
-            .map(|p| finding(&file.name, p.line, p.code, p.details, p.message)),
+            .map(|p| finding(name_of(p.at), p.at.line, p.code, p.details, p.message)),
     );
     findings.extend(unbalanced);
-    transactions.extend(
-        checked
-            .paddings
+    let paddings: Vec<Transaction> = checked
+        .paddings
+        .iter()
+        .map(|p| padding_transaction(name_of(p.at), p))
+        .collect();
+    let ranks = ranks(files);
+    // The rows of a padding stand in the file of its `balance`, not of its `pad`.
+    let postings = flatten(
+        &ranks,
+        transactions
             .iter()
-            .map(|p| padding_transaction(&file.name, p)),
+            .map(|t| (t, t.source.file.as_str()))
+            .chain(
+                paddings
+                    .iter()
+                    .zip(&checked.paddings)
+                    .map(|(t, p)| (t, name_of(p.balance_at))),
+            ),
     );
-    // The items arrive in date order already; the sort pins the order the reference tool uses.
-    transactions
-        .sort_by(|a, b| (a.date.as_str(), a.source.line).cmp(&(b.date.as_str(), b.source.line)));
-    let implied = implicit.map_or_else(Vec::new, |run| run.repeated(prescan.implicit_prices));
+    transactions.extend(paddings);
+    // The sort pins the order the reference tool uses, the files in the order given.
+    transactions.sort_by(|a, b| {
+        let (a_rank, b_rank) = (ranks.get(&*a.source.file), ranks.get(&*b.source.file));
+        (&a.date, a_rank, a.source.line).cmp(&(&b.date, b_rank, b.source.line))
+    });
+    let implied = implicit.map_or_else(Vec::new, |run| run.repeated(implicit_runs));
     // A refused file never gets here, so this is the same answer as "no `unsupported-syntax`
     // finding" without looking through them.
-    let amount_lines = with_amount_lines.then(|| amount_lines(&read));
+    let amount_lines = reads
+        .first()
+        .filter(|_| with_amount_lines)
+        .map(amount_lines);
     Loaded {
         amount_lines,
         transactions,
+        postings,
         findings,
-        prices: listed_prices(&file.name, &read.items, &implied),
+        prices: listed_prices(files, &reads, &implied),
     }
 }
 
@@ -551,13 +620,21 @@ fn amount_lines(read: &plain::Read) -> HashSet<u32> {
 }
 
 /// The `price` directives as the `prices` table lists them: by date, the same date in the order
-/// written (spec/beancount/price-table.md). The entries `implicit_prices` added stand on the line of
-/// their transaction (spec/beancount/implicit-prices.md).
-fn listed_prices(file: &str, items: &[Item], implied: &[Item]) -> Vec<PriceDirective> {
-    let mut prices: Vec<(Day, u32, PriceDirective)> = items
+/// written (spec/beancount/price-table.md), the files in the order given. The entries
+/// `implicit_prices` added stand on the line and in the file of their transaction
+/// (spec/beancount/implicit-prices.md).
+fn listed_prices(
+    files: &[&SourceFile],
+    reads: &[plain::Read],
+    implied: &[(usize, Item)],
+) -> Vec<PriceDirective> {
+    let written = reads
         .iter()
-        .chain(implied)
-        .filter_map(|item| match item {
+        .enumerate()
+        .flat_map(|(file, read)| read.items.iter().map(move |item| (file, item)));
+    let mut prices: Vec<(Day, usize, u32, PriceDirective)> = written
+        .chain(implied.iter().map(|(file, item)| (*file, item)))
+        .filter_map(|(file, item)| match item {
             Item::Price {
                 date,
                 line,
@@ -566,18 +643,19 @@ fn listed_prices(file: &str, items: &[Item], implied: &[Item]) -> Vec<PriceDirec
                 quote,
             } => Some((
                 *date,
+                file,
                 *line,
                 PriceDirective {
                     date: date.to_string(),
                     commodity: currency.clone(),
                     rate: quantity(quote, number),
-                    file: file.to_string(),
+                    file: files.get(file).map_or(String::new(), |f| f.name.clone()),
                     line: *line,
                 },
             )),
             _ => None,
         })
         .collect();
-    prices.sort_by_key(|(date, line, _)| (*date, *line));
-    prices.into_iter().map(|(_, _, price)| price).collect()
+    prices.sort_by_key(|(date, file, line, _)| (*date, *file, *line));
+    prices.into_iter().map(|(.., price)| price).collect()
 }

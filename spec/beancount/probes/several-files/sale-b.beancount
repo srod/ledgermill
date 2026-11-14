@@ -1,0 +1,4 @@
+; An empty cost picks a lot by the booking method; with none given it is ambiguous.
+2026-01-04 * "sell one"
+  Assets:Stock  -1 STOCK {}
+  Assets:Bank

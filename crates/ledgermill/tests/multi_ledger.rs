@@ -1,5 +1,5 @@
-//! Several ledgers in one `load`: each Beancount file is its own ledger and all hledger files
-//! together are one (spec/beancount/several-files.md). The lists are merged by date, then by the
+//! Several files in one `load`: all Beancount files together are one ledger, and all hledger files
+//! together are one (spec/beancount/several-files.md). The lists are sorted by date, then by the
 //! position of the item's file in the manifest, then by each ledger's own order.
 //!
 //! Expected values are what the reference tools print for each probe file alone (`bean-query` 0.2.0,
@@ -242,27 +242,234 @@ fn findings_are_sorted_by_the_manifest_position_of_their_file() {
 }
 
 #[test]
-fn a_clean_set_has_no_finding_and_a_refused_file_gives_its_own_finding_only() {
+fn an_account_opened_in_the_first_file_is_used_in_the_second() {
+    // b.beancount opens Expenses:Food only: Assets:Bank and Assets:Stock are a's.
+    let l = load(&[a(), b()]);
+    assert!(l.check().is_empty());
+    let rows = |file: &str| l.postings().iter().filter(|p| p.file == file).count();
+    assert_eq!((rows("a.beancount"), rows("b.beancount")), (4, 4));
+    // An `open` is dated: it does not matter which file comes first.
+    assert!(load(&[b(), a()]).check().is_empty());
     assert!(load(&[a(), b(), c()]).check().is_empty());
-    let refused = probe!("refused.beancount");
-    let l = load(&[a(), refused, b()]);
-    let found: Vec<(&str, &str)> = l
-        .check()
-        .iter()
-        .map(|f| (f.file.as_str(), f.code.as_str()))
-        .collect();
-    assert_eq!(found, [("refused.beancount", "unsupported-syntax")]);
-    assert_eq!(l.check()[0].details["construct"], json!("plugin"));
-    // The refused file lists nothing; the others still load.
+}
+
+#[test]
+fn a_balance_assertion_in_the_second_file_adds_up_the_postings_of_both() {
+    let first = probe!("bal-a.beancount");
+    assert!(
+        load(&[first.clone(), probe!("bal-b.beancount")])
+            .check()
+            .is_empty()
+    );
+    // 100 is what the first file alone holds: the failure is on the second file's line.
+    let wrong = load(&[first, probe!("bal-wrong-b.beancount")]);
     assert_eq!(
-        titles(&l),
+        findings_of_ledger(&wrong),
+        [("bal-wrong-b.beancount", "assertion-failed", 6)]
+    );
+    assert_eq!(
+        wrong.check()[0].details,
+        json!({
+            "account": "Assets:Bank", "currency": "EUR", "expected": "100",
+            "accumulated": "150", "difference": "50",
+        })
+    );
+}
+
+fn findings_of_ledger(l: &ledgermill::Ledger) -> Vec<(&str, &str, u32)> {
+    l.check()
+        .iter()
+        .map(|f| (f.file.as_str(), f.code.as_str(), f.line))
+        .collect()
+}
+
+#[test]
+fn an_account_opened_twice_across_files_is_a_duplicate_open_in_the_second_file() {
+    let (x, y) = (probe!("open-a.beancount"), probe!("open-b.beancount"));
+    assert_eq!(
+        findings_of_ledger(&load(&[x.clone(), y.clone()])),
         [
-            "2026-01-03 b buys early",
-            "2026-01-05 a buys on the shared day",
-            "2026-01-05 b spends on the shared day",
-            "2026-01-10 a buys again",
+            ("open-b.beancount", "duplicate-open", 1),
+            ("open-b.beancount", "duplicate-open", 2),
         ]
     );
+    // On one date and one line, the file later in the set is the duplicate.
+    assert_eq!(
+        findings_of_ledger(&load(&[y, x])),
+        [
+            ("open-a.beancount", "duplicate-open", 1),
+            ("open-a.beancount", "duplicate-open", 2),
+        ]
+    );
+}
+
+#[test]
+fn the_walk_goes_by_date_and_line_before_the_file() {
+    // Both open the account on one date, one on line 5 and one on line 1: the line decides, so
+    // the one on line 5 is the duplicate whichever file comes first.
+    let (x, y) = (
+        probe!("order-open-a.beancount"),
+        probe!("order-open-b.beancount"),
+    );
+    let expected = [("order-open-a.beancount", "duplicate-open", 5)];
+    assert_eq!(findings_of_ledger(&load(&[x.clone(), y.clone()])), expected);
+    assert_eq!(findings_of_ledger(&load(&[y, x])), expected);
+}
+
+#[test]
+fn a_pad_in_one_file_is_filled_by_a_balance_in_another() {
+    let l = load(&[probe!("pad-a.beancount"), probe!("pad-b.beancount")]);
+    assert!(l.check().is_empty());
+    // The transaction stands on the pad, its postings on the balance, which is in the other file.
+    let [t] = l.transactions() else {
+        panic!("one padding transaction")
+    };
+    assert_eq!(
+        (t.source.file.as_str(), t.source.line),
+        ("pad-a.beancount", 3)
+    );
+    let rows: Vec<(&str, u32, &str, &str)> = l
+        .postings()
+        .iter()
+        .map(|p| {
+            (
+                p.file.as_str(),
+                p.line,
+                p.account.as_str(),
+                p.number.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("pad-b.beancount", 1, "Assets:Bank", "100"),
+            ("pad-b.beancount", 1, "Equity:Opening", "-100"),
+        ]
+    );
+}
+
+#[test]
+fn the_booking_method_and_plugins_of_the_first_file_serve_the_set() {
+    let reduced = |l: &ledgermill::Ledger| -> Option<String> {
+        let t = l
+            .transactions()
+            .iter()
+            .find(|t| t.description == "sell one")?;
+        t.postings[0].amounts[0]
+            .lot
+            .as_ref()?
+            .cost
+            .as_ref()
+            .map(|c| c.quantity.clone())
+    };
+    // FIFO in the root takes the oldest lot, 10 EUR, for a sale in the other file.
+    let served = load(&[probe!("fifo-a.beancount"), probe!("sale-b.beancount")]);
+    assert!(served.check().is_empty());
+    assert_eq!(reduced(&served).as_deref(), Some("10"));
+    // The option of a file that is not the root is not applied: the sale is ambiguous.
+    let ignored = load(&[probe!("sale-b.beancount"), probe!("fifo-a.beancount")]);
+    assert_eq!(
+        findings_of_ledger(&ignored)
+            .iter()
+            .map(|(f, c, _)| (*f, *c))
+            .collect::<Vec<_>>(),
+        [("sale-b.beancount", "booking-error")]
+    );
+    // The same for a plugin: auto_accounts of the root opens what the other file uses.
+    let (x, y) = (probe!("auto-a.beancount"), probe!("auto-b.beancount"));
+    assert!(load(&[x.clone(), y.clone()]).check().is_empty());
+    let unopened = load(&[y, x]);
+    let codes: Vec<(&str, &str)> = findings_of_ledger(&unopened)
+        .iter()
+        .map(|(f, c, _)| (*f, *c))
+        .collect();
+    assert_eq!(
+        codes,
+        [("auto-a.beancount", "account-not-open"); 2]
+            .into_iter()
+            .chain([("auto-b.beancount", "account-not-open"); 2])
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn implicit_prices_of_the_root_cover_the_transactions_of_every_file() {
+    let (x, y) = (
+        probe!("implicit-a.beancount"),
+        probe!("implicit-b.beancount"),
+    );
+    let rows = |l: &ledgermill::Ledger| -> Vec<(String, String, u32, String)> {
+        l.prices()
+            .iter()
+            .map(|p| {
+                (
+                    p.date.clone(),
+                    p.file.clone(),
+                    p.line,
+                    p.rate.quantity.clone(),
+                )
+            })
+            .collect()
+    };
+    let row = |d: &str, f: &str, l: u32, r: &str| (d.to_string(), f.to_string(), l, r.to_string());
+    assert_eq!(
+        rows(&load(&[x.clone(), y.clone()])),
+        [
+            row("2026-01-05", "implicit-a.beancount", 6, "10"),
+            row("2026-01-05", "implicit-b.beancount", 4, "11"),
+            row("2026-01-07", "implicit-b.beancount", 8, "11.5"),
+            row("2026-01-09", "implicit-a.beancount", 10, "12"),
+        ]
+    );
+    // Not the root: its plugin line does nothing, and only the written price is listed.
+    assert_eq!(
+        rows(&load(&[y, x])),
+        [row("2026-01-07", "implicit-b.beancount", 8, "11.5")]
+    );
+}
+
+#[test]
+fn a_mixed_set_keeps_the_hledger_part_as_it_is_alone() {
+    let alone = load(&[c()]);
+    let mixed = load(&[a(), c(), b()]);
+    assert!(mixed.check().is_empty());
+    let hledger: Vec<_> = mixed
+        .transactions()
+        .iter()
+        .filter(|t| t.source.file == "c.journal")
+        .cloned()
+        .collect();
+    assert_eq!(hledger, alone.transactions());
+    let rows: Vec<_> = mixed
+        .postings()
+        .iter()
+        .filter(|p| p.file == "c.journal")
+        .cloned()
+        .collect();
+    assert_eq!(rows, alone.postings());
+    let prices: Vec<_> = mixed
+        .prices()
+        .iter()
+        .filter(|p| p.file == "c.journal")
+        .cloned()
+        .collect();
+    assert_eq!(prices, alone.prices());
+}
+
+#[test]
+fn a_refused_construct_refuses_the_beancount_ledger_and_leaves_the_hledger_one() {
+    let refused = probe!("refused.beancount");
+    let l = load(&[a(), refused.clone(), b()]);
+    assert_eq!(
+        findings_of_ledger(&l),
+        [("refused.beancount", "unsupported-syntax", 1)]
+    );
+    assert_eq!(l.check()[0].details["construct"], json!("plugin"));
+    // Beancount files are one ledger: it lists nothing, with the good files next to the bad one.
+    assert!(l.transactions().is_empty() && l.postings().is_empty() && l.prices().is_empty());
+    // The hledger ledger is another one.
+    assert_eq!(titles(&load(&[a(), refused, c()])), titles(&load(&[c()])));
 }
 
 fn q(commodity: &str, quantity: &str) -> Quantity {
@@ -309,8 +516,8 @@ fn at_cost_and_value_line_up_with_transactions() {
             assert_eq!(t.source, listed.source, "{name}");
         }
     }
-    // Each ledger valued on its own: a at its own prices (13 EUR on the 20th), b at 10.5, the
-    // hledger file at its P line (10.8); reference values from each file alone.
+    // The Beancount files are one ledger with the prices of both (the latest on the 31st is 13 EUR,
+    // a's), the hledger file is valued at its own P line (10.8).
     let valued = l.value("2026-01-31", "EUR").unwrap();
     let stock = |name: &str| -> String {
         let t = valued.iter().find(|t| t.description == name).unwrap();
@@ -319,7 +526,7 @@ fn at_cost_and_value_line_up_with_transactions() {
     };
     assert_eq!(stock("a buys on the shared day"), "26 EUR");
     assert_eq!(stock("a buys again"), "13 EUR");
-    assert_eq!(stock("b buys early"), "52.5 EUR");
+    assert_eq!(stock("b buys early"), "65 EUR");
     assert_eq!(stock("c buys"), "43.2 EUR");
     let costed = l.at_cost().unwrap();
     let first = &costed
@@ -373,8 +580,8 @@ fn holdings_sum_the_rows_of_a_shared_account_and_commodity() {
     let l = load(&[a(), b(), c()]);
     let rows = l.holdings(&query()).unwrap();
     // Bank: -32 (a) + -48 (b) + -45 (hledger file) in units, cost and value alike; Stock: 3 + 5 + 4
-    // units; cost 32 + 45 + 41; value 39 + 52.5 + 43.2 (each ledger at its own prices); Food: only b
-    // and c have it, 3 + 4.
+    // units; cost 32 + 45 + 41; value (3 + 5) * 13 at the Beancount ledger's latest price, then 43.2
+    // for the hledger file at its own; Food: only b and c have it, 3 + 4.
     let expected = [
         held(
             "Assets:Bank",
@@ -386,7 +593,7 @@ fn holdings_sum_the_rows_of_a_shared_account_and_commodity() {
             "Assets:Stock",
             "STOCK",
             "12",
-            [&[("EUR", "118")], &[("EUR", "134.7")], &[("EUR", "118")]],
+            [&[("EUR", "118")], &[("EUR", "147.2")], &[("EUR", "118")]],
         ),
         held(
             "Expenses:Food",
@@ -424,9 +631,16 @@ fn pair(name: &str, amount: &str) -> SourceFile {
     )
 }
 
+fn hledger_pair(amount: &str) -> SourceFile {
+    file(
+        "h.journal",
+        &format!("2026-01-02 t\n    Assets:X  {amount} EUR\n    Assets:Y\n"),
+    )
+}
+
 #[test]
 fn sums_keep_the_places_of_their_most_precise_term() {
-    let l = load(&[pair("p.beancount", "1.50"), pair("q.beancount", "2.5")]);
+    let l = load(&[pair("p.beancount", "1.50"), hledger_pair("2.5")]);
     let rows = l.holdings(&query()).unwrap();
     assert_eq!(
         rows[0],
@@ -448,18 +662,18 @@ fn sums_keep_the_places_of_their_most_precise_term() {
 
 #[test]
 fn a_sum_of_exactly_zero_is_not_listed_unless_something_else_is_held() {
-    let l = load(&[pair("p.beancount", "5"), pair("q.beancount", "-5")]);
+    let l = load(&[pair("p.beancount", "5"), hledger_pair("-5")]);
     assert!(l.holdings(&query()).unwrap().is_empty());
     // Units cancel but a cost does not: the row stays with units "0".
-    let sold = file(
-        "s.beancount",
-        "2026-01-01 open Assets:S\n2026-01-01 open Assets:C\n\n2026-01-02 * \"t\"\n  Assets:S  -2 STOCK {3 EUR}\n  Assets:C  6 EUR\n",
-    );
     let bought = file(
         "b.beancount",
         "2026-01-01 open Assets:S\n2026-01-01 open Assets:C\n\n2026-01-02 * \"t\"\n  Assets:S  2 STOCK {2 EUR}\n  Assets:C  -4 EUR\n",
     );
-    let rows = load(&[sold, bought]).holdings(&query()).unwrap();
+    let sold = file(
+        "s.journal",
+        "2026-01-02 t\n    Assets:S  -2 STOCK @ 3 EUR\n    Assets:C\n",
+    );
+    let rows = load(&[bought, sold]).holdings(&query()).unwrap();
     let stock = rows.iter().find(|h| h.account == "Assets:S").unwrap();
     assert_eq!(stock.units, "0");
     assert_eq!(stock.cost, [q("EUR", "-2")]);

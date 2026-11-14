@@ -1,5 +1,5 @@
-2026-01-01 open Assets:Bank
-2026-01-01 open Assets:Stock
+; The accounts are opened in implicit-a.beancount, which also has the plugin: it is the root
+; when it comes first, and its plugin line then applies to this file's transactions too.
 
 2026-01-05 * "b buys with a price, and has no plugin"
   Assets:Stock   3 STOCK @ 11 EUR

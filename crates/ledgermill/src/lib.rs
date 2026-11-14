@@ -37,11 +37,11 @@ pub use model::*;
 /// line and the exact amounts and dates of each transaction, so that those questions read nothing
 /// again. A Beancount ledger answers them from its public lists.
 ///
-/// A set of files can hold several ledgers: each Beancount file is one, and all the hledger files
-/// together are one (spec/beancount/several-files.md). Such a `Ledger` keeps the ledgers it was
-/// built from as `parts`, lists the merged transactions, postings, prices and findings, and answers
-/// `at_cost`, `value` and `holdings` from its parts. A set of one ledger is that ledger, as it
-/// always was.
+/// A set of files can hold two ledgers: all the Beancount files together are one, and all the
+/// hledger files together are one (spec/beancount/several-files.md). Such a `Ledger` keeps the
+/// ledgers it was built from as `parts`, lists the merged transactions, postings, prices and
+/// findings, and answers `at_cost`, `value` and `holdings` from its parts. A set of one ledger is
+/// that ledger, as it always was.
 #[derive(Debug, Default)]
 pub struct Ledger {
     transactions: Vec<Transaction>,
@@ -150,26 +150,33 @@ impl Ledger {
 
 /// Parse the given files, in order.
 ///
-/// `.beancount` and `.bean` files are Beancount, everything else is hledger. Each Beancount file is
-/// its own ledger (an `include` is still refused), and all the hledger files together are one
-/// ledger. With more than one ledger, `transactions()`, `postings()` and `prices()` are sorted by
-/// date, ties by the position of the item's file in `files`, then in the order of its own ledger;
+/// `.beancount` and `.bean` files are Beancount, everything else is hledger. All the Beancount
+/// files together are one ledger, read in the order given (an `include` is still refused): options,
+/// `open` and `close`, pads, balance assertions and prices apply across them, and the first is the
+/// root, whose `booking_method` and `plugin` lines apply to all. All the hledger files together are
+/// one ledger. With two ledgers, `transactions()`, `postings()` and `prices()` are sorted by date,
+/// ties by the position of the item's file in `files`, then in the order of its own ledger;
 /// `check()` lists each ledger's findings sorted by the position of their file in `files`;
 /// `at_cost`, `value` and `holdings` are answered by each ledger and combined (see their docs).
-/// A Beancount file with a refused construct lists nothing and the other ledgers still load
+/// A refused construct in a Beancount file refuses the Beancount ledger, which lists nothing
 /// (spec/beancount/several-files.md).
 pub fn load(files: &[SourceFile]) -> Ledger {
     // Each ledger with the position of its first file, which orders the ledgers.
     let mut ledgers: Vec<(usize, Ledger)> = Vec::new();
+    let mut beancount: Vec<&SourceFile> = Vec::new();
     let mut hledger: Vec<&SourceFile> = Vec::new();
-    let mut hledger_at = None;
+    let (mut beancount_at, mut hledger_at) = (None, None);
     for (position, file) in files.iter().enumerate() {
         if beancount::is_beancount(&file.name) {
-            ledgers.push((position, load_beancount(file)));
+            beancount_at.get_or_insert(position);
+            beancount.push(file);
         } else {
             hledger_at.get_or_insert(position);
             hledger.push(file);
         }
+    }
+    if let Some(position) = beancount_at {
+        ledgers.push((position, beancount_ledger(beancount::load(&beancount))));
     }
     if let Some(position) = hledger_at {
         ledgers.push((position, load_hledger(&hledger)));
@@ -184,14 +191,10 @@ pub fn load(files: &[SourceFile]) -> Ledger {
         .map_or_else(|| load_hledger(&[]), |(_, ledger)| ledger)
 }
 
-fn load_beancount(file: &SourceFile) -> Ledger {
-    beancount_ledger(beancount::load(file))
-}
-
-/// The ledger of one loaded Beancount file.
+/// The ledger of loaded Beancount files.
 fn beancount_ledger(loaded: beancount::Loaded) -> Ledger {
     Ledger {
-        postings: beancount::flatten(&loaded.transactions),
+        postings: loaded.postings,
         transactions: loaded.transactions,
         findings: loaded.findings,
         price_list: loaded.prices,
