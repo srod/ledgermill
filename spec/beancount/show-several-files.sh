@@ -48,7 +48,8 @@ prices() { # prices FILE...: the prices table, then the date, line and file of e
 sums() { # sums FILE...: the holdings queries' units of Assets:Sum (show-holdings.sh has the full texts)
   echo "== $* (sums)"
   set -- "$(root "$@")"
-  bean-check "$1" 2>&1 | clean
+  out=$(bean-check "$1" 2>&1 | clean)
+  echo "bean-check: ${out:-(no output)}"
   bean-query -f csv "$1" "SELECT account, currency, str(sum(units(position))) AS units, str(sum(convert(position, 'EUR'))) AS value WHERE account ~ 'Assets' GROUP BY account, currency" 2>&1 \
     | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//' | clean
 }

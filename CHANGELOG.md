@@ -70,8 +70,8 @@ All notable changes to ledgermill are written here. The format follows
 ### Fixed
 
 - Beancount: `holdings()` of several files adds the postings in the reference's order, by date and then
-  line with the file not in the key. It added them by date and then file, so a sum of 28 digits that
-  rounds at each step could end one digit off when files shared a day. See
+  line with the file not in the key. It added them by date and then file, so a sum held to 28 significant digits
+  that rounds at each step could end one digit off when files shared a day. See
   `spec/beancount/several-files.md`.
 
 ## 0.1.3 – 2026-11-03

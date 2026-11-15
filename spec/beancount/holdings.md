@@ -23,7 +23,8 @@ The `units` column of both is the same. What each column sums, per group:
   neither insertion, nor alphabetical, nor by size. Plainledger looks the commodity up in the cell. ledgermill
   lists them in code point order of commodity and the harness compares them as sets.
 - **`units`:** the units of the group's postings, added one after the other in the order of the postings
-  (by date and line, the postings of a transaction as booked, a padding transaction at its `pad`; with several
+  (by date and line, the postings of a transaction as booked, a padding transaction at the line of its `pad`, though its rows in
+  `postings` carry the line of the `balance`, several-files.md; with several
   files the file is not in the key, several-files.md). The sum is a number and a commodity; it is **dropped as soon as it is exactly
   zero**, so what follows starts again with its own places (`1.50`, `-1.50`, `3` gives `3`, not `3.00`), and a
   zero added to nothing is nothing, while a zero added to a sum that is held gives the finer places

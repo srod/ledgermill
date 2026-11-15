@@ -198,9 +198,11 @@ date,filename,lineno,account,number,narration
 2026-01-02,pad-b.beancount,1,Equity:Opening,-100,(Padding inserted for Balance of 100 EUR for difference 100 EUR)
 ##### the order of the sums: by date and line, not by file
 == sum-order-a.beancount sum-order-b.beancount (sums)
+bean-check: (no output)
 account,currency,units,value
 Assets:Sum,EUR,(1000000000000000000.000000001 EUR),(1000000000000000000.000000001 EUR)
 == sum-order-b.beancount sum-order-a.beancount (sums)
+bean-check: (no output)
 account,currency,units,value
 Assets:Sum,EUR,(1000000000000000000.000000001 EUR),(1000000000000000000.000000001 EUR)
 ##### options and plugins: the root's apply, an included file's do not
