@@ -834,13 +834,13 @@ test("ledgersOf makes a ledger of all the Beancount files and one of all the hle
 
 test("beancountRoot is the first file followed by an include of each other file, in order; one file is its own root", () => {
   expect(beancountRoot(["/x/a.beancount"])).toEqual({ root: "/x/a.beancount", dir: null });
-  const [a, b] = ["a.beancount", "b.beancount"].map((f) => join(SEVERAL, f)) as [string, string];
-  const { root, dir } = beancountRoot([a, b]);
+  const [a, b, c] = ["a.beancount", "b.beancount", "empty.beancount"].map((f) => join(SEVERAL, f)) as [string, string, string];
+  const { root, dir } = beancountRoot([a, b, c]);
   try {
     expect(dir).not.toBeNull();
     expect(basename(root)).toBe("a.beancount");
     const lines = readFileSync(root, "utf8").split("\n");
-    expect(lines.slice(-2)).toEqual([`include "${b}"`, ""]);
+    expect(lines.slice(-3)).toEqual([`include "${b}"`, `include "${c}"`, ""]);
     expect(readFileSync(root, "utf8").startsWith(readFileSync(a, "utf8"))).toBe(true);
   } finally {
     if (dir) rmSync(dir, { recursive: true });

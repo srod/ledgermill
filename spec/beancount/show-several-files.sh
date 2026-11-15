@@ -11,7 +11,7 @@ HERE=$(pwd)
 PY="$(dirname "$(readlink "$(command -v bean-check)")")/python"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-clean() { sed -E "s#[^ :,]*/##g" | grep -v '^ *$'; }
+clean() { sed -E "s#[^ :,]*/##" | grep -v '^ *$'; }
 
 # root FILE...: the set as one file in $TMP: the first file, then an include line for each other.
 root() {

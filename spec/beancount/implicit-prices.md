@@ -64,7 +64,8 @@ prices of the postings of every file, each on the line and in the file of its tr
 
 ### Where the entries are in the table
 
-The prices table lists the entries sorted by date, and the same date in the order of their line (price-table.md).
+The prices table lists the entries sorted by date, and the same date in the order of their line (price-table.md); with
+several Beancount files, a line shared by two files goes in file order (several-files.md).
 The entries of the plugin have the line of their transaction, so on one day they stand between the directives
 written above and below the transaction: a directive written above a transaction is listed before its entry,
 one written below it after. Entries of one transaction (one line) stay in the order of its postings, and

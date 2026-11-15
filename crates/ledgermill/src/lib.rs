@@ -154,15 +154,15 @@ impl Ledger {
 /// Parse the given files, in order.
 ///
 /// `.beancount` and `.bean` files are Beancount, everything else is hledger. All the Beancount
-/// files together are one ledger, read in the order given (an `include` is still refused): options,
-/// `open` and `close`, pads, balance assertions and prices apply across them, and the first is the
-/// root, whose `booking_method` and `plugin` lines apply to all. All the hledger files together are
+/// files together are one ledger, read in the order given (an `include` is still refused): `open` and
+/// `close`, pads, balance assertions and prices apply across them; the first is the root, and only
+/// its options and `plugin` lines count, for all the files. All the hledger files together are
 /// one ledger. With two ledgers, `transactions()`, `postings()` and `prices()` are sorted by date,
 /// ties by the position of the item's file in `files`, then in the order of its own ledger;
 /// `check()` lists each ledger's findings sorted by the position of their file in `files`;
 /// `at_cost`, `value` and `holdings` are answered by each ledger and combined (see their docs).
-/// A refused construct in a Beancount file refuses the Beancount ledger, which lists nothing
-/// (spec/beancount/several-files.md).
+/// A refused construct or a parse error in a Beancount file refuses the Beancount ledger, which
+/// lists nothing (spec/beancount/several-files.md).
 pub fn load(files: &[SourceFile]) -> Ledger {
     // Each ledger with the position of its first file, which orders the ledgers.
     let mut ledgers: Vec<(usize, Ledger)> = Vec::new();

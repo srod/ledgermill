@@ -12,6 +12,9 @@ Status: **built**. padding rows are in the list as described.
 SELECT date, flag, payee, narration, account, number, currency, filename, lineno ORDER BY date, filename, lineno
 ```
 
+That is the query for one file. With several files the order is ours, by the file's place in the manifest, not by
+its name (below).
+
 Fields. `date` and `flag` are the transaction's (the flag of a posting is not reported here, and the
 word `txn` reads as `*`); `payee` is empty when the header has one string or none, `narration` is
 empty for no string or `""`; one string is the narration, two are payee then narration. `number` is

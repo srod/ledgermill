@@ -2039,9 +2039,14 @@ async function referenceOf(ledger: SetLedger): Promise<LedgerReference> {
   }
   const { root, dir } = beancountRoot(ledger.paths);
   const rooted = { ...base, root, dir };
-  const rejection = await runBeanCheck(root);
-  if (rejection) return { ...rooted, reject: rejection, transactions: [], postings: [] };
-  return { ...rooted, reject: null, ...(await queryBeancount(root)) };
+  try {
+    const rejection = await runBeanCheck(root);
+    if (rejection) return { ...rooted, reject: rejection, transactions: [], postings: [] };
+    return { ...rooted, reject: null, ...(await queryBeancount(root)) };
+  } catch (error) {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 const labelOf = (ledger: SetLedger): string => ledger.paths.map((p) => basename(p)).join("+");
@@ -2102,7 +2107,7 @@ async function compareSetPrices(paths: string[], refs: LedgerReference[], ours: 
       if (r.ledger.format === "beancount") {
         // The table lists by line, ours by file and then line: put ours in the table's order to compare row by row.
         const lines = await beanRowsCached(r.runs, r.root, PRICE_LINES_QUERY);
-        const key = (date: string, file: string, line: number | string) => `${date} ${basename(file)}:${line}`;
+        const key = (date: string, file: string, line: number | string) => `${date} ${manifestIndex(file, paths)}:${line}`;
         const aligned = alignTo(part, (p) => key(p.date, p.file, p.line), lines.map((l) => key(l[0] as string, l[2] as string, l[1] as string)));
         if (!aligned) return { status: "FAIL", note: `${labelOf(r.ledger)}: our prices are not the entries bean-query lists` };
         const verdict = await compareBeanPrices(r.root, aligned, r.runs);
@@ -2141,7 +2146,7 @@ async function compareSetDerived(
     if (r.ledger.format === "beancount") {
       // The rows are in the reference's order of transactions (by line); ours are by file and then line.
       const [ours, booked] = [parts[i] as Transaction[], bookedParts[i] as Transaction[]];
-      const key = (t: Transaction) => `${t.date} ${basename(t.source.file)}:${t.source.line}`;
+      const key = (t: Transaction) => `${t.date} ${manifestIndex(t.source.file, paths)}:${t.source.line}`;
       const at = alignTo(Array.from(ours.keys()), (k) => key(booked[k] as Transaction), r.transactions.map(key));
       if (!at) return { status: "FAIL", note: `${labelOf(r.ledger)}: our transactions are not the ones bean-query lists` };
       verdict = await compareBeanAnswer(r.root, query, at.map((k) => booked[k] as Transaction), at.map((k) => ours[k] as Transaction), r.runs);
@@ -2224,8 +2229,12 @@ async function compareMulti(
   holdings: boolean | HoldingQuestion[],
 ): Promise<Comparison> {
   const ledgers = ledgersOf(paths);
-  const refs = await Promise.all(ledgers.map(referenceOf));
+  // Not Promise.all: when one ledger's setup throws, the others' temporary directories still have to be removed.
+  const settled = await Promise.allSettled(ledgers.map(referenceOf));
+  const refs = settled.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
   try {
+    const failure = settled.find((s): s is PromiseRejectedResult => s.status === "rejected");
+    if (failure) throw failure.reason;
     return await compareMultiWith(paths, ignorePlaces, queries, holdings, ledgers, refs);
   } finally {
     for (const r of refs) if (r.dir) rmSync(r.dir, { recursive: true, force: true });

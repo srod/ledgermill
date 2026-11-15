@@ -215,7 +215,7 @@ both merges their lists ([several-files](beancount/several-files.md)). `include`
 - `holdings-sum` (`holdings()` of several ledgers only; not expected): a quantity two ledgers print
   for one holding could not be read back to be added.
 
-Any of them leaves the file with no transaction at all.
+Any of them leaves the Beancount ledger (all its files) with no transaction at all.
 
 `plugin "beancount.plugins.auto_accounts"` is read, not refused: the accounts a file uses and never opens are open from their first
 use, so `account-not-open` (`never-opened`) and `close-without-open` do not occur for them; every other check is as without

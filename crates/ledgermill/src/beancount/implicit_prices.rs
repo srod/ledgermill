@@ -13,12 +13,12 @@ pub(super) const MODULE: &str = "beancount.plugins.implicit_prices";
 /// as a value (`100.0` and `100.00` are one).
 type Key = (Day, String, String, String);
 
-/// The entries one run of the plugin adds, gathered a transaction at a time in the order of the
-/// file.
+/// The entries one run of the plugin adds, gathered a transaction at a time in the order the
+/// transactions are booked: by date and line across all the files.
 #[derive(Default)]
 pub(super) struct Run {
     seen: HashSet<Key>,
-    /// Each with the position of its transaction's file.
+    /// Each with the index, in the load order, of its transaction's file.
     entries: Vec<(usize, Item)>,
 }
 

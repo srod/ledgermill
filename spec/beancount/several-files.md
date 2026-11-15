@@ -22,15 +22,17 @@ With both formats the two ledgers merge as below. `format()` stays one file at a
 ### What the reference does with several files
 
 The reference reads several files only through `include`. A set of Beancount files is therefore what a root that
-includes them reads. The first file of the manifest stands for the **root**, and the others for the included files in
+includes them reads. The first Beancount file of the manifest stands for the **root**, and the others for the included files in
 the order given. The harness builds that root: the text of the first file, then an `include` line for each other file
 (`harness/README.md`, "Several ledgers"). What `bean-check` and `bean-query` print for it (`show-several-files.sh`) is
 what we match.
 
 **The walk.** The reference sorts the entries of all the files together by date, then by directive kind (`open` first,
 then `balance`, then the rest, and `close` and `document` last), then by **line number alone**; the file is not in the
-key, so entries of two files on one date and one line stay in the order the files were loaded. Every check goes in that
-order, whichever file an entry is in:
+key, so entries of two files on one date and one line stay in the order the files were loaded. Each check walks the entries
+in that order, whichever file an entry is in. The checks themselves run one after another (pads, balances, `open` and
+`close`, accounts used, currencies, duplicate assertions, duplicate commodities), and their findings come in that
+sequence, so findings of different checks are not in walk order:
 
 - A `balance` sees the postings of both files that are dated before it, and none of its own day
   (`bal-a`, `bal-b`); `bal-wrong-b` expects 100, the first file's sum alone, and fails on the second file's line.
@@ -135,7 +137,8 @@ The Beancount files are one ledger and so one part: one price table, valued at t
 - `empty.beancount`, `options-only.beancount`: files that hold no entry; the second only has options.
 - `settings-only.beancount`, `lots-a.beancount`: a `booking_method` and two plugins alone in a file; the other file has
   an ambiguous sale, accounts nobody opened and lots.
-- `include-open.beancount`, `include-rename.beancount`, `rename-a.beancount`: hand-made roots that only include.
+- `include-open.beancount`, `include-rename.beancount`: hand-made roots that only include; `rename-a.beancount` is the
+  file `include-rename` includes.
 
 The merge, check, valuation and holdings rules are tested in `crates/ledgermill/tests/multi_ledger.rs` on `a.beancount`,
 `b.beancount`, `c.journal` (an account, a commodity and a day in common) and the files `unbalanced.*`, `refused.beancount`.
@@ -152,7 +155,8 @@ spec/beancount/show-several-files.sh
 `show-several-files.sh` builds the root of each set in a temporary directory (the first file, then an `include` line
 for each other file), and runs `bean-check` and, for some, `bean-query` on it. The last part runs the hand-made roots and
 loads them with `beancount.loader` to print the `name_assets` option, the number of entries and the number of errors.
-File names are cut to their last part.
+File names are cut to their last part. When one entry has two errors (`auto-b`, `lots-a`), `bean-check` prints them in
+either order from run to run, and the listing below shows one of them.
 
 ## Output
 

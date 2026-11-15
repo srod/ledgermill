@@ -393,9 +393,9 @@ The summary has a line for the sets: `multi-ledger: N pass, N fail, N skip` (the
 `postings`, `prices`, `--cost`, `--value` and `holdings`; they are in the total. `compare.ts` runs the sets of `severalSets` (the probes of
 `spec/beancount/probes/several-files/` in several orders, with the hledger file first, in the middle and last; the rejected ones; the
 refused one next to good ones) and `appSets` (Plainledger's own Beancount journals with each other and with its hledger ones, which
-share accounts such as `Assets:Bank`, so that rows are added; the sets of several Beancount journals open the same accounts in each, so the
-reference rejects them at a duplicate `open` and they compare the first error only; all thirteen Beancount ones together, all with three
-journals among them, are of that kind).
+share accounts such as `Assets:Bank`, so that rows are added. Sets of several Beancount journals open the same accounts in each, so the
+reference rejects them at a duplicate `open` and they compare the first error only. That goes for the sets of two or three Beancount
+journals, and for all thirteen together, which have three hledger journals among them.)
 `real.ts` with several files runs each alone and then all together, as a set, whatever the formats.
 
 `bun harness/fuzz.ts --multi [N] [SEED]` writes sets of 2 to 4 files (one Beancount at least, then Beancount or hledger; a hledger
