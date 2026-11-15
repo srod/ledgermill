@@ -24,7 +24,7 @@
     a  3037000499 X @@ 9223372030926249001 Y
     b  -9223372030926249001 Y
 
-2026-01-06 an inferred price that divides a number past the limit by one under it
+2026-01-06 one holder of Z, so the inferred price is a total, 2^63 X for 2^62 Z
     a  4611686018427387904 Z
     b  -9223372036854775808 X
 
@@ -33,3 +33,8 @@
     b  -92233720368547758.07 X
     c  0.0000000000000000001 X
     d  -0.0000000000000000001 X
+
+2026-01-08 two holders of Z, so the inferred price is a unit price: 2^63 divided by 2^62
+    a  3074457345618258602 Z
+    d  1537228672809129302 Z
+    b  -9223372036854775808 X

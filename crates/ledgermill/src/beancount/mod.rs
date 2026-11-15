@@ -577,9 +577,9 @@ fn load_for(files: &[&SourceFile], with_amount_lines: bool) -> Loaded {
     let prices = listed_prices(files, &reads, &implied);
     // What reading and booking held is not needed any more. The flat rows built next stay in the
     // ledger; built while those are alive, they raise the peak and wasm memory never shrinks
-    // (7 MB more for 10,000 transactions).
+    // (3.2 MB more for 10,000 transactions).
     drop(items);
-    drop((reads, kept, books, added));
+    drop((reads, kept, books, added, implied));
     // The rows of a padding stand in the file of its `balance`, not of its `pad`.
     let postings = flatten(
         &ranks,

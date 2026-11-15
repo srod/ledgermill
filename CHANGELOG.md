@@ -52,7 +52,7 @@ All notable changes to ledgermill are written here. The format follows
   load get their size up front. A native load of 10,000 transactions takes about 9% less time
   (45.6 ms to 41.6 ms); in the wasm the gain is within what the bench can tell apart (46.9 ms to
   45.6 ms for `load` and `transactions()`).
-- hledger: a number that fits in 64 bits is held as a machine integer, a larger one as a big integer
+- hledger: a number whose mantissa fits in 64 bits is held as a machine integer, a larger one as a big integer
   as before (the timings below were measured with a 128-bit integer; see the next entry), so the arithmetic on an ordinary amount needs no big integer and allocates nothing for
   it. Against the commit before, on 10,000 transactions: a native load takes 11% less time (39.2 ms to 34.7 ms, median of 7
   alternated rounds); in the wasm `load` and `transactions()` take 7% less (45.2 ms to 42.3 ms,
