@@ -1,0 +1,40 @@
+; Numbers around the 64-bit limit: the largest 64-bit number is 9223372036854775807 and the smallest is
+; -9223372036854775808. Sums, products through @ and @@, inferred prices and an elided amount cross it and come back.
+2026-01-01 the largest 64-bit number and one more, the elided amount is the smallest
+    a  9223372036854775807 X
+    b  1 X
+    c
+
+2026-01-02 the smallest 64-bit number written, and its negation elided
+    a  -9223372036854775808 X
+    b
+
+2026-01-03 a sum past the limit, a small result
+    a  9223372036854775807 X
+    b  9223372036854775807 X
+    c  -18446744073709551614 X
+    d  3 X
+    e
+
+2026-01-04 a product past the limit through @
+    a  4294967296 X @ 4294967296 Y
+    b  -18446744073709551616 Y
+
+2026-01-05 a total price whose product stays under the limit
+    a  3037000499 X @@ 9223372030926249001 Y
+    b  -9223372030926249001 Y
+
+2026-01-06 one holder of Z, so the inferred price is a total, 2^63 X for 2^62 Z
+    a  4611686018427387904 Z
+    b  -9223372036854775808 X
+
+2026-01-07 many places on a number near the limit
+    a  92233720368547758.07 X
+    b  -92233720368547758.07 X
+    c  0.0000000000000000001 X
+    d  -0.0000000000000000001 X
+
+2026-01-08 two holders of Z, so the inferred price is a unit price: 2^63 divided by 2^62
+    a  3074457345618258602 Z
+    d  1537228672809129302 Z
+    b  -9223372036854775808 X

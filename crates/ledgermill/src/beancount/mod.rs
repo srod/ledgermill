@@ -567,6 +567,19 @@ fn load_for(files: &[&SourceFile], with_amount_lines: bool) -> Loaded {
         .map(|p| padding_transaction(name_of(p.at), p))
         .collect();
     let ranks = ranks(files);
+    let implied = implicit.map_or_else(Vec::new, |run| run.repeated(implicit_runs));
+    // A refused file never gets here, so this is the same answer as "no `unsupported-syntax`
+    // finding" without looking through them.
+    let amount_lines = reads
+        .first()
+        .filter(|_| with_amount_lines)
+        .map(amount_lines);
+    let prices = listed_prices(files, &reads, &implied);
+    // What reading and booking held is not needed any more. The flat rows built next stay in the
+    // ledger; built while those are alive, they raise the peak and wasm memory never shrinks
+    // (3.2 MB more for 10,000 transactions).
+    drop(items);
+    drop((reads, kept, books, added, implied));
     // The rows of a padding stand in the file of its `balance`, not of its `pad`.
     let postings = flatten(
         &ranks,
@@ -586,19 +599,12 @@ fn load_for(files: &[&SourceFile], with_amount_lines: bool) -> Loaded {
         let (a_rank, b_rank) = (ranks.get(&*a.source.file), ranks.get(&*b.source.file));
         (&a.date, a_rank, a.source.line).cmp(&(&b.date, b_rank, b.source.line))
     });
-    let implied = implicit.map_or_else(Vec::new, |run| run.repeated(implicit_runs));
-    // A refused file never gets here, so this is the same answer as "no `unsupported-syntax`
-    // finding" without looking through them.
-    let amount_lines = reads
-        .first()
-        .filter(|_| with_amount_lines)
-        .map(amount_lines);
     Loaded {
         amount_lines,
         transactions,
         postings,
         findings,
-        prices: listed_prices(files, &reads, &implied),
+        prices,
     }
 }
 

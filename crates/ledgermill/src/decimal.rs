@@ -12,13 +12,17 @@ pub(crate) const DIVISION_PLACES: u32 = 255;
 /// Places a reported quantity is rounded to.
 pub(crate) const OUTPUT_PLACES: u32 = 10;
 
-/// The mantissa: a machine integer while the value fits in an `i128`, a big integer beyond.
+/// The mantissa: a machine integer while the value fits in an `i64`, a big integer beyond.
 /// Ledger amounts are small, and the integer costs no allocation. It is always `Small` when the
 /// value fits, so equal values are equal mantissas and `==` stays structural.
+///
+/// The size matters: a ledger keeps several decimals per amount. An `i128` is 16-aligned on
+/// wasm32, which made a `Decimal` 48 bytes and a 10,000-transaction hledger load 15 MB larger; the
+/// big integer is boxed so that a `Decimal` stays 24 bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Mantissa {
-    Small(i128),
-    Big(BigInt),
+    Small(i64),
+    Big(Box<BigInt>),
 }
 
 impl Default for Mantissa {
@@ -27,9 +31,9 @@ impl Default for Mantissa {
     }
 }
 
-/// `10^n` for every power that fits in an `i128`.
-const POW10: [i128; 39] = {
-    let mut table = [1i128; 39];
+/// `10^n` for every power that fits in an `i64`.
+const POW10: [i64; 19] = {
+    let mut table = [1i64; 19];
     let mut i = 1;
     while i < table.len() {
         table[i] = table[i - 1] * 10;
@@ -56,21 +60,21 @@ fn div_half_even_big(numerator: &BigInt, denominator: &BigInt) -> BigInt {
 
 impl Mantissa {
     fn from_big(n: BigInt) -> Mantissa {
-        match n.to_i128() {
+        match n.to_i64() {
             Some(small) => Mantissa::Small(small),
-            None => Mantissa::Big(n),
+            None => Mantissa::Big(Box::new(n)),
         }
     }
 
     /// A magnitude and a sign, which reach one more value below zero than above it.
-    fn from_magnitude(negative: bool, magnitude: u128) -> Mantissa {
-        match (i128::try_from(magnitude), negative) {
+    fn from_magnitude(negative: bool, magnitude: u64) -> Mantissa {
+        match (i64::try_from(magnitude), negative) {
             (Ok(small), false) => Mantissa::Small(small),
             (Ok(small), true) => Mantissa::Small(-small),
-            (Err(_), true) if magnitude == i128::MIN.unsigned_abs() => Mantissa::Small(i128::MIN),
+            (Err(_), true) if magnitude == i64::MIN.unsigned_abs() => Mantissa::Small(i64::MIN),
             (Err(_), negative) => {
                 let big = BigInt::from(magnitude);
-                Mantissa::Big(if negative { -big } else { big })
+                Mantissa::Big(Box::new(if negative { -big } else { big }))
             }
         }
     }
@@ -78,14 +82,14 @@ impl Mantissa {
     fn to_big(&self) -> BigInt {
         match self {
             Mantissa::Small(small) => BigInt::from(*small),
-            Mantissa::Big(big) => big.clone(),
+            Mantissa::Big(big) => BigInt::clone(big),
         }
     }
 
     fn pow10(n: u32) -> Mantissa {
         match usize::try_from(n).ok().and_then(|i| POW10.get(i)) {
             Some(small) => Mantissa::Small(*small),
-            None => Mantissa::Big(pow10_big(n)),
+            None => Mantissa::Big(Box::new(pow10_big(n))),
         }
     }
 
@@ -106,7 +110,7 @@ impl Mantissa {
                 || Mantissa::from_big(-BigInt::from(*small)),
                 Mantissa::Small,
             ),
-            Mantissa::Big(big) => Mantissa::from_big(-big),
+            Mantissa::Big(big) => Mantissa::from_big(-&**big),
         }
     }
 
@@ -138,8 +142,8 @@ impl Mantissa {
     /// `self / divisor` rounded half to even. `divisor` is not zero.
     fn div_half_even(&self, divisor: &Mantissa) -> Mantissa {
         if let (Mantissa::Small(n), Mantissa::Small(d)) = (self, divisor) {
-            // Magnitudes in a `u128`, since `i128::MIN` has no positive twin. The remainder is
-            // below the divisor, at most 2^127, so doubling it cannot overflow.
+            // Magnitudes in a `u64`, since `i64::MIN` has no positive twin. The remainder is
+            // below the divisor, at most 2^63, so doubling it cannot overflow.
             let (n_abs, d_abs) = (n.unsigned_abs(), d.unsigned_abs());
             let (mut q, r) = (n_abs / d_abs, n_abs % d_abs);
             let twice = r * 2;
@@ -155,7 +159,7 @@ impl Mantissa {
         match (self, other) {
             (Mantissa::Small(a), Mantissa::Small(b)) => a.cmp(b),
             (Mantissa::Big(a), Mantissa::Big(b)) => a.cmp(b),
-            // A big mantissa lies outside the `i128` range, on the side of its sign.
+            // A big mantissa lies outside the `i64` range, on the side of its sign.
             (Mantissa::Small(_), Mantissa::Big(b)) => {
                 if b.is_negative() {
                     Ordering::Greater
@@ -188,7 +192,7 @@ pub(crate) enum ZeroTie {
 }
 
 impl Decimal {
-    pub(crate) fn new(mantissa: i128, places: u32) -> Decimal {
+    pub(crate) fn new(mantissa: i64, places: u32) -> Decimal {
         Decimal::with_mantissa(Mantissa::Small(mantissa), places)
     }
 
@@ -202,7 +206,7 @@ impl Decimal {
 
     /// `digits` holds only ASCII digits (at least one).
     pub(crate) fn from_digits(digits: &str, places: u32) -> Option<Decimal> {
-        let mantissa = match digits.parse::<i128>() {
+        let mantissa = match digits.parse::<i64>() {
             Ok(small) => Mantissa::Small(small),
             Err(_) => Mantissa::from_big(digits.parse().ok()?),
         };
@@ -307,7 +311,7 @@ impl Decimal {
             }
             Mantissa::Big(big) => {
                 let ten = BigInt::from(10u8);
-                let mut big = big.clone();
+                let mut big = BigInt::clone(big);
                 while places > 0 {
                     let (q, r) = big.div_rem(&ten);
                     if !r.is_zero() {
@@ -377,8 +381,8 @@ impl std::fmt::Display for Decimal {
         if places == 0 {
             return write!(f, "{sign}{magnitude}");
         }
-        // Past 10^38 the integer part is zero: a magnitude is at most 2^127.
-        match 10u128.checked_pow(self.places) {
+        // Past 10^19 the integer part is zero: a magnitude is at most 2^63.
+        match 10u64.checked_pow(self.places) {
             Some(scale) => write!(
                 f,
                 "{sign}{}.{:0>places$}",
