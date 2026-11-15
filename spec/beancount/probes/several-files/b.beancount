@@ -1,5 +1,5 @@
-2026-01-01 open Assets:Bank
-2026-01-01 open Assets:Stock
+; Assets:Bank and Assets:Stock are opened in a.beancount: the files of one load are one ledger.
+; The next line is Expenses:Food's own open.
 2026-01-01 open Expenses:Food
 
 2026-01-05 * "b spends on the shared day"

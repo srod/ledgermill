@@ -37,11 +37,11 @@ pub use model::*;
 /// line and the exact amounts and dates of each transaction, so that those questions read nothing
 /// again. A Beancount ledger answers them from its public lists.
 ///
-/// A set of files can hold several ledgers: each Beancount file is one, and all the hledger files
-/// together are one (spec/beancount/several-files.md). Such a `Ledger` keeps the ledgers it was
-/// built from as `parts`, lists the merged transactions, postings, prices and findings, and answers
-/// `at_cost`, `value` and `holdings` from its parts. A set of one ledger is that ledger, as it
-/// always was.
+/// A set of files can hold two ledgers: all the Beancount files together are one, and all the
+/// hledger files together are one (spec/beancount/several-files.md). Such a `Ledger` keeps the
+/// ledgers it was built from as `parts`, lists the merged transactions, postings, prices and
+/// findings, and answers `at_cost`, `value` and `holdings` from its parts. A set of one ledger is
+/// that ledger, as it always was.
 #[derive(Debug, Default)]
 pub struct Ledger {
     transactions: Vec<Transaction>,
@@ -98,7 +98,8 @@ impl Ledger {
     /// `unsupported-syntax` finding: a Beancount file with a refused construct lists nothing.
     ///
     /// A set of several ledgers (see [`load`]): by date, then the position in `files` of the
-    /// directive's file, then the order of its own ledger.
+    /// directive's file, then the order of its own ledger. The Beancount ledger's own order is the
+    /// price table's: date, line, file.
     pub fn prices(&self) -> &[PriceDirective] {
         &self.price_list
     }
@@ -126,6 +127,8 @@ impl Ledger {
     /// A set of several ledgers (see [`load`]): each ledger's findings in the order above, stable-sorted
     /// by the position in `files` of the finding's `file` (a finding whose file is not in the set
     /// takes the position of its ledger's first file), so a ledger's own order is kept within a file.
+    /// The Beancount ledger's findings stay one block in its own order, placed by the file of its
+    /// first finding.
     pub fn check(&self) -> &[Finding] {
         &self.findings
     }
@@ -150,26 +153,33 @@ impl Ledger {
 
 /// Parse the given files, in order.
 ///
-/// `.beancount` and `.bean` files are Beancount, everything else is hledger. Each Beancount file is
-/// its own ledger (an `include` is still refused), and all the hledger files together are one
-/// ledger. With more than one ledger, `transactions()`, `postings()` and `prices()` are sorted by
-/// date, ties by the position of the item's file in `files`, then in the order of its own ledger;
+/// `.beancount` and `.bean` files are Beancount, everything else is hledger. All the Beancount
+/// files together are one ledger, read in the order given (an `include` is still refused): `open` and
+/// `close`, pads, balance assertions and prices apply across them; the first is the root, and only
+/// its options and `plugin` lines count, for all the files. All the hledger files together are
+/// one ledger. With two ledgers, `transactions()`, `postings()` and `prices()` are sorted by date,
+/// ties by the position of the item's file in `files`, then in the order of its own ledger;
 /// `check()` lists each ledger's findings sorted by the position of their file in `files`;
 /// `at_cost`, `value` and `holdings` are answered by each ledger and combined (see their docs).
-/// A Beancount file with a refused construct lists nothing and the other ledgers still load
-/// (spec/beancount/several-files.md).
+/// A refused construct or a parse error in a Beancount file refuses the Beancount ledger, which
+/// lists nothing (spec/beancount/several-files.md).
 pub fn load(files: &[SourceFile]) -> Ledger {
     // Each ledger with the position of its first file, which orders the ledgers.
     let mut ledgers: Vec<(usize, Ledger)> = Vec::new();
+    let mut beancount: Vec<&SourceFile> = Vec::new();
     let mut hledger: Vec<&SourceFile> = Vec::new();
-    let mut hledger_at = None;
+    let (mut beancount_at, mut hledger_at) = (None, None);
     for (position, file) in files.iter().enumerate() {
         if beancount::is_beancount(&file.name) {
-            ledgers.push((position, load_beancount(file)));
+            beancount_at.get_or_insert(position);
+            beancount.push(file);
         } else {
             hledger_at.get_or_insert(position);
             hledger.push(file);
         }
+    }
+    if let Some(position) = beancount_at {
+        ledgers.push((position, beancount_ledger(beancount::load(&beancount))));
     }
     if let Some(position) = hledger_at {
         ledgers.push((position, load_hledger(&hledger)));
@@ -184,14 +194,10 @@ pub fn load(files: &[SourceFile]) -> Ledger {
         .map_or_else(|| load_hledger(&[]), |(_, ledger)| ledger)
 }
 
-fn load_beancount(file: &SourceFile) -> Ledger {
-    beancount_ledger(beancount::load(file))
-}
-
-/// The ledger of one loaded Beancount file.
+/// The ledger of loaded Beancount files.
 fn beancount_ledger(loaded: beancount::Loaded) -> Ledger {
     Ledger {
-        postings: beancount::flatten(&loaded.transactions),
+        postings: loaded.postings,
         transactions: loaded.transactions,
         findings: loaded.findings,
         price_list: loaded.prices,
@@ -259,8 +265,16 @@ fn merge_ledgers(files: &[SourceFile], mut parts: Vec<(usize, Ledger)>) -> Ledge
     .collect();
     let mut findings: Vec<(usize, Finding)> = Vec::new();
     for (first, ledger) in &parts {
+        // The checks of the Beancount ledger run over all its files at once, so its findings keep
+        // their order as one block, where its first finding's file stands.
+        let block = ledger
+            .beancount
+            .then(|| ledger.findings.first())
+            .flatten()
+            .map(|f| position_of(files, &f.file, *first));
         for f in &ledger.findings {
-            findings.push((position_of(files, &f.file, *first), f.clone()));
+            let at = block.unwrap_or_else(|| position_of(files, &f.file, *first));
+            findings.push((at, f.clone()));
         }
     }
     findings.sort_by_key(|(position, _)| *position);

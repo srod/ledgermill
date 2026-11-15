@@ -12,6 +12,9 @@ Status: **built**. padding rows are in the list as described.
 SELECT date, flag, payee, narration, account, number, currency, filename, lineno ORDER BY date, filename, lineno
 ```
 
+That is the query for one file. With several files the order is ours, by the file's place in the manifest, not by
+its name (below).
+
 Fields. `date` and `flag` are the transaction's (the flag of a posting is not reported here, and the
 word `txn` reads as `*`); `payee` is empty when the header has one string or none, `narration` is
 empty for no string or `""`; one string is the narration, two are payee then narration. `number` is
@@ -37,8 +40,9 @@ and a transaction written last with an earlier date comes first. Within a transa
 follow the line, that is the order the postings were written: bean-query's unsorted postings list
 groups them by currency instead (numbers-and-interpolation.md), and this query puts them back
 (`interpolation-groups`, below). Rows tied on a line keep their booking order. Directives other
-than transactions take no part. A Beancount file is its own ledger, so within it the file never breaks a
-tie; several ledgers are merged by date and then by the file's place in the manifest (several-files.md).
+than transactions take no part. With several Beancount files in one ledger, a tie on date is broken by the file's
+place in the manifest and then the line; a padding's rows stand in the file of its `balance`; a mix with hledger
+files is merged by date and then by the file's place in the manifest (several-files.md).
 
 ## Probe
 

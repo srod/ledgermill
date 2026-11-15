@@ -55,7 +55,7 @@ Also refused, without a probe because nothing needs a reference to confirm it:
   a reduction with an open cost, or with zero units and nothing to pay. Everything else about
   both is built; see inferred-cost-and-price.md, which lists what stays refused.
 - `include`: only a single root file is read, so an `include` cannot be followed. Several files in one
-  `load` are not refused any more: each Beancount file is its own ledger (several-files.md).
+  `load` are not refused any more: the Beancount files are one ledger (several-files.md).
 
 ## Probe
 

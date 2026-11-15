@@ -59,12 +59,13 @@ times, the whole list of the first run, then the whole list of the second (`1 AA
 are listed `5 6 7 5 6 7`), all on the line of their transaction. A `plugin` line may stand anywhere in the file, with a tab or a comment as
 `auto_accounts` allows. With a configuration string the reference fails to apply the plugin (`<load>:0: Error applying plugin`, no price
 at all) and ledgermill refuses it by name, as for `auto_accounts` (refused.md). The two plugins together, in either order, do
-what each does alone. The plugin belongs to its file (several-files.md): in a manifest of several Beancount files, the prices of one file's
-postings are not the other's.
+what each does alone. In a manifest of several Beancount files only the root's plugin line counts (several-files.md): then it adds the
+prices of the postings of every file, each on the line and in the file of its transaction.
 
 ### Where the entries are in the table
 
-The prices table lists the entries sorted by date, and the same date in the order of their line (price-table.md).
+The prices table lists the entries sorted by date, and the same date in the order of their line (price-table.md); with
+several Beancount files, a line shared by two files goes in file order (several-files.md).
 The entries of the plugin have the line of their transaction, so on one day they stand between the directives
 written above and below the transaction: a directive written above a transaction is listed before its entry,
 one written below it after. Entries of one transaction (one line) stay in the order of its postings, and
@@ -97,7 +98,7 @@ Accepted:
 - `probes/implicit-prices-rejected.beancount`: a transaction that does not balance, with an unknown account, with a closed account (kept), two postings to work out (rejected).
 - `probes/implicit-prices-convert.beancount`, `probes/implicit-prices-both-ways.beancount`: valuation with implicit entries, directives on the same day, a pair priced both ways.
 - `probes/implicit-prices-auto-accounts.beancount`, `probes/implicit-prices-auto-accounts-reversed.beancount`: with `auto_accounts`, both orders.
-- `probes/several-files/implicit-a.beancount`, `implicit-b.beancount`: one file with the plugin, one without.
+- `probes/several-files/implicit-a.beancount`, `implicit-b.beancount`: one file with the plugin, one without (the root's line serves both).
 
 Rejected (the harness compares the first error only): `probes/implicit-prices-negative-price.beancount`, `probes/implicit-prices-zero-units-at-cost.beancount`.
 

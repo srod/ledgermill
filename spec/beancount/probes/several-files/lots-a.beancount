@@ -1,0 +1,20 @@
+; No option and no plugin: the sale is ambiguous, the gift uses accounts nobody opened, and no
+; price comes from the lots.
+2026-01-01 open Assets:Stock
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "buy"
+  Assets:Stock   1 STOCK {10 EUR}
+  Assets:Bank
+
+2026-01-03 * "buy higher"
+  Assets:Stock   1 STOCK {20 EUR}
+  Assets:Bank
+
+2026-01-04 * "sell one"
+  Assets:Stock  -1 STOCK {}
+  Assets:Bank
+
+2026-01-05 * "gift"
+  Assets:Cash   5 EUR
+  Income:Gift

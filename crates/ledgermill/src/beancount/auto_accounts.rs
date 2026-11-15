@@ -18,12 +18,12 @@ fn used<'a>(first_use: &mut BTreeMap<&'a str, Day>, account: &'a str, date: Day)
 
 /// The `open` directives the plugin adds, each on the day its account is first used. A use is a
 /// posting of a transaction booking kept (one it rejected is not seen), either account of a `pad`,
-/// and a `balance`, `note`, `document` or `close`. An account with an `open` anywhere in the file
+/// and a `balance`, `note`, `document` or `close`. An account with an `open` anywhere in the files
 /// is left alone, even if the `open` comes late: the error that follows is the reference's own.
-pub(super) fn opens(items: &[Item], kept: &[Kept]) -> Vec<Item> {
+pub(super) fn opens(files: &[&[Item]], kept: &[Kept]) -> Vec<Item> {
     let mut first_use: BTreeMap<&str, Day> = BTreeMap::new();
     let mut declared: HashSet<&str> = HashSet::new();
-    for item in items {
+    for item in files.iter().flat_map(|items| items.iter()) {
         match item {
             Item::Open { account, .. } => {
                 declared.insert(account);

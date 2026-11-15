@@ -13,12 +13,13 @@ pub(super) const MODULE: &str = "beancount.plugins.implicit_prices";
 /// as a value (`100.0` and `100.00` are one).
 type Key = (Day, String, String, String);
 
-/// The entries one run of the plugin adds, gathered a transaction at a time in the order of the
-/// file.
+/// The entries one run of the plugin adds, gathered a transaction at a time in the order the
+/// transactions are booked: by date and line across all the files.
 #[derive(Default)]
 pub(super) struct Run {
     seen: HashSet<Key>,
-    entries: Vec<Item>,
+    /// Each with the index, in the load order, of its transaction's file.
+    entries: Vec<(usize, Item)>,
 }
 
 /// The rate written so that equal values give equal text.
@@ -37,7 +38,13 @@ impl Run {
     /// rate; failing that, a posting that opens a lot gives the cost per unit. A posting that
     /// reduces a lot gives nothing from its cost. An entry equal to one already made in this run
     /// (same day, commodities and value) is dropped, the first written staying as written.
-    pub(super) fn transaction(&mut self, date: Day, line: u32, postings: &[BookedPosting]) {
+    pub(super) fn transaction(
+        &mut self,
+        file: usize,
+        date: Day,
+        line: u32,
+        postings: &[BookedPosting],
+    ) {
         for posting in postings {
             let (rate, quote) = match (&posting.price, &posting.lot) {
                 (Some((rate, quote)), _) => (rate, quote),
@@ -51,20 +58,23 @@ impl Run {
                 canonical(rate),
             );
             if self.seen.insert(key) {
-                self.entries.push(Item::Price {
-                    date,
-                    line,
-                    currency: posting.currency.clone(),
-                    number: rate.clone(),
-                    quote: quote.clone(),
-                });
+                self.entries.push((
+                    file,
+                    Item::Price {
+                        date,
+                        line,
+                        currency: posting.currency.clone(),
+                        number: rate.clone(),
+                        quote: quote.clone(),
+                    },
+                ));
             }
         }
     }
 
     /// The entries of `runs` runs of the plugin (one per `plugin` line, each making the same
     /// entries again), in the order they are listed in.
-    pub(super) fn repeated(self, runs: usize) -> Vec<Item> {
+    pub(super) fn repeated(self, runs: usize) -> Vec<(usize, Item)> {
         let mut all = Vec::with_capacity(self.entries.len() * runs);
         for _ in 0..runs {
             all.extend(self.entries.iter().cloned());

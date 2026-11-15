@@ -340,13 +340,17 @@ and `value-arithmetic.md`.
 
 ### Several ledgers
 
-A set with more than one ledger (`spec/beancount/several-files.md`) is compared as a set: several Beancount files, or Beancount files
-and hledger files in one `load`. **Each Beancount file is a ledger of its own, and all the hledger files together are one**, wherever
-they sit in the list. Nothing here applies to a set with one ledger (one Beancount file, or hledger files only): it is the case of the
-sections above, unchanged. `compareAll` decides by `isMultiLedger`.
+A set of several files (`spec/beancount/several-files.md`) is compared as a set: several Beancount files, or Beancount files
+and hledger files in one `load`. **All the Beancount files together are one ledger, and all the hledger files together are one**, wherever
+they sit in the list. Nothing here applies to one file, or to hledger files only: that is the case of the sections above, unchanged.
+`compareAll` decides by `isMultiLedger`.
 
-**The reference** is run per ledger, with the pipelines above: `bean-check` and the `bean-query` queries on each Beancount file alone,
-and `hledger` on all the hledger files of the set together, in the order of the list. The harness then merges those results by the rule
+**The reference** is run per ledger, with the pipelines above: `hledger` on all the hledger files of the set together, in the order of the
+list; `bean-check` and the `bean-query` queries on the Beancount ledger through a **root file** (`beancountRoot`): the text of the first
+Beancount file, which is the root, and an `include` line for each of the others, in the order given, in a temporary directory with the
+first file's name. That is how the reference reads several files, and only the root's options and plugins apply there, as ledgermill
+takes the first Beancount file's. The reference lists a ledger of several files by line and by file name, ours by file position, so
+the reference's rows are put in our order first (`inSetOrder`, `alignTo`). The harness then merges those results by the rule
 of the note, with an implementation of its own (`mergeOrder`, `splitLists`, `sumHoldingRows`, `expectedFirstError` in `lib.ts`, each with
 a self-test of hand-written values): it never calls the engine. What it compares them with is the wasm loaded with the whole set at once.
 
@@ -389,12 +393,15 @@ The summary has a line for the sets: `multi-ledger: N pass, N fail, N skip` (the
 `postings`, `prices`, `--cost`, `--value` and `holdings`; they are in the total. `compare.ts` runs the sets of `severalSets` (the probes of
 `spec/beancount/probes/several-files/` in several orders, with the hledger file first, in the middle and last; the rejected ones; the
 refused one next to good ones) and `appSets` (Plainledger's own Beancount journals with each other and with its hledger ones, which
-share accounts such as `Assets:Bank`, so that rows are added; all thirteen Beancount ones together; all with three journals among them).
+share accounts such as `Assets:Bank`, so that rows are added. Sets of several Beancount journals open the same accounts in each, so the
+reference rejects them at a duplicate `open` and they compare the first error only. That goes for the sets of two or three Beancount
+journals, and for all thirteen together, which have three hledger journals among them.)
 `real.ts` with several files runs each alone and then all together, as a set, whatever the formats.
 
 `bun harness/fuzz.ts --multi [N] [SEED]` writes sets of 2 to 4 files (one Beancount at least, then Beancount or hledger; a hledger
 journal may bring its second file), in a shuffled list order, with the generators above: the hledger accounts take the Beancount
-generator's names and the commodities EUR, USD, XX and YY are in both, the dates overlap, so days tie and rows are added. About half of the
+generator's names and the commodities EUR, USD, XX and YY are in both, the dates overlap, so days tie and rows are added. Each Beancount file
+after the first leaves out its `open` lines four times in five (the first file's serve it), and keeps them otherwise: a duplicate `open`. About half of the
 sets have a rejected ledger (the hledger generator writes invalid journals on purpose), which asks for the first error. Per set: one or
 two `--value` questions and two holdings questions. Same seed, same sets. A FAIL prints the files in list order, and `--save DIR` writes
 them as `multi-SEED-N-I.beancount|journal` (`I` is the position in the list) with `multi-SEED-N.txt` that holds the note and the

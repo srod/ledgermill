@@ -136,25 +136,6 @@ fn a_transaction_booking_rejects_gives_its_booking_error_and_no_other() {
     );
 }
 
-#[test]
-fn the_plugin_is_for_its_own_file_only() {
-    let with = probe("auto-accounts");
-    let without = "2026-01-02 * \"no open\"\n  Assets:C  1 EUR\n  Assets:D\n";
-    let loaded = load(&[file("a.beancount", &with), file("b.beancount", without)]);
-    let found: Vec<(&str, &str)> = loaded
-        .check()
-        .iter()
-        .map(|f| (f.file.as_str(), f.code.as_str()))
-        .collect();
-    assert_eq!(
-        found,
-        [
-            ("b.beancount", "account-not-open"),
-            ("b.beancount", "account-not-open")
-        ]
-    );
-}
-
 /// The refusals of a journal: `[line, construct, name]`.
 fn refusals(journal: &str) -> Value {
     Value::Array(

@@ -1,0 +1,5 @@
+plugin "beancount.plugins.auto_accounts"
+
+2026-01-02 * "uses accounts nobody opened"
+  Assets:Cash   5 EUR
+  Income:Gift

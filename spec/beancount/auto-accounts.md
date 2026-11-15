@@ -33,8 +33,8 @@ with the module name in `details.name`.
   tell it from one it does not know, and refuses it by name as well.
 - A refused plugin line next to an `auto_accounts` one still refuses the file.
 - Naming `auto_accounts` twice runs it once. The line may stand anywhere in the file: first, last, between
-  directives. A plugin belongs to its file only, as options do (several-files.md): in a manifest of several
-  Beancount files, the others do not get it.
+  directives. Only the first file of a manifest of several Beancount files (the root) can switch it on, and then it
+  serves all of them; the line of any other file does nothing (several-files.md).
 
 ### What `auto_accounts` does
 
@@ -43,10 +43,11 @@ It adds an `open` for every account that is used and has no `open` directive.
 - **Which accounts.** One is *used* by a posting of a transaction, by the account **and** the source of a `pad`,
   and by a `balance`, a `note`, a `document` or a `close`. A `price`, `event`, `commodity`, `query` and `custom`
   name no account for it (an account in the values of a `custom`, or in the value of a metadata key, is not opened).
-- **Which date.** The date of the account's earliest use, whichever line comes first in the file. The `open` has
+- **Which date.** The date of the account's earliest use, whichever line comes first in the file (with several Beancount
+  files, the earliest use in any of them). The `open` has
   no currency constraint and the default booking method, so any currency is fine in it and a lot is booked as
   everywhere.
-- **Which accounts it leaves alone.** One with an `open` anywhere in the file, whatever its date. A use before
+- **Which accounts it leaves alone.** One with an `open` anywhere in the file (in any file of a set), whatever its date. A use before
   that `open` stays the error it is without the plugin (`account-not-open`, `reason: not-yet-open`), and an
   explicit `open` keeps its currencies (`currency-not-allowed`). A duplicate `open` is still a duplicate.
 - **`close`.** A `close` of an account that has no `open` opens it on the day of the `close` (or earlier, if it

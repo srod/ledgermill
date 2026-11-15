@@ -1,0 +1,12 @@
+option "booking_method" "FIFO"
+
+2026-01-01 open Assets:Stock
+2026-01-01 open Assets:Bank
+
+2026-01-02 * "buy"
+  Assets:Stock   1 STOCK {10 EUR}
+  Assets:Bank
+
+2026-01-03 * "buy higher"
+  Assets:Stock   1 STOCK {20 EUR}
+  Assets:Bank

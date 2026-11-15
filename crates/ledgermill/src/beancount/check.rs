@@ -3,6 +3,9 @@
 //!
 //! The order matters: `check()` reports problems in the order `bean-check` prints them, so the
 //! first one is the reference's first (spec/beancount/check-order.md).
+//!
+//! The entries of several files are one list: the walk sorts by date, group and line, and only
+//! then by the position of the file, as the reference does (spec/beancount/several-files.md).
 
 use super::plain::{Day, Item, Lot};
 use super::pydec::Num;
@@ -10,6 +13,13 @@ use foldhash::{HashMap, HashSet};
 use serde_json::{Value, json};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+
+/// Where an entry stands: the position of its file in the set, and its line.
+#[derive(Clone, Copy)]
+pub(super) struct At {
+    pub file: usize,
+    pub line: u32,
+}
 
 /// One posting of a kept transaction: what an account gained, and the lot it went into.
 pub(super) struct Posted {
@@ -22,13 +32,13 @@ pub(super) struct Posted {
 /// A transaction the reference keeps (one that booking rejected is dropped before any check).
 pub(super) struct Kept {
     pub date: Day,
-    pub line: u32,
+    pub at: At,
     pub postings: Vec<Posted>,
 }
 
-/// A problem found here, before it is given its file and severity.
+/// A problem found here, before it is given its severity.
 pub(super) struct Problem {
-    pub line: u32,
+    pub at: At,
     pub code: &'static str,
     pub details: Value,
     pub message: &'static str,
@@ -36,11 +46,11 @@ pub(super) struct Problem {
 
 /// The transaction a `pad` adds for one `balance` (spec/beancount/pad.md).
 pub(super) struct Padding {
-    /// The pad's date and line: where the transaction stands.
+    /// The pad's date and place: where the transaction stands.
     pub date: Day,
-    pub line: u32,
-    /// The balance's line: where its postings stand.
-    pub balance_line: u32,
+    pub at: At,
+    /// The balance's place: where its postings stand, which may be in another file.
+    pub balance_at: At,
     pub account: String,
     pub source: String,
     pub currency: String,
@@ -62,7 +72,7 @@ impl Padding {
     fn kept(&self) -> Kept {
         Kept {
             date: self.date,
-            line: self.line,
+            at: self.at,
             postings: self
                 .legs()
                 .into_iter()
@@ -79,33 +89,34 @@ impl Padding {
 
 pub(super) struct Checked {
     pub paddings: Vec<Padding>,
-    /// The lines of the `document` directives: the reference looks for their files, we do not.
-    pub documents: Vec<u32>,
+    /// The `document` directives: the reference looks for their files, we do not.
+    pub documents: Vec<At>,
     pub problems: Vec<Problem>,
 }
 
 /// A directive, or a transaction with its rank among the padding transactions of one pad (0 for
 /// a transaction that was written).
 enum Entry<'a> {
-    Directive(&'a Item, Day, u32),
+    Directive(&'a Item, Day, At),
     Transaction(&'a Kept, usize),
 }
 
 impl Entry<'_> {
     /// Where the entry stands in a walk: by date, then `open`, `balance`, everything else and
-    /// last `close` and `document`, each group by line; a padding transaction right after its pad.
-    fn key(&self) -> (Day, u8, u32, usize) {
+    /// last `close` and `document`, each group by line, a line shared by two files in file order; a
+    /// padding transaction right after its pad.
+    fn key(&self) -> (Day, u8, u32, usize, usize) {
         match self {
-            Entry::Directive(item, date, line) => {
+            Entry::Directive(item, date, at) => {
                 let group = match item {
                     Item::Open { .. } => 0,
                     Item::Balance { .. } => 1,
                     Item::Close { .. } | Item::Document { .. } => 3,
                     _ => 2,
                 };
-                (*date, group, *line, 0)
+                (*date, group, at.line, at.file, 0)
             }
-            Entry::Transaction(kept, rank) => (kept.date, 2, kept.line, *rank),
+            Entry::Transaction(kept, rank) => (kept.date, 2, kept.at.line, kept.at.file, *rank),
         }
     }
 }
@@ -200,13 +211,16 @@ fn within_tolerance(difference: &Num, tolerance: &Num) -> bool {
 
 /// Run the checks that come after booking, in the order the reference prints them. `added` are
 /// the directives a plugin made; they are checked like the ones written.
-pub(super) fn run(items: &[Item], added: &[Item], kept: &[Kept]) -> Checked {
-    let mut entries: Vec<Entry> = items
+pub(super) fn run(files: &[&[Item]], added: &[Item], kept: &[Kept]) -> Checked {
+    let mut entries: Vec<Entry> = files
         .iter()
-        .chain(added)
-        .filter_map(|item| {
+        .enumerate()
+        .flat_map(|(file, items)| items.iter().map(move |item| (file, item)))
+        // The reference gives the entries a plugin makes no place of their own.
+        .chain(added.iter().map(|item| (0, item)))
+        .filter_map(|(file, item)| {
             item.place()
-                .map(|(date, line)| Entry::Directive(item, date, line))
+                .map(|(date, line)| Entry::Directive(item, date, At { file, line }))
         })
         .chain(kept.iter().map(|k| Entry::Transaction(k, 0)))
         .collect();
@@ -235,7 +249,7 @@ pub(super) fn run(items: &[Item], added: &[Item], kept: &[Kept]) -> Checked {
     let documents = entries
         .iter()
         .filter_map(|e| match e {
-            Entry::Directive(Item::Document { line, .. }, ..) => Some(*line),
+            Entry::Directive(Item::Document { .. }, _, at) => Some(*at),
             _ => None,
         })
         .collect();
@@ -319,18 +333,18 @@ impl<'a> Accounts<'a> {
     }
 }
 
-fn not_open(account: &str, why: &Inactive, line: u32) -> Problem {
+fn not_open(account: &str, why: &Inactive, at: At) -> Problem {
     Problem {
-        line,
+        at,
         code: "account-not-open",
         details: json!({ "account": account, "reason": why.name() }),
         message: "This account is not open on this date.",
     }
 }
 
-fn currency_not_allowed(account: &str, currency: &str, directive: &str, line: u32) -> Problem {
+fn currency_not_allowed(account: &str, currency: &str, directive: &str, at: At) -> Problem {
     Problem {
-        line,
+        at,
         code: "currency-not-allowed",
         details: json!({ "account": account, "currency": currency, "directive": directive }),
         message: "The account does not allow this currency.",
@@ -342,7 +356,7 @@ struct PadState<'a> {
     account: &'a str,
     source: &'a str,
     date: Day,
-    line: u32,
+    at: At,
     /// The currencies it has seen an assertion for, whether or not it padded.
     handled: Vec<&'a str>,
     made: bool,
@@ -363,7 +377,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
                     account, source, ..
                 },
                 date,
-                line,
+                at,
             ) => {
                 active.retain(|&i| pads.get(i).is_none_or(|p| p.account != account));
                 active.push(pads.len());
@@ -371,7 +385,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
                     account,
                     source,
                     date: *date,
-                    line: *line,
+                    at: *at,
                     handled: Vec::new(),
                     made: false,
                 });
@@ -385,7 +399,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
                     ..
                 },
                 _,
-                balance_line,
+                balance_at,
             ) => {
                 let tolerance = tolerance(expected, written.as_ref());
                 let mut made = Vec::new();
@@ -402,7 +416,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
                     }
                     if sums.holds_cost(pad.account, currency) {
                         problems.push(Problem {
-                            line: *balance_line,
+                            at: *balance_at,
                             code: "pad-with-cost",
                             details: json!({ "account": pad.account, "currency": currency }),
                             message: "The account holds lots with a cost, which a pad does not respect.",
@@ -411,8 +425,8 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
                     pad.made = true;
                     made.push(Padding {
                         date: pad.date,
-                        line: pad.line,
-                        balance_line: *balance_line,
+                        at: pad.at,
+                        balance_at: *balance_at,
                         account: pad.account.to_string(),
                         source: pad.source.to_string(),
                         currency: currency.clone(),
@@ -430,7 +444,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
         }
     }
     problems.extend(pads.iter().filter(|p| !p.made).map(|p| Problem {
-        line: p.line,
+        at: p.at,
         code: "unused-pad",
         details: json!({ "account": p.account, "source": p.source }),
         message: "This pad never added a transaction.",
@@ -446,7 +460,6 @@ fn balance_assertions(entries: &[Entry], accounts: &Accounts, problems: &mut Vec
             Entry::Transaction(kept, _) => sums.apply(&kept.postings),
             Entry::Directive(
                 Item::Balance {
-                    line,
                     account,
                     expected,
                     tolerance: written,
@@ -454,22 +467,22 @@ fn balance_assertions(entries: &[Entry], accounts: &Accounts, problems: &mut Vec
                     ..
                 },
                 date,
-                _,
+                at,
             ) => {
                 if let Some(why @ (Inactive::NeverOpened | Inactive::NotYetOpen)) =
                     accounts.inactive(account, *date, false)
                 {
-                    problems.push(not_open(account, &why, *line));
+                    problems.push(not_open(account, &why, *at));
                 }
                 let allowed = accounts.currencies(account);
                 if !allowed.is_empty() && !allowed.contains(currency) {
-                    problems.push(currency_not_allowed(account, currency, "balance", *line));
+                    problems.push(currency_not_allowed(account, currency, "balance", *at));
                 }
                 let accumulated = sums.total(account, currency);
                 let difference = accumulated.add(&expected.negated());
                 if !within_tolerance(&difference, &tolerance(expected, written.as_ref())) {
                     problems.push(Problem {
-                        line: *line,
+                        at: *at,
                         code: "assertion-failed",
                         details: json!({
                             "account": account,
@@ -493,27 +506,27 @@ fn open_and_close(entries: &[Entry], problems: &mut Vec<Problem>) {
     let mut closed: HashSet<&str> = HashSet::default();
     for entry in entries {
         match entry {
-            Entry::Directive(Item::Open { account, line, .. }, ..) => {
+            Entry::Directive(Item::Open { account, .. }, _, at) => {
                 if !opened.insert(account) {
                     problems.push(Problem {
-                        line: *line,
+                        at: *at,
                         code: "duplicate-open",
                         details: json!({ "account": account }),
                         message: "This account was opened before.",
                     });
                 }
             }
-            Entry::Directive(Item::Close { account, line, .. }, ..) => {
+            Entry::Directive(Item::Close { account, .. }, _, at) => {
                 if !opened.contains(account.as_str()) {
                     problems.push(Problem {
-                        line: *line,
+                        at: *at,
                         code: "close-without-open",
                         details: json!({ "account": account }),
                         message: "This account is closed without having been opened.",
                     });
                 } else if !closed.insert(account) {
                     problems.push(Problem {
-                        line: *line,
+                        at: *at,
                         code: "duplicate-close",
                         details: json!({ "account": account }),
                         message: "This account was closed before.",
@@ -530,25 +543,24 @@ fn open_and_close(entries: &[Entry], problems: &mut Vec<Problem>) {
 fn accounts_used<'a>(entries: &[Entry<'a>], accounts: &Accounts, problems: &mut Vec<Problem>) {
     // One buffer for every call: the accounts of the entry that were already looked at.
     let mut seen: Vec<&str> = Vec::new();
-    let mut check =
-        |names: &mut dyn Iterator<Item = &'a str>, date: Day, line: u32, until_close| {
-            seen.clear();
-            for name in names {
-                if seen.contains(&name) {
-                    continue;
-                }
-                seen.push(name);
-                if let Some(why) = accounts.inactive(name, date, until_close) {
-                    problems.push(not_open(name, &why, line));
-                }
+    let mut check = |names: &mut dyn Iterator<Item = &'a str>, date: Day, at: At, until_close| {
+        seen.clear();
+        for name in names {
+            if seen.contains(&name) {
+                continue;
             }
-        };
+            seen.push(name);
+            if let Some(why) = accounts.inactive(name, date, until_close) {
+                problems.push(not_open(name, &why, at));
+            }
+        }
+    };
     for entry in entries {
         match entry {
             Entry::Transaction(kept, 0) => check(
                 &mut kept.postings.iter().map(|p| p.account.as_str()),
                 kept.date,
-                kept.line,
+                kept.at,
                 true,
             ),
             Entry::Directive(
@@ -556,18 +568,18 @@ fn accounts_used<'a>(entries: &[Entry<'a>], accounts: &Accounts, problems: &mut 
                     account, source, ..
                 },
                 date,
-                line,
+                at,
             ) => check(
                 &mut [account.as_str(), source.as_str()].into_iter(),
                 *date,
-                *line,
+                *at,
                 true,
             ),
             Entry::Directive(
                 Item::Note { account, .. } | Item::Document { account, .. },
                 date,
-                line,
-            ) => check(&mut std::iter::once(account.as_str()), *date, *line, false),
+                at,
+            ) => check(&mut std::iter::once(account.as_str()), *date, *at, false),
             _ => {}
         }
     }
@@ -586,7 +598,7 @@ fn currencies_allowed(entries: &[Entry], accounts: &Accounts, problems: &mut Vec
                     &p.account,
                     &p.currency,
                     "transaction",
-                    kept.line,
+                    kept.at,
                 ));
             }
         }
@@ -602,11 +614,10 @@ fn duplicate_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
                 account,
                 currency,
                 expected,
-                line,
                 ..
             },
             date,
-            _,
+            at,
         ) = entry
         else {
             continue;
@@ -616,7 +627,7 @@ fn duplicate_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
             .or_insert(expected);
         if earlier.cmp_value(expected) != Ordering::Equal {
             problems.push(Problem {
-                line: *line,
+                at: *at,
                 code: "duplicate-assertion",
                 details: json!({
                     "account": account,
@@ -634,11 +645,11 @@ fn duplicate_assertions(entries: &[Entry], problems: &mut Vec<Problem>) {
 fn duplicate_commodities(entries: &[Entry], problems: &mut Vec<Problem>) {
     let mut seen: HashSet<&str> = HashSet::default();
     for entry in entries {
-        if let Entry::Directive(Item::Commodity { currency, line, .. }, ..) = entry
+        if let Entry::Directive(Item::Commodity { currency, .. }, _, at) = entry
             && !seen.insert(currency)
         {
             problems.push(Problem {
-                line: *line,
+                at: *at,
                 code: "duplicate-commodity",
                 details: json!({ "currency": currency }),
                 message: "This commodity was declared before.",

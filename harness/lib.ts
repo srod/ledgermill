@@ -2,7 +2,7 @@
 // typed values.
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -1777,27 +1777,50 @@ export function summarize(c: Comparison): Verdict {
 }
 
 // ───────────── several ledgers ─────────────
-// A set with more than one ledger (spec/beancount/several-files.md): each Beancount file is a ledger of its own and all the hledger
-// files together are one. The reference runs per ledger, and its results are merged here by the rule of the note: this is the
-// harness's own small implementation of it, never a call of the engine. Ours is the whole set loaded at once.
+// A set of several files (spec/beancount/several-files.md): all the Beancount files together are one ledger and all the hledger files
+// together are one. The reference runs per ledger (the Beancount one through a root that includes the files), and its results are merged
+// here by the rule of the note: this is the harness's own small implementation of it, never a call of the engine. Ours is the whole set
+// loaded at once.
 
-/** A ledger of a set: one Beancount file, or all the hledger files together. */
+/** A ledger of a set: all the Beancount files, or all the hledger files, in the order given. */
 export type SetLedger = { format: "hledger" | "beancount"; paths: string[] };
 
 /** The ledgers of a manifest, in the order of their first file. */
 export function ledgersOf(paths: string[]): SetLedger[] {
   const out: SetLedger[] = [];
-  let hledger: SetLedger | undefined;
+  const ledgers = new Map<SetLedger["format"], SetLedger>();
   for (const path of paths) {
-    if (isBeancountPath(path)) out.push({ format: "beancount", paths: [path] });
-    else if (hledger) hledger.paths.push(path);
-    else out.push((hledger = { format: "hledger", paths: [path] }));
+    const format = isBeancountPath(path) ? "beancount" : "hledger";
+    const ledger = ledgers.get(format);
+    if (ledger) ledger.paths.push(path);
+    else {
+      const created: SetLedger = { format, paths: [path] };
+      ledgers.set(format, created);
+      out.push(created);
+    }
   }
   return out;
 }
 
-/** More than one ledger: several Beancount files, or Beancount next to hledger. */
-export const isMultiLedger = (paths: string[]): boolean => ledgersOf(paths).length > 1;
+/** A set compared as such: several files with a Beancount one among them. Hledger files alone, and one file, are the single-ledger cases. */
+export const isMultiLedger = (paths: string[]): boolean => paths.length > 1 && paths.some(isBeancountPath);
+
+/**
+ * The file the Beancount tools read for the Beancount files of a set: the first file, which is the root, then an `include` of each of
+ * the others in the order given. The reference applies the options and plugins of the root only, and the first file is what ledgermill
+ * takes as the root. One file is its own root. `dir` is the directory to remove when done.
+ */
+export function beancountRoot(paths: string[]): { root: string; dir: string | null } {
+  const [first, ...others] = paths;
+  if (first === undefined) throw new Error("no Beancount file");
+  if (others.length === 0) return { root: first, dir: null };
+  const dir = mkdtempSync(join(tmpdir(), "ledgermill-set-"));
+  // The same basename, so that the file's entries are told by name as ours are.
+  const root = join(dir, basename(first));
+  const text = readFileSync(first, "utf8");
+  writeFileSync(root, `${text}${text.endsWith("\n") ? "" : "\n"}${others.map((p) => `include "${resolve(p)}"\n`).join("")}`);
+  return { root, dir };
+}
 
 /** The position of a file in the manifest: the first path equal to it, else the first with its basename; -1 when none. */
 export function manifestIndex(file: string, paths: string[]): number {
@@ -1822,6 +1845,30 @@ export function mergeOrder(ledgers: MergeKey[][]): Origin[] {
 
 /** The ledgers' lists put in the merged order. */
 export const mergeLists = <T>(lists: T[][], order: Origin[]): T[] => order.map(({ ledger, index }) => (lists[ledger] as T[])[index] as T);
+
+/** Rows in the merged order of a single ledger of several files: by date, then the position of the file, the rest as it was. */
+export const inSetOrder = <T>(rows: T[], key: (row: T) => MergeKey): T[] => mergeLists([rows], mergeOrder([rows.map(key)]));
+
+/**
+ * `ours` put in the order of the reference's rows, which are given as keys: equal keys are matched in turn. Null when the two are not
+ * the same list of keys. The reference lists a ledger of several files by line, ours by file then line.
+ */
+export function alignTo<T>(ours: T[], keyOf: (item: T) => string, theirs: string[]): T[] | null {
+  const waiting = new Map<string, T[]>();
+  for (const item of ours) {
+    const key = keyOf(item);
+    const queue = waiting.get(key);
+    if (queue) queue.push(item);
+    else waiting.set(key, [item]);
+  }
+  const out: T[] = [];
+  for (const key of theirs) {
+    const next = waiting.get(key)?.shift();
+    if (next === undefined) return null;
+    out.push(next);
+  }
+  return out.length === ours.length ? out : null;
+}
 
 /** The merged list cut back into one list per ledger, each in its own order; null when it is not as long as the order. */
 export function splitLists<T>(merged: T[], order: Origin[], ledgers: number): T[][] | null {
@@ -1977,23 +2024,32 @@ type LedgerReference = {
   /** The reference runs of this ledger that are asked again for another question. */
   cache: RunCache;
   runs: BeanRuns;
+  /** Beancount: the file the tools read (see `beancountRoot`), and the directory to remove when done. */
+  root: string;
+  dir: string | null;
 };
 
 async function referenceOf(ledger: SetLedger): Promise<LedgerReference> {
-  const base = { ledger, texts: ledger.paths.map((p) => readFileSync(p, "utf8")), cache: new Map(), runs: new Map() };
+  const base = { ledger, texts: ledger.paths.map((p) => readFileSync(p, "utf8")), cache: new Map(), runs: new Map(), root: ledger.paths[0] as string, dir: null };
   if (ledger.format === "hledger") {
     const ref = await runHledger(ledger.paths);
     return ref.ok
       ? { ...base, reject: null, transactions: ref.transactions, postings: [] }
       : { ...base, reject: { message: ref.message, first: ref.first }, transactions: [], postings: [] };
   }
-  const [path] = ledger.paths as [string];
-  const rejection = await runBeanCheck(path);
-  if (rejection) return { ...base, reject: rejection, transactions: [], postings: [] };
-  return { ...base, reject: null, ...(await queryBeancount(path)) };
+  const { root, dir } = beancountRoot(ledger.paths);
+  const rooted = { ...base, root, dir };
+  try {
+    const rejection = await runBeanCheck(root);
+    if (rejection) return { ...rooted, reject: rejection, transactions: [], postings: [] };
+    return { ...rooted, reject: null, ...(await queryBeancount(root)) };
+  } catch (error) {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
-const labelOf = (ledger: SetLedger): string => (ledger.format === "hledger" ? ledger.paths.map((p) => basename(p)).join("+") : basename(ledger.paths[0] as string));
+const labelOf = (ledger: SetLedger): string => ledger.paths.map((p) => basename(p)).join("+");
 
 /** `postings()` of the set against each ledger's postings, put in the merged order. */
 async function compareSetPostings(paths: string[], refs: LedgerReference[], ours: FlatPosting[]): Promise<Verdict> {
@@ -2001,7 +2057,8 @@ async function compareSetPostings(paths: string[], refs: LedgerReference[], ours
     const lists: (HledgerRow[] | FlatPosting[])[] = [];
     for (const r of refs) {
       if (r.ledger.format === "beancount") {
-        lists.push(r.postings);
+        // bean-query orders by file name; the set is ordered by the position of the file.
+        lists.push(inSetOrder(r.postings, (row) => ({ date: row.date, file: manifestIndex(row.file, paths) })));
         continue;
       }
       const csv = await runHledgerText(r.ledger.paths, ["print", "--location", "-O", "csv"]);
@@ -2031,9 +2088,8 @@ async function compareSetPrices(paths: string[], refs: LedgerReference[], ours: 
     const hledgerRows = new Map<number, PriceRow[]>();
     for (const [i, r] of refs.entries()) {
       if (r.ledger.format === "beancount") {
-        const [path] = r.ledger.paths as [string];
-        const rows = await beanRowsCached(r.runs, path, PRICE_QUERY);
-        keys.push(rows.map((row) => ({ date: row[0] as string, file: paths.indexOf(path) })));
+        const lines = await beanRowsCached(r.runs, r.root, PRICE_LINES_QUERY);
+        keys.push(lines.map((line) => ({ date: line[0] as string, file: manifestIndex(line[2] as string, paths) })));
         continue;
       }
       const ref = await runHledgerPrices(r.ledger.paths);
@@ -2049,7 +2105,12 @@ async function compareSetPrices(paths: string[], refs: LedgerReference[], ours: 
     for (const [i, r] of refs.entries()) {
       const part = parts[i] as PriceDirective[];
       if (r.ledger.format === "beancount") {
-        const verdict = await compareBeanPrices(r.ledger.paths[0] as string, part, r.runs);
+        // The table lists by line, ours by file and then line: put ours in the table's order to compare row by row.
+        const lines = await beanRowsCached(r.runs, r.root, PRICE_LINES_QUERY);
+        const key = (date: string, file: string, line: number | string) => `${date} ${manifestIndex(file, paths)}:${line}`;
+        const aligned = alignTo(part, (p) => key(p.date, p.file, p.line), lines.map((l) => key(l[0] as string, l[2] as string, l[1] as string)));
+        if (!aligned) return { status: "FAIL", note: `${labelOf(r.ledger)}: our prices are not the entries bean-query lists` };
+        const verdict = await compareBeanPrices(r.root, aligned, r.runs);
         if (verdict.status !== "PASS") return { ...verdict, note: `${labelOf(r.ledger)}: ${verdict.note}` };
       } else {
         const diff = diffPrices(hledgerRows.get(i) as PriceRow[], part, r.ledger.paths, r.texts);
@@ -2082,8 +2143,14 @@ async function compareSetDerived(
   if (!parts || !bookedParts) return { status: "FAIL", note: `length reference=${order.length} ours=${ours.answer.length}` };
   for (const [i, r] of refs.entries()) {
     let verdict: Verdict;
-    if (r.ledger.format === "beancount") verdict = await compareBeanAnswer(r.ledger.paths[0] as string, query, bookedParts[i] as Transaction[], parts[i] as Transaction[], r.runs);
-    else {
+    if (r.ledger.format === "beancount") {
+      // The rows are in the reference's order of transactions (by line); ours are by file and then line.
+      const [ours, booked] = [parts[i] as Transaction[], bookedParts[i] as Transaction[]];
+      const key = (t: Transaction) => `${t.date} ${manifestIndex(t.source.file, paths)}:${t.source.line}`;
+      const at = alignTo(Array.from(ours.keys()), (k) => key(booked[k] as Transaction), r.transactions.map(key));
+      if (!at) return { status: "FAIL", note: `${labelOf(r.ledger)}: our transactions are not the ones bean-query lists` };
+      verdict = await compareBeanAnswer(r.root, query, at.map((k) => booked[k] as Transaction), at.map((k) => ours[k] as Transaction), r.runs);
+    } else {
       const ref = await runHledger(r.ledger.paths, extra);
       const diff = ref.ok ? diffTransactions(ref.transactions, parts[i] as Transaction[], ignorePlaces) : null;
       verdict = !ref.ok ? { status: "FAIL", note: `hledger fails (${ref.message}) where plain print passes` } : diff ? { status: "FAIL", note: diff } : { status: "PASS", note: "" };
@@ -2112,7 +2179,7 @@ async function compareSetHoldings(paths: string[], refs: LedgerReference[], q: H
         perLedger.push(found.rows);
       } else {
         const through = q.end ? previousDay(q.end) : null;
-        perLedger.push(await beanHoldingRows(r.ledger.paths[0] as string, { through, commodity: q.commodity }, r.runs));
+        perLedger.push(await beanHoldingRows(r.root, { through, commodity: q.commodity }, r.runs));
       }
     }
     const left = (key: string) => !skipped.has(key.split("\0")[1] as string);
@@ -2143,7 +2210,7 @@ async function setValueQueries(refs: LedgerReference[]): Promise<Query[]> {
   all.push(...valueQueries(hledgerTexts));
   for (const r of refs) {
     if (r.ledger.format !== "beancount") continue;
-    const rows = await beanRowsCached(r.runs, r.ledger.paths[0] as string, PRICE_QUERY).catch(() => [] as string[][]);
+    const rows = await beanRowsCached(r.runs, r.root, PRICE_QUERY).catch(() => [] as string[][]);
     const [first] = rows;
     all.push(...beanValueQueries(rows.map((row) => row[0] as string), first ? { from: first[1] as string, to: first[3] as string } : null, r.transactions));
   }
@@ -2162,7 +2229,26 @@ async function compareMulti(
   holdings: boolean | HoldingQuestion[],
 ): Promise<Comparison> {
   const ledgers = ledgersOf(paths);
-  const refs = await Promise.all(ledgers.map(referenceOf));
+  // Not Promise.all: when one ledger's setup throws, the others' temporary directories still have to be removed.
+  const settled = await Promise.allSettled(ledgers.map(referenceOf));
+  const refs = settled.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
+  try {
+    const failure = settled.find((s): s is PromiseRejectedResult => s.status === "rejected");
+    if (failure) throw failure.reason;
+    return await compareMultiWith(paths, ignorePlaces, queries, holdings, ledgers, refs);
+  } finally {
+    for (const r of refs) if (r.dir) rmSync(r.dir, { recursive: true, force: true });
+  }
+}
+
+async function compareMultiWith(
+  paths: string[],
+  ignorePlaces: boolean,
+  queries: Query[] | undefined,
+  holdings: boolean | HoldingQuestion[],
+  ledgers: SetLedger[],
+  refs: LedgerReference[],
+): Promise<Comparison> {
   const ours = runOurs(paths);
   const stop = (raw: Verdict): Comparison => ({ raw, cost: null, values: [], postings: null, prices: null, holdings: [], plainledger: null, multi: true });
   if ("thrown" in ours) return stop({ status: "FAIL", note: `wasm threw: ${ours.thrown}` });

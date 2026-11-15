@@ -1,0 +1,6 @@
+2026-01-03 * "second deposit"
+  Assets:Bank       50 EUR
+  Equity:Opening
+
+; Sums the postings of both files, on the day after the last one.
+2026-01-04 balance Assets:Bank   150 EUR

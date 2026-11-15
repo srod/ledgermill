@@ -76,8 +76,10 @@ const specPairs: [string, string][] = [
   ["rule-file-c", "rule-file-a"],
 ];
 
-// Sets of several ledgers (spec/beancount/several-files.md): each Beancount file is a ledger of its own, all the hledger files together
-// are one. Files are loaded in the order listed; the reference runs per ledger and the results are merged (harness/README.md, "Several ledgers").
+// Sets of several files (spec/beancount/several-files.md): all the Beancount files together are one ledger, all the hledger files
+// together are one. Files are loaded in the order listed; the reference runs per ledger, the Beancount one through a root that includes the
+// files, and the results are merged (harness/README.md, "Several ledgers").
+// `a` and `b` are valid together: `b` opens only what `a` does not.
 const SEVERAL = join(ROOT, "spec/beancount/probes/several-files");
 const severalSets: string[][] = [
   // Two or three ledgers with an account, a commodity, a price and a day in common, in every position of the hledger file.
@@ -96,10 +98,26 @@ const severalSets: string[][] = [
   ["d.journal", "b.beancount", "c.journal", "a.beancount"],
   ["a.beancount", "c.journal", "b.beancount", "d.journal"],
   ["d.journal", "c.journal", "a.beancount"],
-  // Valid on their own, each with its own opens (a root renamed by an option is refused: `rename-a` is not here).
+  // Both files open the same accounts: a duplicate open in the second file (a root renamed by an option is refused: `rename-a` is not here).
   ["open-a.beancount", "open-b.beancount"],
+  ["open-b.beancount", "open-a.beancount"],
   ["open-a.beancount", "open-b.beancount", "c.journal"],
-  // A plugin belongs to its file (spec/beancount/implicit-prices.md): the prices of one file's postings are not the other's.
+  // The walk goes by date and line before the file: the open on line 5 is the duplicate, whichever file is first.
+  ["order-open-a.beancount", "order-open-b.beancount"],
+  ["order-open-b.beancount", "order-open-a.beancount"],
+  // A balance in the second file adds up the postings of both; a pad in one file is filled by a balance in the other.
+  ["bal-a.beancount", "bal-b.beancount"],
+  ["bal-b.beancount", "bal-a.beancount"],
+  ["bal-a.beancount", "c.journal", "bal-b.beancount"],
+  ["bal-a.beancount", "bal-wrong-b.beancount"],
+  ["pad-a.beancount", "pad-b.beancount"],
+  ["pad-b.beancount", "pad-a.beancount"],
+  ["pad-a.beancount", "c.journal", "pad-b.beancount"],
+  // The options and plugins of the first file (the root) serve all, those of the others are ignored (spec/beancount/several-files.md).
+  ["fifo-a.beancount", "sale-b.beancount"],
+  ["sale-b.beancount", "fifo-a.beancount"],
+  ["auto-a.beancount", "auto-b.beancount"],
+  ["auto-b.beancount", "auto-a.beancount"],
   ["implicit-a.beancount", "implicit-b.beancount"],
   ["implicit-b.beancount", "implicit-a.beancount"],
   ["implicit-a.beancount", "c.journal", "implicit-b.beancount"],
@@ -113,7 +131,7 @@ const severalSets: string[][] = [
   ["a.beancount", "unbalanced.beancount", "b.beancount"],
   ["a.beancount", "unbalanced.journal"],
   ["unbalanced.journal", "a.beancount", "c.journal"],
-  // A file ledgermill refuses next to good ones: the set is refused (a SKIP).
+  // A file ledgermill refuses next to good ones: the Beancount ledger is refused, so the set is a SKIP.
   ["refused.beancount", "a.beancount"],
   ["a.beancount", "c.journal", "refused.beancount"],
 ].map((files) => files.map((f) => join(SEVERAL, f)));

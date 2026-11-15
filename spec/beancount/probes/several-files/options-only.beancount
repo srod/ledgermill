@@ -1,0 +1,2 @@
+option "title" "A file of options and nothing else"
+option "operating_currency" "EUR"

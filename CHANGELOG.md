@@ -24,7 +24,7 @@ All notable changes to ledgermill are written here. The format follows
   cost of a posting that opens a lot add `price` entries, on the transaction's date and line, so `prices()`,
   `value()` and `holdings()` follow them. A price annotation wins over a cost, a cost that reduces a lot
   makes no price (with `NONE` booking every costed posting opens a lot, so each makes one), equal entries of
-  one run are dropped, and every `plugin` line runs it once more. A configuration string is still refused.
+  one run are dropped, and every `plugin` line of the root file runs it once more. A configuration string is still refused.
   See `spec/beancount/implicit-prices.md`.
 - `fuzz.ts --beancount` writes arithmetic in numbers now and then.
 - `fuzz.ts --beancount` and `--multi` switch `implicit_prices` and `auto_accounts` on now and then (with `auto_accounts`, some or all `open` lines
@@ -33,6 +33,16 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Changed
 
+- The Beancount files of one `load` are one ledger, read in the order given, as the reference reads a file
+  that `include`s the others: accounts, `open` and `close`, pads, balance assertions, lots and prices apply
+  across the files. An account opened twice is a `duplicate-open` finding on the `open` that comes second when the
+  entries of all the files are walked by date and then line; a
+  balance assertion in one file adds up the postings of all. The first file is the root: its `booking_method`
+  and `plugin` lines serve all the files, and those of the others do nothing. A refused construct in
+  any Beancount file makes the whole Beancount ledger refused. The hledger files are still one ledger of their own and
+  the two merge as before; `format()` still takes one file. Before, each Beancount file was a ledger of its
+  own. See `spec/beancount/several-files.md`. The harness reads the reference through a root that includes the
+  files.
 - `format()` reads the original file once. A Beancount file used to be loaded three times and parsed
   once more, an hledger file parsed and then loaded again; a format is now two loads, the original
   and the result. On 10,000 transactions, against 0.1.3 from npm on one desktop (median of 7 runs,
