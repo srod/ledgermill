@@ -113,6 +113,9 @@ const severalSets: string[][] = [
   ["pad-a.beancount", "pad-b.beancount"],
   ["pad-b.beancount", "pad-a.beancount"],
   ["pad-a.beancount", "c.journal", "pad-b.beancount"],
+  // The reference adds the postings of a day by line, not by file, and its sums round at each step (holdings).
+  ["sum-order-a.beancount", "sum-order-b.beancount"],
+  ["sum-order-b.beancount", "sum-order-a.beancount"],
   // The options and plugins of the first file (the root) serve all, those of the others are ignored (spec/beancount/several-files.md).
   ["fifo-a.beancount", "sale-b.beancount"],
   ["sale-b.beancount", "fifo-a.beancount"],

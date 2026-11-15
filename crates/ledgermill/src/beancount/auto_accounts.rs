@@ -52,16 +52,19 @@ pub(super) fn opens(files: &[&[Item]], kept: &[Kept]) -> Vec<Item> {
             used(&mut first_use, &posting.account, transaction.date);
         }
     }
-    first_use
-        .into_iter()
-        .filter(|(account, _)| !declared.contains(account))
-        .map(|(account, date)| Item::Open {
+    let mut added = Vec::new();
+    for (account, date) in first_use {
+        if declared.contains(account) {
+            continue;
+        }
+        added.push(Item::Open {
             date,
             // The reference gives the entries it adds no line of the file.
             line: 0,
-            account: account.to_string(),
-            currencies: Vec::new(),
+            account: account.to_owned(),
+            currencies: vec![],
             method: None,
-        })
-        .collect()
+        });
+    }
+    added
 }

@@ -70,6 +70,14 @@ the file (by line), as the lists of the merge below are. The reference lists its
 by file name, so the harness puts the reference's rows in our order before it compares. A padding transaction sorts
 with the file of its pad, its rows with the file of its balance.
 
+**The sums.** A query adds the rows of a group one after the other, and each addition is rounded to 28 digits, so the
+order shows in the last digit. The reference adds in the order of its entries: by date and **line, the file not in the
+key** (a line shared by two files in file order), where `transactions()` goes by date and file. `holdings()` therefore
+adds the postings by date and then line, whichever file they are in: 10^18 on line 5 of one file and three amounts of
+4e-10 on lines 2-4 of another, on one day, give `1000000000000000000.000000001` (the small ones add up to 1.2e-9 first
+and survive; the big one first, with nine places left, swallows each of them), in either order of the files (`sum-order-a`, `sum-order-b`).
+The units, cost, cost value and market value columns all follow it.
+
 `prices()` of the Beancount ledger is the **table's own order**: by date, then line, a line shared by two files in file
 order. That order is not a detail: with two prices of a pair on one day, a valuation takes the later one of the table
 (`implicit-a`, `implicit-b`: a transaction priced at 10 on line 6 of the first file follows one priced at 11 on line 4 of
@@ -131,6 +139,8 @@ The Beancount files are one ledger and so one part: one price table, valued at t
 - `open-a.beancount`, `open-b.beancount`: both open `Assets:Bank` and `Equity:Opening`.
 - `order-open-a.beancount`, `order-open-b.beancount`: an open on line 5 and on line 1, on one date.
 - `pad-a.beancount`, `pad-b.beancount`: a pad in one file, its balance in the other.
+- `sum-order-a.beancount`, `sum-order-b.beancount`: a large amount on a later line of one file and three tiny ones on
+  earlier lines of the other, one day, one account: the sum depends on the order of the additions.
 - `fifo-a.beancount`, `sale-b.beancount`: `booking_method` in a file and a sale that needs it in another.
 - `auto-a.beancount`, `auto-b.beancount`: `auto_accounts` in a file and a use of accounts in another.
 - `implicit-a.beancount`, `implicit-b.beancount`: `implicit_prices` in a file; the other file has the transactions.
@@ -186,6 +196,15 @@ bean-check: (no output)
 date,filename,lineno,account,number,narration
 2026-01-02,pad-b.beancount,1,Assets:Bank,100,(Padding inserted for Balance of 100 EUR for difference 100 EUR)
 2026-01-02,pad-b.beancount,1,Equity:Opening,-100,(Padding inserted for Balance of 100 EUR for difference 100 EUR)
+##### the order of the sums: by date and line, not by file
+== sum-order-a.beancount sum-order-b.beancount (sums)
+bean-check: (no output)
+account,currency,units,value
+Assets:Sum,EUR,(1000000000000000000.000000001 EUR),(1000000000000000000.000000001 EUR)
+== sum-order-b.beancount sum-order-a.beancount (sums)
+bean-check: (no output)
+account,currency,units,value
+Assets:Sum,EUR,(1000000000000000000.000000001 EUR),(1000000000000000000.000000001 EUR)
 ##### options and plugins: the root's apply, an included file's do not
 == fifo-a.beancount sale-b.beancount
 bean-check: (no output)

@@ -668,6 +668,29 @@ fn holdings_sum_the_rows_of_a_shared_account_and_commodity() {
 }
 
 #[test]
+fn beancount_sums_add_in_date_and_line_order_whichever_file_is_first() {
+    // 10^18 on line 5 of one file and three 4e-10 on lines 2-4 of the other, on one day. The sum
+    // rounds to 28 digits at each step: the small ones first add up to 1.2e-9 and survive, the big
+    // one first swallows each. The reference goes by line and gives ...001 in both orders
+    // (spec/beancount/several-files.md, `sums`).
+    for files in [
+        [
+            probe!("sum-order-a.beancount"),
+            probe!("sum-order-b.beancount"),
+        ],
+        [
+            probe!("sum-order-b.beancount"),
+            probe!("sum-order-a.beancount"),
+        ],
+    ] {
+        let rows = load(&files).holdings(&query()).unwrap();
+        let sum = rows.iter().find(|h| h.account == "Assets:Sum").unwrap();
+        assert_eq!(sum.units, "1000000000000000000.000000001");
+        assert_eq!(sum.value, [q("EUR", "1000000000000000000.000000001")]);
+    }
+}
+
+#[test]
 fn a_row_in_one_ledger_only_is_passed_through_unchanged() {
     // Only the hledger file has `p` and `q`; its own strings (two places) stay as they are.
     let only_c = file("only.journal", "2026-01-01 t\n    p  1.50 EUR\n    q\n");
