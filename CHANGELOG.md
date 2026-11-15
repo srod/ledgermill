@@ -67,6 +67,13 @@ All notable changes to ledgermill are written here. The format follows
   alternated rounds); in the wasm `load` and `transactions()` take 13% less (42.0 ms to 36.7 ms,
   median of 11 runs) and `format()` 12% less (103.5 ms to 91.4 ms). Every answer is the same.
 
+### Fixed
+
+- Beancount: `holdings()` of several files adds the postings in the reference's order, by date and then
+  line with the file not in the key. It added them by date and then file, so a sum of 28 digits that
+  rounds at each step could end one digit off when files shared a day. See
+  `spec/beancount/several-files.md`.
+
 ## 0.1.3 – 2026-11-03
 
 ### Added

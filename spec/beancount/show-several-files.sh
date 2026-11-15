@@ -45,6 +45,14 @@ prices() { # prices FILE...: the prices table, then the date, line and file of e
     | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//' | clean
 }
 
+sums() { # sums FILE...: the holdings queries' units of Assets:Sum (show-holdings.sh has the full texts)
+  echo "== $* (sums)"
+  set -- "$(root "$@")"
+  bean-check "$1" 2>&1 | clean
+  bean-query -f csv "$1" "SELECT account, currency, str(sum(units(position))) AS units, str(sum(convert(position, 'EUR'))) AS value WHERE account ~ 'Assets' GROUP BY account, currency" 2>&1 \
+    | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//' | clean
+}
+
 echo "##### accounts, balances, pads and the order of the walk"
 check a.beancount b.beancount
 check bal-a.beancount bal-b.beancount
@@ -54,6 +62,10 @@ check order-open-a.beancount order-open-b.beancount
 check order-open-b.beancount order-open-a.beancount
 check pad-a.beancount pad-b.beancount
 postings pad-a.beancount pad-b.beancount
+
+echo "##### the order of the sums: by date and line, not by file"
+sums sum-order-a.beancount sum-order-b.beancount
+sums sum-order-b.beancount sum-order-a.beancount
 
 echo "##### options and plugins: the root's apply, an included file's do not"
 check fifo-a.beancount sale-b.beancount

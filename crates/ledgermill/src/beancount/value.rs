@@ -314,9 +314,14 @@ pub(crate) fn holdings(
 ) -> Vec<Holding> {
     let rates = Rates::new(prices);
     let mut groups: BTreeMap<(Vec<&str>, &str), Group> = BTreeMap::new();
-    let counted = transactions
+    let mut counted: Vec<&Transaction> = transactions
         .iter()
-        .filter(|t| through.is_none_or(|through| t.date.as_str() <= through));
+        .filter(|t| through.is_none_or(|through| t.date.as_str() <= through))
+        .collect();
+    // The reference adds in the order of its entries: by date and line, the file not in the key.
+    // `transactions` is by date and file, so this stable sort puts a line shared by two files in
+    // file order and no more (spec/beancount/several-files.md).
+    counted.sort_by_key(|t| (t.date.as_str(), t.source.line));
     for t in counted {
         for posting in &t.postings {
             let Some(leg) = leg(posting) else {
