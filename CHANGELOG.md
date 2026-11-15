@@ -81,6 +81,35 @@ All notable changes to ledgermill are written here. The format follows
   that rounds at each step could end one digit off when files shared a day. See
   `spec/beancount/several-files.md`.
 
+### Release gate
+
+From the release-gate workflow on commit `50041d8` (run 43723414894, 2026-11-15), the head of the
+merged memory PR when it ran, CI on that PR's last commit `898b6df` (run 43725983534), and the
+owner's own runs. The only code change between the two commits adds a `drop`, with tests and docs.
+
+- Random hledger journals (5,000): 0 mismatches (2,212 that hledger accepts; the rest rejected by
+  both, 45 skipped, all `conversion-postings`)
+- Random Beancount journals (5,000): 0 mismatches (3,709 that bean-check accepts)
+- Random price networks (5,000): 0 mismatches
+- Random Beancount journals with pairs priced both ways (5,000): 0 mismatches
+- Random sets of several ledgers (5,000): 0 mismatches (1,755 sets the reference accepts; 68
+  skipped, all `conversion-postings`)
+- Corpus comparison: 13,723 pass, 0 fail, 52 skip
+- Desktop bench against 0.1.3 from npm (CI runner, 10,000 transactions): every operation within
+  0.48–1.09× of 0.1.3 (the 0.48 is hledger `format`, 185.5 to 89.5 ms; the 1.09 is Beancount
+  `holdings`, 7.69 to 8.38 ms); load+transactions 41.2 ms (hledger), 102.6 ms (Beancount); start
+  14.7 ms
+- Stress test, 100,000 transactions: ok, no crash (peak wasm memory 637.2 MB hledger, 611.5 MB Beancount)
+- Similarity check score: max 0.088 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
+  8 warn; copydetect max 0.251 (information only)
+- Real journals: TBD at release
+- Device targets: not met (Beancount load+transactions on the owner's phone, Android 10 and Chrome
+  157, on the build of `50041d8`: worst of 3 is 542.2 ms (runs 436.5, 421.7, 542.2); 0.1.3 from npm
+  on the same phone, alternated: 446.6, 440.8, 536.7 ms, also above 500 ms). Every other target met:
+  hledger load+transactions worst 263.9 ms, start 34.3 ms, value 51.5 ms (Beancount, worst),
+  holdings 39.1 ms (worst), memory 42.9 MB hledger and 43.5 MB Beancount (0.1.3 on the same phone:
+  48.3 MB and 43.5 MB)
+
 ## 0.1.3 – 2026-11-03
 
 ### Added
