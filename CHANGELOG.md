@@ -64,6 +64,9 @@ All notable changes to ledgermill are written here. The format follows
   the size of every number a ledger keeps, so the wasm memory of a 10,000-transaction load grew by 15 MB
   (`memory.buffer.byteLength` 40.2 MB to 55.2 MB). The machine integer is 64 bits now and the big one is
   boxed: 42.9 MB on the same ledger, under the 50 MB target. Every answer is the same.
+- Beancount: a load of several files builds the flat posting list after freeing what reading and
+  booking held, as it did before the files became one ledger. Built at the peak, the rows raised the wasm
+  memory of a 10,000-transaction load by 3.2 MB (43.5 MB to 46.7 MB); it is back to 43.5 MB.
 - hledger: a posting's amount is read once. It was read a second time only to find where it ends,
   for `format()`; the first read says so unless a `D` directive could give the amount a commodity.
   Balancing a transaction borrows the commodity names it used to copy. Against the commit before,
