@@ -4,7 +4,7 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.2.0 – 2026-11-15
 
 ### Added
 
@@ -102,7 +102,7 @@ owner's own runs. The only code change between the two commits adds a `drop`, wi
 - Stress test, 100,000 transactions: ok, no crash (peak wasm memory 637.2 MB hledger, 611.5 MB Beancount)
 - Similarity check score: max 0.088 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
   8 warn; copydetect max 0.251 (information only)
-- Real journals: TBD at release
+- Real journals: pass (21 pass, 0 fail; two of the owner's hledger journals, each alone and as one set)
 - Device targets: not met (Beancount load+transactions on the owner's phone, Android 10 and Chrome
   157, on the build of `50041d8`: worst of 3 is 542.2 ms (runs 436.5, 421.7, 542.2); 0.1.3 from npm
   on the same phone, alternated: 446.6, 440.8, 536.7 ms, also above 500 ms). Every other target met:
