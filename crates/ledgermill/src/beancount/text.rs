@@ -751,6 +751,75 @@ pub(super) fn glued_currency_errors(text: &str) -> Vec<u32> {
     out
 }
 
+/// Whether a line at the margin is a comment the reference skips: `;`, or one of `*!&#?%:` and
+/// another character (a lone one is a syntax error on its own line).
+fn is_comment_at_margin(line: &str) -> bool {
+    match line.as_bytes() {
+        [b';', ..] => true,
+        [b'*' | b'#', ..] => is_margin_comment(line),
+        [b'!' | b'&' | b'?' | b'%' | b':', _, ..] => true,
+        _ => false,
+    }
+}
+
+/// The directives that have no date. They end the entry above them, as a comment does.
+fn is_undated_directive(line: &str) -> bool {
+    [
+        "option", "plugin", "include", "pushtag", "poptag", "pushmeta", "popmeta",
+    ]
+    .iter()
+    .any(|keyword| starts_with_keyword(line, keyword))
+}
+
+/// Lines that are indented but follow a blank line or a comment or an option at the margin, so
+/// that they belong to no entry (spec/beancount/format.md). The parser folds the blank away and
+/// reads them as metadata or postings of the entry above. The reference reports a run of them
+/// once, on its first line, and again only after a line of an entry or a directive.
+pub(super) fn stray_indent_errors(text: &str) -> Vec<u32> {
+    let mut out = Vec::new();
+    let mut in_string = false;
+    let mut open = false;
+    // A byte order mark is an error on line 1 itself, which the reference does not follow with
+    // another until it reads a directive.
+    let mut reported = text.starts_with('\u{feff}');
+    for (index, raw) in text.split('\n').enumerate() {
+        let body = raw.strip_suffix('\r').unwrap_or(raw);
+        let body = if index == 0 {
+            body.strip_prefix('\u{feff}').unwrap_or(body)
+        } else {
+            body
+        };
+        let inside_string = in_string;
+        in_string = string_open_after(body, in_string);
+        if inside_string {
+            continue;
+        }
+        if body.bytes().all(|b| matches!(b, b' ' | b'\t')) {
+            open = false;
+        } else if body.starts_with([' ', '\t']) {
+            if !open {
+                if !reported {
+                    out.extend(u32::try_from(index + 1));
+                }
+                reported = true;
+            }
+        } else if index == 0 && text.starts_with('\u{feff}') {
+            open = true;
+        } else if is_comment_at_margin(body) {
+            // A comment is no token for the reference: it does not end the silence.
+            open = false;
+        } else if is_undated_directive(body) {
+            open = false;
+            reported = false;
+        } else {
+            // A date, or a line that is a syntax error on its own.
+            open = true;
+            reported = false;
+        }
+    }
+    out
+}
+
 /// Whether the line leaves a string open (a string that spans lines), given whether one was open
 /// when it began. `;` starts a comment only outside a string.
 fn string_open_after(line: &str, mut open: bool) -> bool {

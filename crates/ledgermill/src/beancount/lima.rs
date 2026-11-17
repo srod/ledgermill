@@ -311,6 +311,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
         )
         .collect();
     margin.sort_by_key(|i| i.line);
+    // The parser reads these lines in some form, or objects to the same line: one error per line.
     let arithmetic: Vec<ParseIssue> = found
         .syntax
         .iter()
@@ -319,6 +320,15 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
             reason: "an arithmetic expression that is not one".into(),
             kind: IssueKind::Syntax,
         })
+        .chain(
+            super::text::stray_indent_errors(text)
+                .into_iter()
+                .map(|line| ParseIssue {
+                    line,
+                    reason: "an indented line after a blank line or a comment".into(),
+                    kind: IssueKind::Syntax,
+                }),
+        )
         .collect();
     let starts = line_starts(&normalized);
     let sources = parser::BeancountSources::from(normalized.as_str());
