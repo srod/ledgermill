@@ -94,7 +94,8 @@ jobs:
       - run: bun harness/compare.ts --quiet
       - run: bun harness/stress.ts
 
-  # Fails when a metric is more than 20% slower than the last published @ledgermill/wasm.
+  # Fails when a metric is more than 20% slower than the last @ledgermill/wasm published before this version.
+  # Not `latest`: a tag is pushed after its npm publish, so `latest` would be this same build.
   bench:
     needs: wasm
     runs-on: ubuntu-24.04
@@ -105,7 +106,7 @@ jobs:
           name: pkg
           path: pkg/
       - uses: oven-sh/setup-bun@v2
-      - run: bun harness/bench.ts --against-npm latest
+      - run: bun harness/bench.ts --against-npm "<$(jq -r .version pkg/package.json)"
 
   similarity:
     runs-on: ubuntu-24.04

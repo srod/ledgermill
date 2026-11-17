@@ -436,7 +436,8 @@ generated transactions per format (fixed seed): `start` (compile and instantiate
 after one warm-up. It prints a Markdown table, and appends it to `$GITHUB_STEP_SUMMARY` when that is set.
 
 With `--against DIR` (a `@ledgermill/wasm` package directory, such as another `pkg/`) or `--against-npm VERSION`
-(`npm pack @ledgermill/wasm@VERSION`, for example `latest`), the previous build runs in the same process, as its own
+(`npm pack @ledgermill/wasm@VERSION`, for example `latest`, or a range like `<0.2.1` for the newest release before
+0.2.1, which is what the Release gate uses), the previous build runs in the same process, as its own
 module instance, alternating with the current one, so the speed of the machine affects both alike. A metric the previous
 build lacks shows `n/a` and is not compared. With `--against-npm` and no published version (npm answers 404) there is no
 previous release: the current timings are printed and the exit code is 0.
