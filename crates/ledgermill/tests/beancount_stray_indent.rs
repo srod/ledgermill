@@ -127,6 +127,27 @@ fn an_indented_line_at_the_start_of_the_file_is_stray() {
     }
 }
 
+/// A quote in a comment at the margin opens no string, whatever the comment starts with: the
+/// stray line after the next entry is still an error.
+#[test]
+fn a_quote_in_a_margin_comment_opens_no_string() {
+    for start in [";", "*", "!", "&", "#", "?", "%", ":"] {
+        let journal = format!(
+            "{OPEN}{start} \"odd quote\n2026-01-02 open Assets:Cash EUR\n\n  name: \"x\"\n"
+        );
+        assert_eq!(parse_error_lines(&journal), vec![5], "{start}");
+    }
+}
+
+/// bean-check also reports a lexical error (`Invalid token`) on a later line of a run, and
+/// check() does not: the parser's error there is the same as the one on a stray posting, so it is
+/// dropped with it (spec/beancount/format.md).
+#[test]
+fn a_lexical_error_on_a_later_line_of_a_run_is_not_reported() {
+    let journal = "2026-01-02 * \"t\"\n  Assets:Bank 1 EUR\n  Expenses:Food 1 EUR\n\n  Assets:Cash 2 EUR\n  Assets:Bank garbage!\n";
+    assert_eq!(parse_error_lines(journal), vec![5]);
+}
+
 #[test]
 fn a_comment_at_the_margin_ends_an_entry() {
     for start in [";", "*", "!", "&", "#", "?", "%", ":"] {

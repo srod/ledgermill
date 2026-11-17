@@ -63,6 +63,8 @@ reports a `parse-error` on the first line of each run of them ("How many errors"
 parse error. `bean-check` drops a stray line whole, so `check()` reports nothing else about it either: an
 account with an unknown root on it is no `invalid-account-name`.
 
+A quote in such a comment starts no string (`* "odd`, `! "odd`, `; "odd`), so the lines after it are read as usual.
+
 How many errors: `bean-check` reports a stray line only when it has read three tokens since its last
 error, stray or not. A stray line counts for two, a blank line, a line of blanks or a margin comment for
 one, and an entry or a directive line for three or more. So:
@@ -76,7 +78,10 @@ one, and an entry or a directive line for three or more. So:
 
 This was found with `bean-check` on small files (a stray line, then 0, 1, 2 and 3 blank or comment lines,
 then another). Not followed: any other syntax error (a posting under a `note`) also resets the count in
-`bean-check`, so a stray line soon after it is quiet there; `check()` reports it.
+`bean-check`, so a stray line soon after it is quiet there; `check()` reports it. Also not followed: on a stray
+line after the first of its run, `bean-check` still reports a lexical error (`Invalid token`, such as
+`garbage!` after an account), and `check()` does not: the parser's errors on those lines are dropped, since
+they cannot be told from the parser's own error on a stray posting. The first error of the file is the same.
 
 ## Rule: what bean-format does
 

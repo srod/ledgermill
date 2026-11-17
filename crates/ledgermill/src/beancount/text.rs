@@ -752,7 +752,7 @@ pub(super) fn glued_currency_errors(text: &str) -> Vec<u32> {
 }
 
 /// Whether a line at the margin is a comment the reference skips: `;`, or one of `*!&#?%:` and
-/// another character (a lone one is a syntax error on its own line).
+/// another character. A lone `*` or `#` is a syntax error on its own line.
 fn is_comment_at_margin(line: &str) -> bool {
     match line.as_bytes() {
         [b';', ..] => true,
@@ -796,7 +796,12 @@ pub(super) fn stray_indent_errors(text: &str) -> StrayIndent {
             body
         };
         let inside_string = in_string;
-        in_string = string_open_after(body, in_string);
+        // A quote in a comment at the margin starts no string, whatever the comment begins with.
+        in_string = if !inside_string && is_comment_at_margin(body) {
+            false
+        } else {
+            string_open_after(body, inside_string)
+        };
         if inside_string {
             continue;
         }
