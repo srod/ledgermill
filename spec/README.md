@@ -225,7 +225,11 @@ the plugin ([auto-accounts](beancount/auto-accounts.md)).
 `price` entries, which `prices()`, `value()` and `holdings()` use ([implicit-prices](beancount/implicit-prices.md)).
 
 `parse-error` (error): the parser rejects a line (`details.reason` is its message); the
-transactions are not returned. An arithmetic expression that is not one (`(1 + )`) is one too.
+transactions are not returned. An arithmetic expression that is not one (`(1 + )`) is one too. Some
+parse errors come from ledgermill's own scans of the text, for lines the parser would read but the reference
+rejects (an indented line after a blank line, a margin comment or an `option`, `plugin`, `include`, `pushtag`,
+`poptag`, `pushmeta` or `popmeta` line, or at the start of the file, [format](beancount/format.md)); then
+`details.reason` is ledgermill's own wording, not a parser message.
 
 `division-by-zero` (error): a number divided by zero in an expression. Unlike `parse-error`, only the entry
 that holds it is left out; the others are returned. The line is that of the posting, the metadata, the
@@ -275,9 +279,11 @@ All are errors, on the line check-errors.md gives for each:
 - `unbalanced-push`: `details.kind` (`tag` or `metadata`), `details.name`, `details.reason`
   (`pop-without-push`, or `push-not-popped` on line 0).
 - `duplicate-metadata`: `details.key`, `details.scope` (`entry` or `posting`), on the transaction's header line.
-- `parse-error` (existing) also covers tokens, syntax errors, impossible dates, and a lone `*` or `#` or a
-  tag at the margin; `booking-error` and `unbalanced-transaction` stay as they are, except that a
-  `booking-error` sits on the line of the posting the reference blames for what it cannot categorize or work
+- `parse-error` (existing) also covers tokens, syntax errors, impossible dates, a lone `*` or `#` or a
+  tag at the margin, and an indented line after a blank line, a margin comment or an `option`, `plugin`,
+  `include`, `pushtag`, `poptag`, `pushmeta` or `popmeta` line, or at the start of the file (it belongs to no
+  entry; one error for a run of them, on its first line); `booking-error` and `unbalanced-transaction` stay
+  as they are, except that a `booking-error` sits on the line of the posting the reference blames for what it cannot categorize or work
   out, and on the transaction's header for lot matching.
 
 Warning: `ignored-syntax` (`details.construct`: `document`). The directive is read and skipped:

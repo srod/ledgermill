@@ -313,7 +313,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     margin.sort_by_key(|i| i.line);
     let stray = super::text::stray_indent_errors(text);
     // The parser reads these lines in some form, or objects to the same line: one error per line.
-    let arithmetic: Vec<ParseIssue> = found
+    let scanned: Vec<ParseIssue> = found
         .syntax
         .iter()
         .map(|&line| ParseIssue {
@@ -331,9 +331,9 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     let sources = parser::BeancountSources::from(normalized.as_str());
     let reader = parser::BeancountParser::new(&sources);
     let success = match reader.parse() {
-        Ok(success) if margin.is_empty() && arithmetic.is_empty() => success,
+        Ok(success) if margin.is_empty() && scanned.is_empty() => success,
         Ok(_) => {
-            margin.extend(arithmetic);
+            margin.extend(scanned);
             margin.sort_by_key(|i| i.line);
             return Err(margin);
         }
@@ -353,7 +353,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
             // The parser may have objected to the same line (`2 ^ 3`): one error per line.
             let seen: Vec<u32> = issues.iter().map(|i| i.line).collect();
             issues.extend(margin);
-            issues.extend(arithmetic.into_iter().filter(|i| !seen.contains(&i.line)));
+            issues.extend(scanned.into_iter().filter(|i| !seen.contains(&i.line)));
             // The reference reports in file order, and the pushes left open last, after the file:
             // tags before metadata.
             issues.sort_by_key(|i| match i.kind {
