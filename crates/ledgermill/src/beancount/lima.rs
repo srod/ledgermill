@@ -311,6 +311,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
         )
         .collect();
     margin.sort_by_key(|i| i.line);
+    let stray = super::text::stray_indent_errors(text);
     // The parser reads these lines in some form, or objects to the same line: one error per line.
     let arithmetic: Vec<ParseIssue> = found
         .syntax
@@ -320,15 +321,11 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
             reason: "an arithmetic expression that is not one".into(),
             kind: IssueKind::Syntax,
         })
-        .chain(
-            super::text::stray_indent_errors(text)
-                .into_iter()
-                .map(|line| ParseIssue {
-                    line,
-                    reason: "an indented line after a blank line or a comment".into(),
-                    kind: IssueKind::Syntax,
-                }),
-        )
+        .chain(stray.reported.iter().map(|&line| ParseIssue {
+            line,
+            reason: "an indented line after a blank line or a comment".into(),
+            kind: IssueKind::Syntax,
+        }))
         .collect();
     let starts = line_starts(&normalized);
     let sources = parser::BeancountSources::from(normalized.as_str());
@@ -345,6 +342,13 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
                 .errors
                 .iter()
                 .map(|e| issue(e.reason(), e.span(), &normalized, &starts))
+                // The reference drops a stray line whole: on one after the first of its run it says
+                // nothing, and on the first only the stray error, not what the parser read there.
+                .filter(|i| {
+                    !(stray.silent.contains(&i.line)
+                        || (stray.reported.contains(&i.line)
+                            && !matches!(i.kind, IssueKind::Syntax)))
+                })
                 .collect();
             // The parser may have objected to the same line (`2 ^ 3`): one error per line.
             let seen: Vec<u32> = issues.iter().map(|i| i.line).collect();

@@ -773,15 +773,21 @@ fn is_undated_directive(line: &str) -> bool {
 
 /// Lines that are indented but follow a blank line or a comment or an option at the margin, so
 /// that they belong to no entry (spec/beancount/format.md). The parser folds the blank away and
-/// reads them as metadata or postings of the entry above. The reference reports a run of them
-/// once, on its first line, and again only after a line of an entry or a directive.
-pub(super) fn stray_indent_errors(text: &str) -> Vec<u32> {
-    let mut out = Vec::new();
+/// reads them as metadata or postings of the entry above.
+///
+/// The reference does not report another error until it has read three tokens after the last one,
+/// stray or not. A stray line counts for two (the end of its own line is one, and the error
+/// restarts the count), a blank line or a margin comment for one, and a line of an entry or a
+/// directive for at least three. So a run of stray lines is one error on its first line, and a
+/// second run after two blank or comment lines, or after a directive, is another.
+///
+/// Returns the lines to report, and the other stray lines, on which the parser's own errors
+/// would repeat the report.
+pub(super) fn stray_indent_errors(text: &str) -> StrayIndent {
+    let mut out = StrayIndent::default();
     let mut in_string = false;
     let mut open = false;
-    // A byte order mark is an error on line 1 itself, which the reference does not follow with
-    // another until it reads a directive.
-    let mut reported = text.starts_with('\u{feff}');
+    let mut quiet: u8 = 0;
     for (index, raw) in text.split('\n').enumerate() {
         let body = raw.strip_suffix('\r').unwrap_or(raw);
         let body = if index == 0 {
@@ -794,30 +800,47 @@ pub(super) fn stray_indent_errors(text: &str) -> Vec<u32> {
         if inside_string {
             continue;
         }
-        if body.bytes().all(|b| matches!(b, b' ' | b'\t')) {
+        let Ok(line) = u32::try_from(index + 1) else {
+            break;
+        };
+        if index == 0 && text.starts_with('\u{feff}') {
+            // The reference discards the whole line with the error: no entry starts on it.
             open = false;
+            quiet = 2;
+        } else if body.bytes().all(|b| matches!(b, b' ' | b'\t')) {
+            open = false;
+            quiet = quiet.saturating_sub(1);
         } else if body.starts_with([' ', '\t']) {
             if !open {
-                if !reported {
-                    out.extend(u32::try_from(index + 1));
+                if quiet == 0 {
+                    out.reported.push(line);
+                } else {
+                    out.silent.push(line);
                 }
-                reported = true;
+                quiet = 2;
             }
-        } else if index == 0 && text.starts_with('\u{feff}') {
-            open = true;
         } else if is_comment_at_margin(body) {
-            // A comment is no token for the reference: it does not end the silence.
             open = false;
+            quiet = quiet.saturating_sub(1);
         } else if is_undated_directive(body) {
             open = false;
-            reported = false;
+            quiet = 0;
         } else {
             // A date, or a line that is a syntax error on its own.
             open = true;
-            reported = false;
+            quiet = 0;
         }
     }
     out
+}
+
+/// What [`stray_indent_errors`] found.
+#[derive(Default)]
+pub(super) struct StrayIndent {
+    /// Lines the reference reports: the first of a run of stray lines.
+    pub(super) reported: Vec<u32>,
+    /// Stray lines it stays quiet about.
+    pub(super) silent: Vec<u32>,
 }
 
 /// Whether the line leaves a string open (a string that spans lines), given whether one was open

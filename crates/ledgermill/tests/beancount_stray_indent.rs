@@ -101,6 +101,16 @@ fn an_indented_line_at_the_start_of_the_file_is_stray() {
     for (name, journal, lines) in [
         ("content", format!("  name: \"x\"\n{OPEN}"), vec![1]),
         ("a comment", format!("  ; c\n{OPEN}"), vec![1]),
+        (
+            "a plugin",
+            format!("  plugin \"beancount.plugins.auto_accounts\"\n{OPEN}"),
+            vec![1],
+        ),
+        (
+            "an option",
+            format!("  option \"title\" \"x\"\n{OPEN}"),
+            vec![1],
+        ),
         ("after a blank", format!("\n  name: \"x\"\n{OPEN}"), vec![2]),
         (
             "a comment after blanks",
@@ -207,7 +217,8 @@ fn crlf_line_endings_end_entries_too() {
 }
 
 /// bean-check says nothing more about stray lines until it has read a line of an entry after the
-/// last one it reported: a run of them, with blanks and margin comments between, is one error.
+/// last one it reported, or two blank lines or margin comments: a run of them, with at most one
+/// of those between, is one error.
 #[test]
 fn a_run_of_stray_lines_is_one_error_on_its_first_line() {
     for (name, journal, lines) in [
@@ -233,6 +244,81 @@ fn a_run_of_stray_lines_is_one_error_on_its_first_line() {
         ),
     ] {
         assert_eq!(parse_error_lines(&journal), lines, "{name}");
+    }
+}
+
+/// ...and two blank lines or margin comments (of any mix) between two runs make the second one
+/// count.
+#[test]
+fn two_blank_or_comment_lines_between_two_runs_make_the_second_an_error_too() {
+    for (name, journal, lines) in [
+        (
+            "two blanks",
+            format!("{OPEN}\n  name: \"x\"\n\n\n  name: \"y\"\n"),
+            vec![3, 6],
+        ),
+        (
+            "two margin comments",
+            format!("{OPEN}\n  name: \"x\"\n; c\n; d\n  name: \"y\"\n"),
+            vec![3, 6],
+        ),
+        (
+            "a blank and a comment",
+            format!("{OPEN}\n  name: \"x\"\n\n; d\n  name: \"y\"\n"),
+            vec![3, 6],
+        ),
+        (
+            "two lines of blanks",
+            format!("{OPEN}\n  name: \"x\"\n   \n\t\n  name: \"y\"\n"),
+            vec![3, 6],
+        ),
+        (
+            "at the start of the file",
+            format!("  name: \"x\"\n\n\n  name: \"y\"\n{OPEN}"),
+            vec![1, 4],
+        ),
+        (
+            "each run after two",
+            format!("{OPEN}\n  name: \"x\"\n\n\n\n  name: \"y\"\n\n\n  name: \"z\"\n"),
+            vec![3, 7, 10],
+        ),
+    ] {
+        assert_eq!(parse_error_lines(&journal), lines, "{name}");
+    }
+}
+
+/// The parser's own error on a stray posting is the same error, not a second one.
+#[test]
+fn a_stray_posting_after_an_indented_comment_is_not_reported_twice() {
+    assert_eq!(
+        parse_error_lines(&format!("{OPEN}\n  ; c\n  Assets:Bank 1 EUR\n")),
+        vec![3]
+    );
+    assert_eq!(
+        parse_error_lines(&format!("  ; c\n  name: \"x\"\n{OPEN}")),
+        vec![1]
+    );
+}
+
+/// `bean-check` drops a stray line whole, so it says nothing else about it: an account with an
+/// unknown root there is no `invalid-account-name`, on the first line of a run or a later one.
+#[test]
+fn a_stray_line_has_no_other_finding_of_its_own() {
+    let head = "2026-01-01 open Assets:Bank EUR\n2026-01-01 open Expenses:Food EUR\n2026-01-02 * \"x\"\n  Assets:Bank -1 EUR\n  Expenses:Food 1 EUR\n";
+    for (name, tail) in [
+        ("first line of a run", "\n  Foo:Account 1 EUR\n"),
+        (
+            "later line of a run",
+            "\n  Assets:Bank 1 EUR\n  Foo:Account 1 EUR\n",
+        ),
+    ] {
+        let found: Vec<Value> = findings("f.beancount", &format!("{head}{tail}"))
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| json!([f["line"], f["code"]]))
+            .collect();
+        assert_eq!(found, vec![json!([7, "parse-error"])], "{name}");
     }
 }
 
@@ -273,7 +359,7 @@ fn a_directive_between_two_runs_makes_the_second_an_error_too() {
 }
 
 /// A byte order mark makes the first line an error for bean-check (format.md), which then keeps
-/// quiet about stray lines until the next entry.
+/// quiet about a stray line until it has read two blank lines or comments, or an entry.
 #[test]
 fn after_a_byte_order_mark_stray_lines_are_reported_from_the_next_entry_on() {
     let bom = "\u{feff}";
@@ -286,5 +372,13 @@ fn after_a_byte_order_mark_stray_lines_are_reported_from_the_next_entry_on() {
             "{bom}{OPEN}2026-01-02 open Assets:Cash EUR\n\n  name: \"C\"\n"
         )),
         vec![1, 4]
+    );
+    assert_eq!(
+        parse_error_lines(&format!("{bom}{OPEN}  name: \"C\"\n")),
+        vec![1]
+    );
+    assert_eq!(
+        parse_error_lines(&format!("{bom}{OPEN}\n\n\n  name: \"C\"\n")),
+        vec![1, 5]
     );
 }
