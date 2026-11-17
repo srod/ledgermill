@@ -4,7 +4,7 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.2.1 – TBD at release
+## 0.2.1 – 2026-11-17
 
 ### Fixed
 
@@ -17,20 +17,35 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Release gate
 
-From the release-gate workflow on commit TBD at release (run TBD at release), CI on the same
-commit (run TBD at release), and the owner's own runs.
+From the release-gate workflow on commit `1d92961` (run 44120795267, 2026-11-17), CI on the same
+commit (run 44120793208), and the owner's own runs. In that CI run `rust`, `wasm`, `android` and
+`hygiene` pass; `ios` got no GitHub macOS runner in two attempts and never started, so its build
+(`cargo build --release --target aarch64-apple-ios -p ledgermill`) was run on the owner's Mac on
+`1d92961` instead, and passed.
 
-- Random hledger journals (5,000): TBD at release
-- Random Beancount journals (5,000): TBD at release
-- Random price networks (5,000): TBD at release
-- Random Beancount journals with pairs priced both ways (5,000): TBD at release
-- Random sets of several ledgers (5,000): TBD at release
-- Corpus comparison: TBD at release
-- Desktop bench against 0.2.0: TBD at release
-- Stress test, 100,000 transactions: TBD at release
-- Similarity check score: TBD at release
-- Real journals: TBD at release
-- Device targets: TBD at release
+- Random hledger journals (5,000): 0 mismatches (2,263 that hledger accepts; the rest rejected by
+  both, 44 skipped, all `conversion-postings`)
+- Random Beancount journals (5,000): 0 mismatches (3,754 that bean-check accepts)
+- Random price networks (5,000): 0 mismatches
+- Random Beancount journals with pairs priced both ways (5,000): 0 mismatches
+- Random sets of several ledgers (5,000): 0 mismatches (1,720 sets the reference accepts; 62
+  skipped, all `conversion-postings`)
+- Corpus comparison: 13,725 pass, 0 fail, 52 skip
+- Desktop bench against 0.2.0 from npm (CI runner, 10,000 transactions): every operation within
+  0.86–1.07× of 0.2.0 (both ends are calls under 0.1 ms; above that, 0.92–1.02×, the 1.02 is hledger
+  load+transactions, 61.7 to 62.8 ms); load+transactions 62.8 ms (hledger), 125.5 ms (Beancount);
+  start 16.5 ms
+- Stress test, 100,000 transactions: ok, no crash (peak wasm memory 637.2 MB hledger, 611.5 MB Beancount)
+- Similarity check score: max 0.088 (JPlag against rustledger 0.24.0; fail at 0.15), 0 fail,
+  8 warn; copydetect max 0.251 (information only)
+- Real journals: pass (21 pass, 0 fail; two of the owner's hledger journals, each alone and as one set)
+- Device targets: not met (Beancount load+transactions on the owner's phone, Android 10 and Chrome
+  157, on the build of `1d92961`: worst of 3 is 568.0 ms (runs 448.4, 562.0, 568.0), and 585.9 ms on a
+  second run (436.1, 476.0, 585.9); 0.2.0 from npm on the same phone, between the two: 460.0, 472.8,
+  450.8 ms). The desktop bench on the owner's Mac puts this call at 1.03× of 0.2.0 (79.8 to 81.9 ms, 10 runs), so most
+  of the gap is the phone's spread; 0.2.0 itself measured 542.2 ms there at its release. Every other
+  target met: hledger load+transactions worst 265.4 ms, start 33.6 ms, value 55.3 ms (Beancount,
+  worst), holdings 40.4 ms (worst), memory 42.9 MB hledger and 43.5 MB Beancount
 
 ## 0.2.0 – 2026-11-15
 
