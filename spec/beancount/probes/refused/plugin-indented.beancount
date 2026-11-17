@@ -1,0 +1,6 @@
+2026-01-01 open Assets:Bank EUR
+  plugin "beancount.plugins.auto_accounts"
+
+2026-01-02 open Assets:Cash EUR
+
+  plugin "beancount.plugins.implicit_prices"

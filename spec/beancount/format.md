@@ -43,11 +43,40 @@ about the shape of a line.
 Not the same, so never touched by a formatter:
 
 - A **blank line, a line of only blanks, or a comment at column 0** ends the transaction. The indented
-  posting after it is a syntax error (`probes/refused/format-transaction-ends.beancount`). Such lines
-  are kept as written.
+  posting after it is a syntax error (`probes/refused/format-transaction-ends.beancount`), and
+  `check()` reports it ("What ends an entry" below). Such lines are kept as written.
 - A **byte order mark** at the start of the file is part of the first token: `bean-check` reports
   `Invalid token` on the first directive (`probes/refused/format-bom.beancount`). A formatter keeps
   the BOM and does not try to repair it.
+
+## What ends an entry
+
+An indented line (metadata, a posting, an indented comment, anything) belongs to the entry above it.
+A blank line, a line of only blanks, a comment at column 0 (`;`, one of `*!&?%:` followed by another character,
+or `#` followed by a blank or by a character a tag cannot start with; `#x` is a tag, not a comment, and
+`bean-check` rejects it on its own line, `unexpected TAG`) and an `option`, `plugin`, `include`, `pushtag`, `poptag`, `pushmeta` or `popmeta` line end that entry.
+An indented line after one of them, or at the start of the file, belongs to nothing: `bean-check` says
+`syntax error, unexpected INDENT` on it (metadata in `probes/refused/metadata-after-blank.beancount`,
+postings in `format-transaction-ends`). ledgermill's parser folds blank lines
+away and would read such a line as part of the entry above, so `check()` finds these lines in the text and
+reports a `parse-error` on the first line of each run of them ("How many errors" below), like any other
+parse error. `bean-check` drops a stray line whole, so `check()` reports nothing else about it either: an
+account with an unknown root on it is no `invalid-account-name`.
+
+How many errors: `bean-check` reports a stray line only when it has read three tokens since its last
+error, stray or not. A stray line counts for two, a blank line, a line of blanks or a margin comment for
+one, and an entry or a directive line for three or more. So:
+
+- a run of stray lines is one error, on its first line, even with one blank line or margin comment among
+  them;
+- with two or more blank or comment lines between, or an entry or directive line, the next stray line is
+  an error of its own;
+- a byte order mark is an error on line 1 (above) that counts like a stray line, and the rest of that
+  line is dropped, so an indented line right after it is quiet too.
+
+This was found with `bean-check` on small files (a stray line, then 0, 1, 2 and 3 blank or comment lines,
+then another). Not followed: any other syntax error (a posting under a `note`) also resets the count in
+`bean-check`, so a stray line soon after it is quiet there; `check()` reports it.
 
 ## Rule: what bean-format does
 
@@ -364,7 +393,8 @@ format-crlf and format-no-final-newline: the same rows (the lines 5, 6, 9 and 10
 
 refused/format-transaction-ends: a blank line (line 6), a line of blanks (11) and a comment at column 0 (16) each end
 the transaction before the second posting; the posting after is a syntax error (7, 12, 17) and the transaction no
-longer balances. An account at column 0 (20) is a syntax error too.
+longer balances. An account at column 0 (20) is a syntax error too. `check()` reports the lines 7, 12, 17 and
+20 as `parse-error`, as `bean-check` does (the harness compares the first).
 
 ```text
 format-transaction-ends.beancount:7: syntax error, unexpected INDENT
@@ -374,6 +404,23 @@ format-transaction-ends.beancount:20: syntax error, unexpected ACCOUNT
 format-transaction-ends.beancount:4: Transaction does not balance: (12.50 EUR)
 format-transaction-ends.beancount:9: Transaction does not balance: (12.50 EUR)
 format-transaction-ends.beancount:14: Transaction does not balance: (12.50 EUR)
+```
+
+refused/metadata-after-blank: `name: "Groceries"` (line 4) follows a blank line, so it belongs to no entry.
+`bean-check` reports it once (`spec/beancount/show.sh spec/beancount/probes/refused/metadata-after-blank.beancount`;
+the two lists after it are empty):
+
+```text
+metadata-after-blank.beancount:4: syntax error, unexpected INDENT
+```
+
+refused/plugin-indented: an indented `plugin` line is no directive. Right after an entry (line 2) `bean-check`
+expects metadata and rejects the keyword; after a blank line (line 6) it is a stray line. `check()` gives a
+`parse-error` on both (`spec/beancount/show.sh spec/beancount/probes/refused/plugin-indented.beancount`):
+
+```text
+plugin-indented.beancount:2: syntax error, unexpected PLUGIN, expecting end of file or EOL or KEY
+plugin-indented.beancount:6: syntax error, unexpected INDENT
 ```
 
 refused/format-bom: the byte order mark makes the first token invalid; the transactions still read.

@@ -222,8 +222,9 @@ plugin-number-argument:  bean-check: plugin-number-argument.beancount:1: syntax 
 plugin-three-strings:    bean-check: plugin-three-strings.beancount:1: syntax error, unexpected STRING, expecting end of file or EOL
 ```
 
-The other malformed forms in the rule above (text glued after the string, a keyword alone, an indented line) were
-tried by hand and have no probe journal yet.
+The other malformed forms in the rule above (text glued after the string, a keyword alone) were tried by hand and
+have no probe journal yet. An indented line has one, `probes/refused/plugin-indented.beancount`: `bean-check`
+rejects it at line 2 (right after an entry) and line 6 (after a blank line), see format.md.
 
 ## What ledgermill does
 
@@ -231,5 +232,7 @@ Built. `check()` and the lists are those of the reference for all of the above, 
 probes. The plugin line is read before the parser runs (as `option` and `include` are), so `details.name` is the
 module as written between the quotes. A malformed plugin line is left to the parser, which gives a `parse-error`
 on the line, as the reference does, except a keyword alone, which is refused as `plugin` with no name (the
-reference's line is the next one). An indented `plugin` line, which the reference rejects, is not noticed by the
-parser we build on; that is a gap of every indented directive, not of this plugin.
+reference's line is the next one). An indented `plugin` line, which the reference rejects, is a `parse-error` too.
+Right after an entry the parser we build on rejects it. After a blank line, a comment or at the start of the file
+it is a stray line, and `check()` reports the first stray line of each run, not every one (format.md, "What ends
+an entry"; each place was tried with `bean-check`, and the probe above has the first and the blank line).

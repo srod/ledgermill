@@ -145,6 +145,16 @@ fn a_comment_at_the_margin_ends_an_entry() {
     );
 }
 
+/// An indented `plugin` is no directive: bean-check rejects it right after an entry (as a key
+/// it cannot read) and after a blank line (as a stray line).
+#[test]
+fn an_indented_plugin_line_is_a_parse_error() {
+    assert_eq!(
+        parse_error_lines(&refused_probe("plugin-indented")),
+        vec![2, 6]
+    );
+}
+
 #[test]
 fn an_option_or_a_push_or_pop_at_the_margin_ends_an_entry() {
     for line in [
