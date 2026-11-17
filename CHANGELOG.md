@@ -4,6 +4,34 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.1 – TBD at release
+
+### Fixed
+
+- Beancount: an indented line after a blank line, a line of blanks, a comment at the margin, an `option` or the
+  like, or at the start of the file is a `parse-error`, as `bean-check` reports it (`unexpected INDENT`).
+  ledgermill's parser folds the blank away and reads the line as metadata or a posting of the entry above, so
+  `check()` accepted it. A run of such lines is one error, on its first line, and the next run is an
+  error of its own after two blank or comment lines or a directive. This also closes the gap of an indented
+  `plugin`, `option`, `include` or `pushtag` line. See `spec/beancount/format.md`.
+
+### Release gate
+
+From the release-gate workflow on commit TBD at release (run TBD at release), CI on the same
+commit (run TBD at release), and the owner's own runs.
+
+- Random hledger journals (5,000): TBD at release
+- Random Beancount journals (5,000): TBD at release
+- Random price networks (5,000): TBD at release
+- Random Beancount journals with pairs priced both ways (5,000): TBD at release
+- Random sets of several ledgers (5,000): TBD at release
+- Corpus comparison: TBD at release
+- Desktop bench against 0.2.0: TBD at release
+- Stress test, 100,000 transactions: TBD at release
+- Similarity check score: TBD at release
+- Real journals: TBD at release
+- Device targets: TBD at release
+
 ## 0.2.0 – 2026-11-15
 
 ### Added

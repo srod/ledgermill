@@ -751,6 +751,103 @@ pub(super) fn glued_currency_errors(text: &str) -> Vec<u32> {
     out
 }
 
+/// Whether a line at the margin is a comment the reference skips: `;`, or one of `*!&#?%:` and
+/// another character. A lone `*` or `#` is a syntax error on its own line.
+fn is_comment_at_margin(line: &str) -> bool {
+    match line.as_bytes() {
+        [b';', ..] => true,
+        [b'*' | b'#', ..] => is_margin_comment(line),
+        [b'!' | b'&' | b'?' | b'%' | b':', _, ..] => true,
+        _ => false,
+    }
+}
+
+/// The directives that have no date. They end the entry above them, as a comment does.
+fn is_undated_directive(line: &str) -> bool {
+    [
+        "option", "plugin", "include", "pushtag", "poptag", "pushmeta", "popmeta",
+    ]
+    .iter()
+    .any(|keyword| starts_with_keyword(line, keyword))
+}
+
+/// Lines that are indented but follow a blank line or a comment or an option at the margin, so
+/// that they belong to no entry (spec/beancount/format.md). The parser folds the blank away and
+/// reads them as metadata or postings of the entry above.
+///
+/// The reference does not report another error until it has read three tokens after the last one,
+/// stray or not. A stray line counts for two (the end of its own line is one, and the error
+/// restarts the count), a blank line or a margin comment for one, and a line of an entry or a
+/// directive for at least three. So a run of stray lines is one error on its first line, and a
+/// second run after two blank or comment lines, or after a directive, is another.
+///
+/// Returns the lines to report, and the other stray lines, on which the parser's own errors
+/// would repeat the report.
+pub(super) fn stray_indent_errors(text: &str) -> StrayIndent {
+    let mut out = StrayIndent::default();
+    let mut in_string = false;
+    let mut open = false;
+    let mut quiet: u8 = 0;
+    for (index, raw) in text.split('\n').enumerate() {
+        let body = raw.strip_suffix('\r').unwrap_or(raw);
+        let body = if index == 0 {
+            body.strip_prefix('\u{feff}').unwrap_or(body)
+        } else {
+            body
+        };
+        let inside_string = in_string;
+        // A quote in a comment at the margin starts no string, whatever the comment begins with.
+        in_string = if !inside_string && is_comment_at_margin(body) {
+            false
+        } else {
+            string_open_after(body, inside_string)
+        };
+        if inside_string {
+            continue;
+        }
+        let Ok(line) = u32::try_from(index + 1) else {
+            break;
+        };
+        if index == 0 && text.starts_with('\u{feff}') {
+            // The reference discards the whole line with the error: no entry starts on it.
+            open = false;
+            quiet = 2;
+        } else if body.bytes().all(|b| matches!(b, b' ' | b'\t')) {
+            open = false;
+            quiet = quiet.saturating_sub(1);
+        } else if body.starts_with([' ', '\t']) {
+            if !open {
+                if quiet == 0 {
+                    out.reported.push(line);
+                } else {
+                    out.silent.push(line);
+                }
+                quiet = 2;
+            }
+        } else if is_comment_at_margin(body) {
+            open = false;
+            quiet = quiet.saturating_sub(1);
+        } else if is_undated_directive(body) {
+            open = false;
+            quiet = 0;
+        } else {
+            // A date, or a line that is a syntax error on its own.
+            open = true;
+            quiet = 0;
+        }
+    }
+    out
+}
+
+/// What [`stray_indent_errors`] found.
+#[derive(Default)]
+pub(super) struct StrayIndent {
+    /// Lines the reference reports: the first of a run of stray lines.
+    pub(super) reported: Vec<u32>,
+    /// Stray lines it stays quiet about.
+    pub(super) silent: Vec<u32>,
+}
+
 /// Whether the line leaves a string open (a string that spans lines), given whether one was open
 /// when it began. `;` starts a comment only outside a string.
 fn string_open_after(line: &str, mut open: bool) -> bool {
