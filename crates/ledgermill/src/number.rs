@@ -34,6 +34,9 @@ impl Mark {
 /// Exponents beyond this are refused: the value would be absurdly large to hold.
 const MAX_EXPONENT: i64 = 4096;
 
+/// Digit count beyond this is refused alongside [`MAX_EXPONENT`]: `1e4096` has 4097 digits.
+const MAX_DIGITS: usize = 4097;
+
 /// More decimal places than this is an error, whatever the exponent leaves.
 const MAX_PLACES: i128 = 255;
 
@@ -161,8 +164,6 @@ impl RawNumber<'_> {
         } else {
             (int_runs, frac)
         };
-        let mut digits = int_runs.concat();
-        digits.push_str(frac);
         // The places left after the exponent moves the point.
         let net = i128::try_from(frac.len()).unwrap_or(i128::MAX)
             - i128::from(self.exponent.unwrap_or(0));
@@ -179,12 +180,23 @@ impl RawNumber<'_> {
         if exponent.abs() > MAX_EXPONENT {
             return Err(Problem::Unsupported(Unsupported::NumberTooLarge));
         }
+        let digit_len: usize = int_runs
+            .iter()
+            .map(|r| r.len())
+            .fold(frac.len(), usize::saturating_add);
+        if digit_len > MAX_DIGITS {
+            return Err(Problem::Unsupported(Unsupported::NumberTooLarge));
+        }
+        let mut digits = int_runs.concat();
+        digits.push_str(frac);
         let places =
             u32::try_from(frac.len()).or(Err(Problem::Unsupported(Unsupported::NumberTooLarge)))?;
         let value = Decimal::from_digits(&digits, places)
             .ok_or(Problem::Invalid("This is not a valid number."))?;
         let value = match self.exponent {
-            Some(e) => value.with_exponent(e),
+            Some(e) => value
+                .with_exponent(e)
+                .ok_or(Problem::Unsupported(Unsupported::NumberTooLarge))?,
             None => value,
         };
         Ok(Number { value, mark })

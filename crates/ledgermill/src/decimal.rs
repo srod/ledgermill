@@ -42,8 +42,11 @@ const POW10: [i64; 19] = {
     table
 };
 
+/// Largest exponent shift accepted when reading back a decimal string or shifting a `Decimal`.
+const MAX_SHIFT: u32 = 4096;
+
 fn pow10_big(n: u32) -> BigInt {
-    num_traits::pow(BigInt::from(10u8), usize::try_from(n).unwrap_or(usize::MAX))
+    BigInt::from(10u8).pow(n)
 }
 
 /// `numerator / denominator` rounded half to even. `denominator` is not zero.
@@ -133,10 +136,18 @@ impl Mantissa {
     }
 
     fn mul_pow10(&self, n: u32) -> Mantissa {
-        if n == 0 {
+        if n == 0 || self.is_zero() {
             return self.clone();
         }
         self.mul(&Mantissa::pow10(n))
+    }
+
+    fn bits(&self) -> u64 {
+        match self {
+            Mantissa::Small(0) => 0,
+            Mantissa::Small(small) => u64::from(64 - small.unsigned_abs().leading_zeros()),
+            Mantissa::Big(big) => big.bits(),
+        }
     }
 
     /// `self / divisor` rounded half to even. `divisor` is not zero.
@@ -229,13 +240,17 @@ impl Decimal {
         if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
             return None;
         }
-        let value =
-            Decimal::from_digits(&digits, u32::try_from(frac.len()).ok()?)?.with_exponent(exponent);
+        let value = Decimal::from_digits(&digits, u32::try_from(frac.len()).ok()?)?
+            .with_exponent(exponent)?;
         Some(if negative { value.negated() } else { value })
     }
 
     pub(crate) fn places(&self) -> u32 {
         self.places
+    }
+
+    pub(crate) fn mantissa_bits(&self) -> u64 {
+        self.mantissa.bits()
     }
 
     pub(crate) fn is_zero(&self) -> bool {
@@ -274,19 +289,26 @@ impl Decimal {
     pub(crate) fn mul(&self, other: &Decimal) -> Decimal {
         Decimal::with_mantissa(
             self.mantissa.mul(&other.mantissa),
-            self.places + other.places,
+            self.places.saturating_add(other.places),
         )
     }
 
-    /// Multiply by `10^exponent`, keeping the value exact.
-    pub(crate) fn with_exponent(&self, exponent: i64) -> Decimal {
-        let places = i64::from(self.places) - exponent;
-        match u32::try_from(places) {
-            Ok(places) => Decimal::with_mantissa(self.mantissa.clone(), places),
-            Err(_) => {
-                let shift = u32::try_from(-places).unwrap_or(u32::MAX);
-                Decimal::with_mantissa(self.mantissa.mul_pow10(shift), 0)
+    /// Multiply by `10^exponent`, keeping the value exact; `None` if the shift would overflow or
+    /// exceed [`MAX_SHIFT`].
+    pub(crate) fn with_exponent(&self, exponent: i64) -> Option<Decimal> {
+        let places = i128::from(self.places) - i128::from(exponent);
+        if places >= 0 {
+            let places = u32::try_from(places).ok()?;
+            if places > MAX_SHIFT {
+                return None;
             }
+            Some(Decimal::with_mantissa(self.mantissa.clone(), places))
+        } else {
+            let shift = u32::try_from(-places).ok()?;
+            if shift > MAX_SHIFT {
+                return None;
+            }
+            Some(Decimal::with_mantissa(self.mantissa.mul_pow10(shift), 0))
         }
     }
 
@@ -342,7 +364,9 @@ impl Decimal {
         if divisor.is_zero() {
             return None;
         }
-        let numerator = self.mantissa.mul_pow10(divisor.places + places);
+        let numerator = self
+            .mantissa
+            .mul_pow10(divisor.places.saturating_add(places));
         let denominator = divisor.mantissa.mul_pow10(self.places);
         Some(Decimal::with_mantissa(
             numerator.div_half_even(&denominator),
@@ -359,6 +383,31 @@ impl Decimal {
     /// The decimal string the interface reports: rounded to [`OUTPUT_PLACES`].
     pub(crate) fn output(&self) -> String {
         self.rounded(OUTPUT_PLACES).to_string()
+    }
+}
+
+/// A [`Decimal`] ordered and compared by numeric value (`1.0 == 1.00`), for use as a `BTreeMap`
+/// key without losing precision.
+#[derive(Debug, Clone)]
+pub(crate) struct OrdDecimal(pub(crate) Decimal);
+
+impl PartialEq for OrdDecimal {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.cmp_value(&other.0).is_eq()
+    }
+}
+
+impl Eq for OrdDecimal {}
+
+impl PartialOrd for OrdDecimal {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for OrdDecimal {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp_value(&other.0)
     }
 }
 

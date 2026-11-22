@@ -8,7 +8,7 @@ use crate::date::Date;
 use crate::decimal::{DIVISION_PLACES, Decimal};
 use crate::model::{Finding, Holding, HoldingsQuery, PostingKind, Quantity, Severity};
 use crate::posting::WrittenAmount;
-use crate::prices::Graph;
+use crate::prices::{Graph, PathRate};
 use crate::problem::unsupported_finding;
 use std::collections::{BTreeMap, HashMap};
 
@@ -68,16 +68,28 @@ fn valued<'a>(
     target: &str,
     graph: &Graph,
     rates: &mut HashMap<String, Option<Decimal>>,
-) -> Vec<Quantity> {
+) -> Result<Vec<Quantity>, Finding> {
     let mut sums = Sums::default();
     for (commodity, quantity) in amounts {
         let rate = if commodity == target {
             None
         } else {
-            rates
-                .entry(commodity.to_string())
-                .or_insert_with(|| graph.rate(commodity, target))
-                .as_ref()
+            if !rates.contains_key(commodity) {
+                let resolved = match graph.rate(commodity, target) {
+                    PathRate::Found(r) => Some(r),
+                    PathRate::None => None,
+                    PathRate::TooLarge => {
+                        return Err(unsupported_finding(
+                            "number-too-large",
+                            "A price path produces a number too large to handle.",
+                            "",
+                            0,
+                        ));
+                    }
+                };
+                rates.insert(commodity.to_string(), resolved);
+            }
+            rates.get(commodity).and_then(Option::as_ref)
         };
         match rate {
             Some(rate) => sums.add(
@@ -87,7 +99,7 @@ fn valued<'a>(
             None => sums.add(commodity, quantity),
         }
     }
-    sums.quantities()
+    Ok(sums.quantities())
 }
 
 /// A quantity of a holding read back to be added; always possible for what `holdings` prints.
@@ -307,6 +319,9 @@ impl Ledger {
                 }
             }
         }
+        if positions.is_empty() {
+            return Ok(Vec::new());
+        }
         let Some(valuation_date) = self.valuation_date(end, today) else {
             return Ok(Vec::new());
         };
@@ -327,13 +342,13 @@ impl Ledger {
                 &query.commodity,
                 &graph,
                 &mut rates,
-            );
+            )?;
             let cost_value = valued(
                 cost.0.iter().map(|(c, sum)| (c.as_str(), sum)),
                 &query.commodity,
                 &graph,
                 &mut rates,
-            );
+            )?;
             out.push(Holding {
                 account: segments.join(":"),
                 commodity: commodity.to_string(),
