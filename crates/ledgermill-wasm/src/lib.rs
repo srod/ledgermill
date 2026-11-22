@@ -75,9 +75,22 @@ impl Ledger {
     /// or `null`. A refusal or an invalid date throws an `Error` whose `message` is the finding as
     /// JSON, as for `atCost`; so does a `query` that is not that object.
     pub fn holdings(&self, query: &str) -> Result<String, JsError> {
-        let query: ledgermill::HoldingsQuery = serde_json::from_str(query)?;
-        answer(self.0.holdings(&query))
+        answer(parse_holdings_query(query).and_then(|q| self.0.holdings(&q)))
     }
+}
+
+/// Decode the JSON query for `holdings()`, turning invalid JSON or a missing field into an
+/// `invalid-argument` finding so callers always receive a finding as JSON on error.
+fn parse_holdings_query(query: &str) -> Result<ledgermill::HoldingsQuery, ledgermill::Finding> {
+    serde_json::from_str(query).map_err(|error| ledgermill::Finding {
+        code: "invalid-argument".into(),
+        severity: ledgermill::Severity::Error,
+        file: String::new(),
+        line: 0,
+        column: None,
+        details: serde_json::json!({ "argument": "query", "value": query }),
+        message: format!("The holdings query is not valid JSON: {error}"),
+    })
 }
 
 /// The answer as JSON, or the finding as the message of the error.
@@ -85,5 +98,24 @@ fn answer<T: serde::Serialize>(result: Result<T, ledgermill::Finding>) -> Result
     match result {
         Ok(answer) => Ok(serde_json::to_string(&answer)?),
         Err(finding) => Err(JsError::new(&serde_json::to_string(&finding)?)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_holdings_query;
+
+    #[test]
+    fn malformed_holdings_query_becomes_an_invalid_argument_finding() {
+        for bad in ["{", "{}", r#"{"commodity":"EUR"}"#] {
+            let finding = match parse_holdings_query(bad) {
+                Ok(_) => panic!("expected error for {bad}"),
+                Err(finding) => finding,
+            };
+            assert_eq!(finding.code, "invalid-argument");
+            assert_eq!(finding.severity, ledgermill::Severity::Error);
+            assert_eq!(finding.details["argument"], "query");
+            assert_eq!(finding.details["value"], bad);
+        }
     }
 }
