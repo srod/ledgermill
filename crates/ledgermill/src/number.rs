@@ -34,7 +34,8 @@ impl Mark {
 /// Exponents beyond this are refused: the value would be absurdly large to hold.
 const MAX_EXPONENT: i64 = 4096;
 
-/// Digit count beyond this is refused alongside [`MAX_EXPONENT`]: `1e4096` has 4097 digits.
+/// More digits than this, counted as written (before any exponent), are refused alongside
+/// [`MAX_EXPONENT`]: `1e4096` is one digit and is read; a one followed by 4097 zeros is not.
 const MAX_DIGITS: usize = 4097;
 
 /// More decimal places than this is an error, whatever the exponent leaves.

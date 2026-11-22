@@ -336,6 +336,21 @@ fn extreme_price_chains_and_huge_integer_literals_are_refused() {
 }
 
 #[test]
+fn a_number_of_4097_written_digits_is_read_and_one_of_4098_is_refused() {
+    let load_with = |digits: usize| {
+        let journal = format!("2026-01-01 t\n  a  {}\n  b\n", "9".repeat(digits));
+        load(&[file("digits.journal", &journal)])
+    };
+    assert!(load_with(4_097).check().is_empty());
+    let refused = load_with(4_098);
+    assert_eq!(refused.check()[0].code, "unsupported-syntax");
+    assert_eq!(refused.check()[0].details["construct"], "number-too-large");
+    // The digits count as written, so an exponent adds nothing to them.
+    let exponent = load(&[file("e.journal", "2026-01-01 t\n  a  1e4096\n  b\n")]);
+    assert!(exponent.check().is_empty());
+}
+
+#[test]
 fn beancount_extreme_exponents_do_not_oom() {
     // 2,000 chained tiny factors produce exponent -40,000; adding 1 and quantizing stays O(1).
     let mut expr = String::from("(1 + (0.00000000000000000001");
