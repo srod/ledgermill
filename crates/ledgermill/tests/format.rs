@@ -3,7 +3,7 @@
 // Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use ledgermill::{SourceFile, format};
+use ledgermill::{SourceFile, format, load};
 
 fn fmt(name: &str, content: &str) -> String {
     format(&SourceFile {
@@ -109,8 +109,18 @@ fn formatting_twice_gives_the_same_text() {
 
 #[test]
 fn default_commodity_with_different_mark_than_commodity_directive_still_aligns() {
-    let input = "commodity EUR 1,00\nD 1.00 EUR\n\n2026-01-01 t\n  assets:a  1,5e2\n  assets:longaccount  -150\n";
-    let want = "commodity EUR 1,00\nD 1.00 EUR\n\n2026-01-01 t\n    assets:a           1,5e2\n    assets:longaccount  -150\n";
+    // `D` has a point and `commodity` a comma. With a comma alone in `D`'s number the journal
+    // would be refused at the `D` line, and `format` would never reach the postings.
+    let input = "commodity EUR 1,00\nD 1,000.00 EUR\n\n2026-01-01 t\n  assets:a  1,5e2\n  assets:longaccount  -150\n";
+    let want = "commodity EUR 1,00\nD 1,000.00 EUR\n\n2026-01-01 t\n    assets:a           1,5e2\n    assets:longaccount  -150\n";
+    assert!(
+        load(&[SourceFile {
+            name: "a.journal".into(),
+            content: input.into()
+        }])
+        .check()
+        .is_empty()
+    );
     assert_eq!(journal(input), want);
 }
 
