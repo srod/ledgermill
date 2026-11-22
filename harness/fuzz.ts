@@ -811,53 +811,60 @@ const dir = mkdtempSync(join(tmpdir(), "ledgermill-fuzz-"));
 const raw = newCounts();
 const t = tallies();
 let valid = 0;
-for (let k = 0; k < count; k++) {
-  const files: { name: string; text: string }[] = [];
-  let used: string[] = [...COMMODITIES];
-  if (multi) {
-    files.push(...multiSet(k));
-    used = [...MULTI_COMMODITIES];
-  } else {
-    const j = bothWays ? bothWaysJournal() : beancount ? beanJournal() : graph ? graphJournal() : journal();
-    files.push({ name: `f${k}.${beancount ? "beancount" : "journal"}`, text: beancount && !bothWays ? oddDigits(j.text) : j.text });
-    if ("second" in j && j.second !== undefined) files.push({ name: `f${k}b.journal`, text: j.second });
-    if ("used" in j) used = j.used;
-  }
-  const paths = files.map((f) => join(dir, f.name));
-  for (const [i, f] of files.entries()) writeFileSync(paths[i] as string, f.text);
-  const asked = Array.from({ length: 2 }, (_, i): HoldingQuestion => {
-    const q = randomQuery(used, rq);
-    return { end: i === 0 ? null : q.date, commodity: q.commodity };
-  });
-  const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(used));
-  const c: Comparison = await compareAll(paths, false, queries, { holdings: asked });
-  countVerdict(raw, c.raw);
-  tally(c, t);
-  if (c.raw.status === "PASS" && c.raw.note === "") valid++;
-  const v = summarize(c);
-  const unexpected = v.status === "SKIP" && !EXPECTED_SKIPS.has(skipReason(v.note));
-  if (v.status === "FAIL" || unexpected) {
-    const queried = c.values.find((x) => x.verdict.status === v.status);
-    const shown = multi
-      ? files.map((f, i) => `--- ${f.name} (position ${i} in the manifest)\n${f.text}`).join("")
-      : `${files[0]?.text}${files[1] ? `--- second file\n${files[1].text}` : ""}`;
-    console.log(`${unexpected ? "UNEXPECTED SKIP" : "FAIL"} fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${shown}`);
-  }
-  if (v.status === "FAIL" || (v.status === "SKIP" && (unexpected || saveSkipped))) {
-    if (saveDir) {
-      mkdirSync(saveDir, { recursive: true });
-      const questions = asked.map((q) => `${q.end ?? "-"},${q.commodity}`).join(" ");
-      const name = join(saveDir, `${multi ? "multi" : bothWays ? "both" : beancount ? "bean" : graph ? "graph" : "fuzz"}-${seed}-${k}`);
-      if (multi) {
-        // The manifest order is the order of the indexes; real.ts loads the files as given, so rerun with `real.ts $(ls FILES)`.
-        files.forEach((f, i) => writeFileSync(`${name}-${i}.${f.name.split(".").pop()}`, f.text));
-        writeFileSync(`${name}.txt`, `${v.note}\nholdings questions (end,commodity): ${questions}\nvalue questions: ${queries.map((q) => `${q.date},${q.commodity}`).join(" ")}\nfiles in manifest order: ${files.map((_, i) => i).join(" ")}\n`);
-      } else {
-        writeFileSync(`${name}.${beancount ? "beancount" : "journal"}`, `; ${v.note}\n; holdings questions (end,commodity): ${questions}\n${files[0]?.text}`);
-        if (files[1]) writeFileSync(`${name}.second.journal`, files[1].text);
+try {
+  for (let k = 0; k < count; k++) {
+    const files: { name: string; text: string }[] = [];
+    let used: string[] = [...COMMODITIES];
+    if (multi) {
+      files.push(...multiSet(k));
+      used = [...MULTI_COMMODITIES];
+    } else {
+      const j = bothWays ? bothWaysJournal() : beancount ? beanJournal() : graph ? graphJournal() : journal();
+      files.push({ name: `f${k}.${beancount ? "beancount" : "journal"}`, text: beancount && !bothWays ? oddDigits(j.text) : j.text });
+      if ("second" in j && j.second !== undefined) files.push({ name: `f${k}b.journal`, text: j.second });
+      if ("used" in j) used = j.used;
+    }
+    const paths = files.map((f) => join(dir, f.name));
+    for (const [i, f] of files.entries()) writeFileSync(paths[i] as string, f.text);
+    const asked = Array.from({ length: 2 }, (_, i): HoldingQuestion => {
+      const q = randomQuery(used, rq);
+      return { end: i === 0 ? null : q.date, commodity: q.commodity };
+    });
+    const queries = Array.from({ length: graph ? 2 : 1 + int(2) }, () => randomQuery(used));
+    const c: Comparison = await compareAll(paths, false, queries, { holdings: asked });
+    countVerdict(raw, c.raw);
+    tally(c, t);
+    if (c.raw.status === "PASS" && c.raw.note === "") valid++;
+    const v = summarize(c);
+    const unexpected = v.status === "SKIP" && !EXPECTED_SKIPS.has(skipReason(v.note));
+    if (v.status === "FAIL" || unexpected) {
+      const queried = c.values.find((x) => x.verdict.status === v.status);
+      const shown = multi
+        ? files.map((f, i) => `--- ${f.name} (position ${i} in the manifest)\n${f.text}`).join("")
+        : `${files[0]?.text}${files[1] ? `--- second file\n${files[1].text}` : ""}`;
+      console.log(`${unexpected ? "UNEXPECTED SKIP" : "FAIL"} fuzz#${k} ${v.note}${queried ? `  (--value=${queried.query.date},${queried.query.commodity})` : ""}\n${shown}`);
+    }
+    if (v.status === "FAIL" || (v.status === "SKIP" && (unexpected || saveSkipped))) {
+      if (saveDir) {
+        mkdirSync(saveDir, { recursive: true });
+        const questions = asked.map((q) => `${q.end ?? "-"},${q.commodity}`).join(" ");
+        const name = join(saveDir, `${multi ? "multi" : bothWays ? "both" : beancount ? "bean" : graph ? "graph" : "fuzz"}-${seed}-${k}`);
+        if (multi) {
+          // The manifest order is the order of the indexes; real.ts loads the files as given, so rerun with `real.ts $(ls FILES)`.
+          files.forEach((f, i) => writeFileSync(`${name}-${i}.${f.name.split(".").pop()}`, f.text));
+          writeFileSync(`${name}.txt`, `${v.note}\nholdings questions (end,commodity): ${questions}\nvalue questions: ${queries.map((q) => `${q.date},${q.commodity}`).join(" ")}\nfiles in manifest order: ${files.map((_, i) => i).join(" ")}\n`);
+        } else {
+          // Keep the saved journal byte-identical (no prepended comment lines that shift line numbers).
+          writeFileSync(`${name}.${beancount ? "beancount" : "journal"}`, files[0]?.text ?? "");
+          writeFileSync(`${name}.txt`, `${v.note}\nholdings questions (end,commodity): ${questions}\nvalue questions: ${queries.map((q) => `${q.date},${q.commodity}`).join(" ")}\n`);
+          if (files[1]) writeFileSync(`${name}.second.journal`, files[1].text);
+        }
       }
     }
   }
+} finally {
+  if (!keep) rmSync(dir, { recursive: true, force: true });
+  else console.log(`journals kept in ${dir}`);
 }
 const counts = countsLine;
 console.log(`fuzz${graph ? " --graph" : ""}${multi ? " --multi" : bothWays ? " --both-ways" : beancount ? " --beancount" : ""} (seed ${seed}): raw ${raw.PASS} pass (${valid} valid, the rest fail in both), ${countsLine(raw).replace(/^\d+ pass, /, "")}`);
@@ -876,8 +883,6 @@ if (multi) {
 } else {
   console.log(`  postings: ${counts(t.postings)}\n  prices: ${counts(t.prices)}\n  format: ${formatLine(t)}\n  --cost: ${counts(t.cost)}\n  --value: ${counts(t.value)}\n  holdings: ${counts(t.holdings)}`);
 }
-if (!keep) rmSync(dir, { recursive: true });
-else console.log(`journals kept in ${dir}`);
 const b = t.beancount;
 const m = t.multi;
 const unexpected = unexpectedSkips(raw, t.format, t.beanFormat.format, t.cost, t.value, t.postings, t.prices, t.holdings, b.cost, b.value, b.prices, b.holdings, m.postings, m.prices, m.cost, m.value, m.holdings);
