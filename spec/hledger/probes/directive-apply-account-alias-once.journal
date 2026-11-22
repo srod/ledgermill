@@ -1,0 +1,17 @@
+alias a = a:b
+apply account a
+
+2026-01-01 a plain alias on the prefixed name
+  x  1
+  y  -1
+
+end apply account
+end aliases
+alias /^(.*)$/ = \1:z
+apply account a
+
+2026-01-02 a regex alias on the prefixed name
+  x  1
+  y  -1
+
+end apply account

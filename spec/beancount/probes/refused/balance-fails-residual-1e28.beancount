@@ -1,0 +1,6 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:Cash
+
+2026-01-02 * "whole-number weights of about 1e28 next to four places"
+  Assets:A  (100000000000000 * 100000000000000) AAPL {1 EUR}
+  Assets:Cash  -1.0000 EUR

@@ -1,0 +1,5 @@
+alias /(a)/ = \2
+
+2026-01-01 the alias matches a posting's account
+  a  1
+  b  -1

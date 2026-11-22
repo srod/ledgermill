@@ -1,6 +1,7 @@
 # Balance assertions: the order of the running balances
 
-Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-22.
+Reference: hledger 1.52.4 (`hledger --version`: `hledger 1.52.4, mac-aarch64`), 2026-10-22; the
+`assert-order-posting-date-both` probe 2026-11-22.
 
 Status: built.
 
@@ -22,7 +23,9 @@ posting date there does not move the posting to another place in the walk.
   transaction written later in the file but dated earlier comes first.
 - **A posting's date** is its own date when a `date:` tag or a `[DATE]` (or `[DATE=DATE2]`) in its
   comment gives one (a date with no year takes the transaction's year; `[=DATE2]` gives no
-  date), otherwise its transaction's date. So the postings of one transaction can be far apart: a posting
+  date), otherwise its transaction's date. When the comment holds both a `[DATE]` and a `date:` tag,
+  the one written first gives the date: `; x [2026-01-05] note:hi, date:2026-01-10` is dated
+  5 January, `; date:2026-01-10, note:hi [2026-01-05]` 10 January. So the postings of one transaction can be far apart: a posting
   dated in February is not in the balance on 15 January, and a posting dated in January inside a
   March transaction is. The second date of a transaction (`DATE=DATE2`), `date2:` tags and
   `--date2` change nothing.
@@ -41,7 +44,7 @@ posting date there does not move the posting to another place in the walk.
 ## Probe
 
 `probes/assert-order-date.journal`, `probes/assert-order-posting-date.journal`,
-`probes/assert-order-posting-date-forms.journal`,
+`probes/assert-order-posting-date-forms.journal`, `probes/assert-order-posting-date-both.journal`,
 `probes/assert-fail-order-same-date.journal`, `probes/assert-fail-order-in-transaction.journal`,
 `probes/assert-fail-order-posting-date.journal`,
 `probes/assert-fail-order-posting-date-in-transaction.journal`,
@@ -55,6 +58,7 @@ Command:
 spec/hledger/assertion-verdicts.sh spec/hledger/probes/assert-order-date.journal \
   spec/hledger/probes/assert-order-posting-date.journal \
   spec/hledger/probes/assert-order-posting-date-forms.journal \
+  spec/hledger/probes/assert-order-posting-date-both.journal \
   spec/hledger/probes/assert-fail-order-*.journal \
   spec/hledger/probes/assert-fail-first-*.journal
 spec/hledger/assertion-verdicts.sh \
@@ -69,12 +73,14 @@ spec/hledger/assertion-verdicts.sh \
 `assert-order-date` holds a later-dated transaction first in the file, an amount left out, two transactions on the
 same day, and one transaction with a regular, a virtual and a balanced virtual posting on `a`;
 `assert-order-posting-date` holds posting dates before and after the transaction's, a second date
-and a `date2:` tag; `assert-order-posting-date-forms` the other ways to write a posting date. All three are accepted. The failing journals each break one of the rules above:
+and a `date2:` tag; `assert-order-posting-date-forms` the other ways to write a posting date; `assert-order-posting-date-both`
+a `[DATE]` and a `date:` tag in one comment, in both orders, with assertions on the days between. All four are accepted. The failing journals each break one of the rules above:
 
 ```text
 assert-order-date | accepts |
 assert-order-posting-date | accepts |
 assert-order-posting-date-forms | accepts |
+assert-order-posting-date-both | accepts |
 assert-fail-order-in-transaction | rejects | assert-fail-order-in-transaction.journal:2:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 10 EUR; calculated 5 EUR
 assert-fail-order-posting-date-in-transaction | rejects | assert-fail-order-posting-date-in-transaction.journal:3:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 8 EUR; calculated 3 EUR
 assert-fail-order-posting-date | rejects | assert-fail-order-posting-date.journal:6:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 6 EUR; calculated 1 EUR
@@ -82,6 +88,15 @@ assert-fail-order-same-date | rejects | assert-fail-order-same-date.journal:2:12
 assert-fail-first-by-date-accounts | rejects | assert-fail-first-by-date-accounts.journal:6:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 77 EUR; calculated 1 EUR
 assert-fail-first-by-date | rejects | assert-fail-first-by-date.journal:6:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 77 EUR; calculated 1 EUR
 assert-fail-first-in-transaction | rejects | assert-fail-first-in-transaction.journal:2:12 | assertion-failed: In commodity EUR, excluding subaccounts; asserted 99 EUR; calculated 1 EUR
+```
+
+The posting dates hledger gives the first transaction of `assert-order-posting-date-both`
+(`hledger --no-conf -f spec/hledger/probes/assert-order-posting-date-both.journal print -O json | jq -c '.[0].tpostings[] | [.paccount, .pdate]'`):
+
+```text
+["a","2026-01-05"]
+["b","2026-01-10"]
+["z",null]
 ```
 
 In `assert-fail-order-posting-date-in-transaction` the second posting (line 3) has the earlier

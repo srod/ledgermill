@@ -1,0 +1,26 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:C
+2026-01-01 open Assets:D
+2026-01-01 open Assets:E
+2026-01-01 open Assets:Cash
+
+2026-01-02 * "four places on both sides, a residual of 9999"
+  Assets:A  10000.0000 AAPL {1.0000 EUR}
+  Assets:Cash  -1.0000 EUR
+
+2026-01-03 * "a residual of about 1e24"
+  Assets:B  (1000000000000 * 1000000000000) AAPL {1.0000 EUR}
+  Assets:Cash  -1.0000 EUR
+
+2026-01-04 * "the same, negative"
+  Assets:C  -(1000000000000 * 1000000000000) AAPL {1.0000 EUR}
+  Assets:Cash  1.0000 EUR
+
+2026-01-05 * "the same, ten places"
+  Assets:D  (1000000000000 * 1000000000000) AAPL {1.0000000000 EUR}
+  Assets:Cash  -1.0000000000 EUR
+
+2026-01-06 * "the same, no places"
+  Assets:E  (1000000000000 * 1000000000000) AAPL {1 EUR}
+  Assets:Cash  -1 EUR

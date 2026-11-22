@@ -1,0 +1,7 @@
+alias /(a)/ = \2
+apply account a
+end apply account
+
+2026-01-01 no account matches the alias
+  x  1
+  b  -1

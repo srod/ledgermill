@@ -1,0 +1,6 @@
+alias /(a)/ = \2
+account a
+
+2026-01-01 the alias matches an account directive first
+  x  1
+  b  -1
