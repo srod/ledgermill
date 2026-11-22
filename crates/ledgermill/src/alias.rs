@@ -9,15 +9,34 @@ const MAX_REGEX_NFA_BYTES: usize = 64 * 1024;
 /// Maximum byte length of an account name produced by alias expansion (64 KiB).
 const MAX_ACCOUNT_LEN: usize = 64 * 1024;
 
+// The limits above bound memory, not time: 243 cheap aliases scanning a 32 KiB name, which twelve
+// doubling aliases build from 8 bytes, cost 0.6 s per posting from a 3.7 KB journal. So one load
+// may feed its regex aliases only this much text: a floor, plus a share per input byte, as a
+// legitimate journal's work grows with its size. A scan is charged `text length x weight`, the
+// weight being the NFA size class (1, 4, 16 or 64 for up to 1, 4, 16 or 64 KiB), because the
+// scan time per byte grows with the NFA: 20 ns for a small one, 8 us for one near the limit.
+// Measured in release, a unit costs up to 0.1 us, so the floor is about 25 ms and the hostile
+// journal above runs out of it within its first posting. The corpus journals use under 0.4 units
+// per input byte; 32 leaves room for 20 aliases that expand one-letter names in a 1 MB journal,
+// and still caps a hostile 1 MB journal at about 3 s, linear in its size.
+const ALIAS_WORK_FLOOR: usize = 256 * 1024;
+const ALIAS_WORK_PER_INPUT_BYTE: usize = 32;
+
+/// What the regex aliases of a load may scan, given the bytes of all its files.
+pub(crate) fn work_budget(input_bytes: usize) -> usize {
+    input_bytes
+        .saturating_mul(ALIAS_WORK_PER_INPUT_BYTE)
+        .saturating_add(ALIAS_WORK_FLOOR)
+}
+
 #[derive(Debug)]
 pub(crate) enum Alias {
     /// Replaces `old` when it is the whole name or its leading segments.
-    Plain {
-        old: String,
-        new: String,
-    },
+    Plain { old: String, new: String },
     Regex {
         regex: Regex,
+        /// How many times dearer than the smallest a scan with this regex is (see above).
+        weight: usize,
         replacement: String,
     },
 }
@@ -86,18 +105,27 @@ pub(crate) fn parse_alias(text: &str) -> Parsed<Alias> {
         let Some(replacement) = after.strip_prefix('=') else {
             return invalid("An alias needs `=`.");
         };
-        let regex = RegexBuilder::new(&translate(&pattern)?)
-            .size_limit(MAX_REGEX_NFA_BYTES)
-            .build()
-            .map_err(|err| {
-                if err.to_string().contains("size limit") {
-                    Problem::Unsupported(Unsupported::AliasTooLarge)
-                } else {
-                    Problem::Invalid("This regular expression is not valid.")
+        let pattern = translate(&pattern)?;
+        // The smallest size class the pattern compiles in, 1 KiB up to the limit.
+        let mut weight = 1;
+        let regex = loop {
+            match RegexBuilder::new(&pattern)
+                .size_limit(weight * 1024)
+                .build()
+            {
+                Ok(regex) => break regex,
+                Err(err) if err.to_string().contains("size limit") => {
+                    if weight * 1024 >= MAX_REGEX_NFA_BYTES {
+                        return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
+                    }
+                    weight *= 4;
                 }
-            })?;
+                Err(_) => return invalid("This regular expression is not valid."),
+            }
+        };
         return Ok(Alias::Regex {
             regex,
+            weight,
             replacement: replacement.trim_start_matches(is_blank).to_string(),
         });
     }
@@ -111,7 +139,8 @@ pub(crate) fn parse_alias(text: &str) -> Parsed<Alias> {
 }
 
 impl Alias {
-    pub(crate) fn apply(&self, account: &str) -> Parsed<String> {
+    /// `budget` is what the load's regex aliases may still scan; a regex alias takes its share.
+    pub(crate) fn apply(&self, account: &str, budget: &mut usize) -> Parsed<String> {
         match self {
             Alias::Plain { old, new } => match account.strip_prefix(old.as_str()) {
                 Some(rest) if rest.is_empty() || rest.starts_with(':') => {
@@ -122,7 +151,17 @@ impl Alias {
                 }
                 _ => Ok(account.to_string()),
             },
-            Alias::Regex { regex, replacement } => replace_all(regex, replacement, account),
+            Alias::Regex {
+                regex,
+                weight,
+                replacement,
+            } => {
+                let cost = account.len().saturating_mul(*weight);
+                *budget = budget
+                    .checked_sub(cost)
+                    .ok_or(Problem::Unsupported(Unsupported::AliasTooLarge))?;
+                replace_all(regex, replacement, account)
+            }
         }
     }
 }

@@ -40,7 +40,7 @@ pub fn format(file: &SourceFile) -> String {
             beancount_ledger(loaded)
         })
     } else {
-        let mut out = parse::Output::default();
+        let mut out = parse::Output::new(file.content.len());
         parse::parse_file(0, file, &mut out);
         keep_if_same(file, realign(file, &out.layouts), || hledger_ledger(out))
     }

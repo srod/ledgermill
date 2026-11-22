@@ -15,6 +15,9 @@ All notable changes to ledgermill are written here. The format follows
 - hledger: a regex alias whose compiled pattern needs more than 64 KiB, a 257th regex alias in force, or an
   account name that aliases make longer than 64 KiB is refused as `unsupported-syntax` (`alias-too-large`).
   Chained aliases could grow one account name to gigabytes. See `spec/README.md`.
+- hledger: regex aliases that scan more than a budget in one load (256 KiB plus 32 bytes per input byte of the
+  files, a scan weighted by the size of its pattern) are refused the same way. A 3.7 KB journal of 255 aliases took
+  0.6 s of CPU per posting; it is now refused in about 30 ms. See `spec/README.md`.
 - hledger: a number written with more than 4097 digits is refused as `number-too-large`, and `value()` and
   `holdings()` return `number-too-large` when a chain of prices gives a rate of more than 65,536 bits. See
   `spec/hledger/syntax.md` and `spec/README.md`.

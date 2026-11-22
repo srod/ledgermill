@@ -305,7 +305,7 @@ fn merge_ledgers(files: &[SourceFile], mut parts: Vec<(usize, Ledger)>) -> Ledge
 }
 
 fn load_hledger(files: &[&SourceFile]) -> Ledger {
-    let mut out = parse::Output::default();
+    let mut out = parse::Output::new(files.iter().map(|f| f.content.len()).sum());
     for (index, file) in files.iter().enumerate() {
         parse::parse_file(index, file, &mut out);
     }

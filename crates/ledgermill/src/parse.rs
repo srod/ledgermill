@@ -28,8 +28,9 @@ use regex_lite::Regex;
 use serde_json::json;
 use std::sync::OnceLock;
 
-#[derive(Default)]
 pub(crate) struct Output {
+    /// What the regex aliases of the whole load may still scan (see `alias::work_budget`).
+    pub alias_budget: usize,
     /// `(transaction, what `at_cost` and `value` need of it, its flat posting rows, date)`; sorted
     /// by the caller.
     pub transactions: Vec<(Transaction, Exact, Vec<FlatPosting>, Date)>,
@@ -39,6 +40,19 @@ pub(crate) struct Output {
     pub findings: Vec<(usize, Finding)>,
     /// The postings of each transaction kept, as written (for `format`).
     pub layouts: Vec<Vec<PostingLayout>>,
+}
+
+impl Output {
+    /// Nothing read yet, for files of `input_bytes` bytes in all.
+    pub fn new(input_bytes: usize) -> Self {
+        Self {
+            alias_budget: crate::alias::work_budget(input_bytes),
+            transactions: Vec::new(),
+            prices: Vec::new(),
+            findings: Vec::new(),
+            layouts: Vec::new(),
+        }
+    }
 }
 
 /// Where a posting line's parts are, for `format`. Offsets are bytes into the line without its
@@ -872,10 +886,10 @@ impl FileParser<'_> {
     }
 
     /// The account with `apply account` parents and aliases applied (aliases see the parents).
-    fn full_account(&self, name: &str) -> Parsed<String> {
+    fn full_account(&mut self, name: &str) -> Parsed<String> {
         let mut full = self.prefixed_account(name);
         for alias in self.st.aliases.iter().rev() {
-            full = alias.apply(&full)?;
+            full = alias.apply(&full, &mut self.out.alias_budget)?;
         }
         Ok(full)
     }
