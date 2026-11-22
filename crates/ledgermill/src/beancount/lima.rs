@@ -20,6 +20,7 @@ use beancount_parser_lima as parser;
 use beancount_parser_lima::Report;
 use foldhash::HashMap;
 use limabean_booking as booking;
+use std::cell::OnceCell;
 use std::sync::Arc;
 
 // ───────────── reading ─────────────
@@ -221,28 +222,49 @@ fn line_slice<'a>(text: &'a str, starts: &[usize], index: usize) -> Option<&'a s
     text.get(start..end)
 }
 
-/// The header line of the entry a metadata line belongs to, and whether a posting stands between
-/// the two (so the key is a posting's).
-fn entry_of(text: &str, starts: &[usize], line: u32) -> (u32, bool) {
-    let at = usize::try_from(line).unwrap_or(1).saturating_sub(1);
-    let mut posting = false;
-    let mut index = at;
-    while index > 0 {
-        index -= 1;
-        let Some(above) = line_slice(text, starts, index) else {
-            break;
-        };
-        if above.starts_with([' ', '\t']) || above.trim().is_empty() {
-            posting |= is_posting_line(above);
-        } else {
-            return (u32::try_from(index + 1).unwrap_or(line), posting);
+/// For each line of a file, the header line of the entry it belongs to and whether a posting
+/// stands between the two (so a metadata key there is a posting's). Built in one pass, as an
+/// entry with thousands of errors would otherwise be walked back to its header for each of them.
+struct Entries(Vec<(u32, bool)>);
+
+impl Entries {
+    fn new(text: &str, starts: &[usize]) -> Self {
+        let mut header = None;
+        let mut posting = false;
+        let mut of = Vec::with_capacity(starts.len());
+        for index in 0..starts.len() {
+            let line = u32::try_from(index + 1).unwrap_or(u32::MAX);
+            of.push((header.unwrap_or(line), posting));
+            let Some(here) = line_slice(text, starts, index) else {
+                continue;
+            };
+            if here.starts_with([' ', '\t']) || here.trim().is_empty() {
+                posting |= is_posting_line(here);
+            } else {
+                header = Some(line);
+                posting = false;
+            }
         }
+        Self(of)
     }
-    (line, posting)
+
+    /// The header line of the entry `line` belongs to (its own line when none stands above it),
+    /// and whether a posting stands between them.
+    fn of(&self, line: u32) -> (u32, bool) {
+        let at = usize::try_from(line).unwrap_or(1).saturating_sub(1);
+        self.0.get(at).copied().unwrap_or((line, false))
+    }
 }
 
-/// One parser error as the plain issue the rest of the code reports.
-fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> ParseIssue {
+/// One parser error as the plain issue the rest of the code reports. `entries` is built the first
+/// time a line has to be placed in its entry.
+fn issue(
+    reason: &str,
+    span: parser::Span,
+    text: &str,
+    starts: &[usize],
+    entries: &OnceCell<Entries>,
+) -> ParseIssue {
     let line = line_of(starts, span.start);
     let written = text.get(span.start..span.end).unwrap_or("");
     let (kind, line) = if reason.starts_with("unknown account type") {
@@ -259,7 +281,7 @@ fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> Pars
         let name = bare(written);
         (IssueKind::PushNotPopped { metadata, name }, 0)
     } else if let Some(key) = reason.strip_prefix("duplicate key ") {
-        let (header, posting) = entry_of(text, starts, line);
+        let (header, posting) = entries.get_or_init(|| Entries::new(text, starts)).of(line);
         (
             IssueKind::DuplicateMetadata {
                 key: key.to_string(),
@@ -278,13 +300,16 @@ fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> Pars
 }
 
 /// The line of the entry that holds `line`: its own when it starts an entry, else the header above.
-fn entry_start(text: &str, starts: &[usize], line: u32) -> u32 {
+fn entry_start(text: &str, starts: &[usize], line: u32, entries: &OnceCell<Entries>) -> u32 {
     let index = usize::try_from(line).unwrap_or(1).saturating_sub(1);
     let starts_entry = line_slice(text, starts, index).is_some_and(|l| !l.starts_with([' ', '\t']));
     if starts_entry {
         line
     } else {
-        entry_of(text, starts, line).0
+        entries
+            .get_or_init(|| Entries::new(text, starts))
+            .of(line)
+            .0
     }
 }
 
@@ -334,6 +359,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
         }))
         .collect();
     let starts = line_starts(&normalized);
+    let entries = OnceCell::new();
     let sources = parser::BeancountSources::from(normalized.as_str());
     let reader = parser::BeancountParser::new(&sources);
     let success = match reader.parse() {
@@ -349,7 +375,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
             let mut issues: Vec<ParseIssue> = failure
                 .errors
                 .iter()
-                .map(|e| issue(e.reason(), e.span(), &normalized, &starts))
+                .map(|e| issue(e.reason(), e.span(), &normalized, &starts, &entries))
                 // The reference drops a stray line whole: on one after the first of its run it says
                 // nothing, and on the first only the stray error, not what the parser read there.
                 .filter(|i| {
@@ -381,7 +407,7 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     let dropped: foldhash::HashSet<u32> = found
         .zero_division
         .iter()
-        .map(|&line| entry_start(&normalized, &starts, line))
+        .map(|&line| entry_start(&normalized, &starts, line, &entries))
         .collect();
     let errors: Vec<ParseIssue> = found
         .zero_division

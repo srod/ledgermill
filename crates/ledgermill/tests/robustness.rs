@@ -351,6 +351,31 @@ fn a_number_of_4097_written_digits_is_read_and_one_of_4098_is_refused() {
 }
 
 #[test]
+fn an_entry_with_thousands_of_errors_is_reported_at_its_header() {
+    // Each error used to be placed by reading back to the entry's header: 5,000 of them in one
+    // entry took seconds, and 40,000 took many times that.
+    let mut duplicates =
+        String::from("2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n2026-01-02 * \"t\"\n");
+    for i in 0..5_000 {
+        duplicates.push_str(&format!("  k{i}: \"1\"\n  k{i}: \"2\"\n"));
+    }
+    duplicates.push_str("  Assets:A  1 EUR\n    pk: \"1\"\n    pk: \"2\"\n  Assets:B\n");
+    let found = load(&[file("dup.beancount", &duplicates)]);
+    let lines: Vec<u32> = found.check().iter().map(|f| f.line).collect();
+    assert_eq!(lines, vec![3; 5_001]);
+    assert_eq!(found.check()[0].details["scope"], "entry");
+    assert_eq!(found.check()[5_000].details["scope"], "posting");
+
+    let mut divisions = String::from("2026-01-01 open Assets:A\n2026-01-02 * \"t\"\n");
+    for _ in 0..5_000 {
+        divisions.push_str("  Assets:A  (1 / 0) EUR\n");
+    }
+    let found = load(&[file("div.beancount", &divisions)]);
+    assert_eq!(found.check().len(), 5_000);
+    assert!(found.check().iter().all(|f| f.code == "division-by-zero"));
+}
+
+#[test]
 fn beancount_extreme_exponents_do_not_oom() {
     // 2,000 chained tiny factors produce exponent -40,000; adding 1 and quantizing stays O(1).
     let mut expr = String::from("(1 + (0.00000000000000000001");
