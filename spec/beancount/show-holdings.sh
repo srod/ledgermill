@@ -5,6 +5,7 @@
 # DATE may be - for none. With a regex, only the accounts it matches are listed.
 # Cleaned for reading only: CRs and the padding spaces are dropped. The row order is the order
 # bean-query gives, which this note set does not rely on.
+ref="$(dirname "$0")/run-ref.sh"
 f="$1"; V="$2"; D="$3"; ONLY="$4"
 [ "$D" = "-" ] && D=""
 WHERE=""
@@ -19,8 +20,8 @@ clean() {
 }
 echo "== $f V=$V${D:+ date <= $D}${ONLY:+ accounts $ONLY}"
 echo "-- bean-check"
-bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
+"$ref" bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
 echo "-- units: account,currency,units"
-bean-query -f csv "$f" "$UNITS" 2>&1 | clean | tail -n +2
+"$ref" bean-query -f csv "$f" "$UNITS" 2>&1 | clean | tail -n +2
 echo "-- holdings: account,currency,units,cost_basis,cost_basis_value,market_value"
-bean-query -f csv "$f" "$HOLDINGS" 2>&1 | clean | tail -n +2
+"$ref" bean-query -f csv "$f" "$HOLDINGS" 2>&1 | clean | tail -n +2

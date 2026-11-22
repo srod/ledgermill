@@ -6,6 +6,7 @@
 # load ends with.
 # usage: spec/beancount/show-several-files.sh
 # Cleaned for reading only: the directory is cut from the file names.
+ref="$(cd "$(dirname "$0")" && pwd)/run-ref.sh"
 cd "$(dirname "$0")/probes/several-files" || exit 1
 HERE=$(pwd)
 PY="$(dirname "$(readlink "$(command -v bean-check)")")/python"
@@ -25,13 +26,13 @@ root() {
 
 check() { # check FILE...
   echo "== $*"
-  out=$(bean-check "$(root "$@")" 2>&1 | clean)
+  out=$("$ref" bean-check "$(root "$@")" 2>&1 | clean)
   echo "bean-check: ${out:-(no output)}"
 }
 
 postings() { # postings FILE...
   echo "== $* (postings)"
-  bean-query -f csv "$(root "$@")" \
+  "$ref" bean-query -f csv "$(root "$@")" \
     "SELECT date, filename, lineno, account, number, narration FROM postings ORDER BY date, filename, lineno" 2>&1 \
     | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//' | clean
 }
@@ -39,18 +40,18 @@ postings() { # postings FILE...
 prices() { # prices FILE...: the prices table, then the date, line and file of each price entry
   echo "== $* (prices)"
   set -- "$(root "$@")"
-  bean-query -f csv "$1" "SELECT date, currency, number(amount), currency(amount) FROM prices" 2>&1 \
+  "$ref" bean-query -f csv "$1" "SELECT date, currency, number(amount), currency(amount) FROM prices" 2>&1 \
     | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//' | clean
-  bean-query -f csv "$1" "SELECT date, lineno, filename FROM entries WHERE type = 'price'" 2>&1 \
+  "$ref" bean-query -f csv "$1" "SELECT date, lineno, filename FROM entries WHERE type = 'price'" 2>&1 \
     | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//' | clean
 }
 
 sums() { # sums FILE...: the holdings queries' units of Assets:Sum (show-holdings.sh has the full texts)
   echo "== $* (sums)"
   set -- "$(root "$@")"
-  out=$(bean-check "$1" 2>&1 | clean)
+  out=$("$ref" bean-check "$1" 2>&1 | clean)
   echo "bean-check: ${out:-(no output)}"
-  bean-query -f csv "$1" "SELECT account, currency, str(sum(units(position))) AS units, str(sum(convert(position, 'EUR'))) AS value WHERE account ~ 'Assets' GROUP BY account, currency" 2>&1 \
+  "$ref" bean-query -f csv "$1" "SELECT account, currency, str(sum(units(position))) AS units, str(sum(convert(position, 'EUR'))) AS value WHERE account ~ 'Assets' GROUP BY account, currency" 2>&1 \
     | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//' | clean
 }
 
@@ -88,7 +89,7 @@ prices settings-only.beancount lots-a.beancount
 echo "##### roots that only include"
 for f in include-open include-rename; do
   echo "== $f.beancount"
-  out=$(bean-check "$f.beancount" 2>&1 | clean)
+  out=$("$ref" bean-check "$f.beancount" 2>&1 | clean)
   echo "bean-check: ${out:-(no output)}"
   "$PY" -c "
 import sys
