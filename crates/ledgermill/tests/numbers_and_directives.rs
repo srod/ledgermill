@@ -350,6 +350,36 @@ fn a_regex_alias_backreference_to_a_missing_group_is_a_parse_error_when_it_match
 }
 
 #[test]
+fn an_alias_defined_or_ended_between_two_uses_of_a_name_changes_the_second() {
+    let journal = "\
+alias a = b
+2026-01-01 t
+  a  1
+  y  -1
+2026-01-02 t
+  a  1
+  y  -1
+alias a = c
+2026-01-03 t
+  a  1
+  y  -1
+end aliases
+2026-01-04 t
+  a  1
+  y  -1
+";
+    assert_eq!(
+        accounts("a.journal", journal),
+        json!([
+            [2, ["b", "y"]],
+            [5, ["b", "y"]],
+            [9, ["c", "y"]],
+            [13, ["a", "y"]]
+        ])
+    );
+}
+
+#[test]
 fn commodity_format_subdirective_requires_a_blank_after_format() {
     for line in ["  format1.00 USD", "  formatted yes"] {
         let journal = format!("commodity USD\n{line}\n2026-01-01 t\n  a  1 USD\n  b\n");

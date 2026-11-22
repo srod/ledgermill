@@ -4,7 +4,7 @@
 //! reference tool rejects it too, `unsupported-syntax` when it is something ledgermill does not
 //! read yet. A transaction with any such line is dropped, never half-reported.
 
-use crate::alias::{Alias, parse_alias};
+use crate::alias::{Alias, AliasSet, parse_alias};
 use crate::amount::{Default, Styles, read_amount, read_symbol};
 use crate::balance::{Draft, Unbalanced};
 use crate::chars::{is_blank, trim_blank};
@@ -29,7 +29,7 @@ use serde_json::json;
 use std::sync::OnceLock;
 
 pub(crate) struct Output {
-    /// What the regex aliases of the whole load may still scan (see `alias::work_budget`).
+    /// What the aliases of the whole load may still look at (see `alias::work_budget`).
     pub alias_budget: usize,
     /// `(transaction, what `at_cost` and `value` need of it, its flat posting rows, date)`; sorted
     /// by the caller.
@@ -129,7 +129,7 @@ enum DirectiveBody {
 struct FileState {
     styles: Styles,
     year: Option<u32>,
-    aliases: Vec<Alias>,
+    aliases: AliasSet,
     parents: Vec<String>,
     /// Accounts declared with type `V` (Conversion).
     conversion_accounts: Vec<String>,
@@ -610,13 +610,7 @@ impl FileParser<'_> {
             const MAX_REGEX_ALIASES: usize = 256;
             let parsed = parse_alias(rest)?;
             if matches!(parsed, Alias::Regex { .. })
-                && self
-                    .st
-                    .aliases
-                    .iter()
-                    .filter(|a| matches!(a, Alias::Regex { .. }))
-                    .count()
-                    >= MAX_REGEX_ALIASES
+                && self.st.aliases.regex_count() >= MAX_REGEX_ALIASES
             {
                 return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
             }
@@ -887,11 +881,10 @@ impl FileParser<'_> {
 
     /// The account with `apply account` parents and aliases applied (aliases see the parents).
     fn full_account(&mut self, name: &str) -> Parsed<String> {
-        let mut full = self.prefixed_account(name);
-        for alias in self.st.aliases.iter().rev() {
-            full = alias.apply(&full, &mut self.out.alias_budget)?;
-        }
-        Ok(full)
+        let prefixed = self.prefixed_account(name);
+        self.st
+            .aliases
+            .resolve(prefixed, &mut self.out.alias_budget)
     }
 
     fn indented(&mut self, state: State, line_no: u32, line: &str) -> State {

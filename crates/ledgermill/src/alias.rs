@@ -3,6 +3,7 @@
 use crate::chars::{is_blank, trim_blank};
 use crate::problem::{Parsed, Problem, Unsupported, invalid};
 use regex_lite::{Regex, RegexBuilder};
+use std::collections::HashMap;
 
 /// Maximum compiled NFA size per regex alias (64 KiB).
 const MAX_REGEX_NFA_BYTES: usize = 64 * 1024;
@@ -10,23 +11,111 @@ const MAX_REGEX_NFA_BYTES: usize = 64 * 1024;
 const MAX_ACCOUNT_LEN: usize = 64 * 1024;
 
 // The limits above bound memory, not time: 243 cheap aliases scanning a 32 KiB name, which twelve
-// doubling aliases build from 8 bytes, cost 0.6 s per posting from a 3.7 KB journal. So one load
-// may feed its regex aliases only this much text: a floor, plus a share per input byte, as a
-// legitimate journal's work grows with its size. A scan is charged `text length x weight`, the
-// weight being the NFA size class (1, 4, 16 or 64 for up to 1, 4, 16 or 64 KiB), because the
-// scan time per byte grows with the NFA: 20 ns for a small one, 8 us for one near the limit.
-// Measured in release, a unit costs up to 0.1 us, so the floor is about 25 ms and the hostile
-// journal above runs out of it within its first posting. The corpus journals use under 0.4 units
-// per input byte; 32 leaves room for 20 aliases that expand one-letter names in a 1 MB journal,
-// and still caps a hostile 1 MB journal at about 3 s, linear in its size.
+// doubling aliases build from 8 bytes, cost 0.6 s per posting from a 3.7 KB journal, and 20,000
+// plain aliases that each look at a 60,000-byte name cost 27 ms per posting. So one load may
+// make its aliases look at only this much text: a floor, plus a share per input byte, as a
+// legitimate journal's work grows with its size. An alias applied to a name is charged the
+// name's length, times the NFA size class for a regex (1, 4, 16 or 64 for up to 1, 4, 16 or 64
+// KiB), as the scan time per byte grows with the NFA: 20 ns for a small one, 8 us for one near
+// the limit. Each use of a finished name is charged its length too, so the account names of a
+// load cannot add up to more than the budget either (a 1 MB journal of `a  1` lines with an
+// alias that makes `a` 60 KB would otherwise hold gigabytes of names).
+//
+// A name that was resolved before is not resolved again (see `AliasSet`), so a journal pays for
+// its distinct account names, not for its postings: 150 aliases and 500 accounts in a 1 MB
+// journal use 1.8 units per input byte, and 5,000 accounts 13.5. Measured in release, a unit costs
+// up to 0.08 us, so the floor is about 20 ms, and a hostile journal that names a different
+// account on every posting is capped at about 1.3 s per MB, linear in its size (it was 2.5 s with
+// 32 units per byte, before names were remembered).
 const ALIAS_WORK_FLOOR: usize = 256 * 1024;
-const ALIAS_WORK_PER_INPUT_BYTE: usize = 32;
+const ALIAS_WORK_PER_INPUT_BYTE: usize = 16;
+/// What the finished names an `AliasSet` remembers may take up between them, with an allowance
+/// per name for the map's own bookkeeping (4 MiB).
+const MAX_REMEMBERED_BYTES: usize = 4 * 1024 * 1024;
+const REMEMBERED_NAME_OVERHEAD: usize = 64;
 
-/// What the regex aliases of a load may scan, given the bytes of all its files.
+/// What the aliases of a load may look at, given the bytes of all its files.
 pub(crate) fn work_budget(input_bytes: usize) -> usize {
     input_bytes
         .saturating_mul(ALIAS_WORK_PER_INPUT_BYTE)
         .saturating_add(ALIAS_WORK_FLOOR)
+}
+
+fn charge(budget: &mut usize, cost: usize) -> Parsed<()> {
+    *budget = budget
+        .checked_sub(cost)
+        .ok_or(Problem::Unsupported(Unsupported::AliasTooLarge))?;
+    Ok(())
+}
+
+/// The aliases in force in one file, and the names they have already been applied to. Whatever
+/// changes the aliases forgets those names, so a remembered name is always what the aliases in
+/// force would give now.
+#[derive(Debug, Default)]
+pub(crate) struct AliasSet {
+    list: Vec<Alias>,
+    regex_count: usize,
+    /// Name before the aliases to name after, for names that came out without a problem.
+    resolved: HashMap<String, String>,
+    resolved_bytes: usize,
+}
+
+impl AliasSet {
+    pub(crate) fn push(&mut self, alias: Alias) {
+        if matches!(alias, Alias::Regex { .. }) {
+            self.regex_count += 1;
+        }
+        self.list.push(alias);
+        self.forget();
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.list.clear();
+        self.regex_count = 0;
+        self.forget();
+    }
+
+    pub(crate) fn regex_count(&self) -> usize {
+        self.regex_count
+    }
+
+    fn forget(&mut self) {
+        self.resolved.clear();
+        self.resolved_bytes = 0;
+    }
+
+    /// `name` with every alias applied, the last defined first. `budget` is what the load's
+    /// aliases may still look at.
+    pub(crate) fn resolve(&mut self, name: String, budget: &mut usize) -> Parsed<String> {
+        if self.list.is_empty() {
+            return Ok(name);
+        }
+        if let Some(full) = self.resolved.get(&name) {
+            charge(budget, full.len())?;
+            return Ok(full.clone());
+        }
+        let mut full = name.clone();
+        for alias in self.list.iter().rev() {
+            alias.apply(&mut full, budget)?;
+        }
+        charge(budget, full.len())?;
+        self.remember(name, &full);
+        Ok(full)
+    }
+
+    /// Only successes are remembered, so a refused name is refused again, and reported, on every
+    /// line that uses it.
+    fn remember(&mut self, name: String, full: &str) {
+        let size = name.len() + full.len() + REMEMBERED_NAME_OVERHEAD;
+        if size > MAX_REMEMBERED_BYTES {
+            return;
+        }
+        if self.resolved_bytes + size > MAX_REMEMBERED_BYTES {
+            self.forget();
+        }
+        self.resolved_bytes += size;
+        self.resolved.insert(name, full.to_string());
+    }
 }
 
 #[derive(Debug)]
@@ -139,30 +228,31 @@ pub(crate) fn parse_alias(text: &str) -> Parsed<Alias> {
 }
 
 impl Alias {
-    /// `budget` is what the load's regex aliases may still scan; a regex alias takes its share.
-    pub(crate) fn apply(&self, account: &str, budget: &mut usize) -> Parsed<String> {
+    /// Applies the alias to `account` in place. `budget` is what the load's aliases may still
+    /// look at; looking at the name takes its share, matching or not.
+    fn apply(&self, account: &mut String, budget: &mut usize) -> Parsed<()> {
         match self {
-            Alias::Plain { old, new } => match account.strip_prefix(old.as_str()) {
-                Some(rest) if rest.is_empty() || rest.starts_with(':') => {
-                    if new.len().saturating_add(rest.len()) > MAX_ACCOUNT_LEN {
-                        return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
-                    }
-                    Ok(format!("{new}{rest}"))
+            Alias::Plain { old, new } => {
+                charge(budget, account.len().max(1))?;
+                let rest_len = match account.strip_prefix(old.as_str()) {
+                    Some(rest) if rest.is_empty() || rest.starts_with(':') => rest.len(),
+                    _ => return Ok(()),
+                };
+                if new.len().saturating_add(rest_len) > MAX_ACCOUNT_LEN {
+                    return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
                 }
-                _ => Ok(account.to_string()),
-            },
+                account.replace_range(..old.len(), new);
+            }
             Alias::Regex {
                 regex,
                 weight,
                 replacement,
             } => {
-                let cost = account.len().saturating_mul(*weight);
-                *budget = budget
-                    .checked_sub(cost)
-                    .ok_or(Problem::Unsupported(Unsupported::AliasTooLarge))?;
-                replace_all(regex, replacement, account)
+                charge(budget, account.len().saturating_mul(*weight))?;
+                *account = replace_all(regex, replacement, account)?;
             }
         }
+        Ok(())
     }
 }
 
