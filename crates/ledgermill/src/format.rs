@@ -9,6 +9,12 @@ use crate::{Ledger, beancount, beancount_ledger, hledger_ledger, load};
 const INDENT: usize = 4;
 /// The least space between an account and its amount.
 const GAP: usize = 2;
+/// Floor on allowed formatted output size before refusing quadratic alignment padding.
+const MIN_FORMAT_BUDGET: usize = 16 * 1024 * 1024;
+
+fn format_budget(input_len: usize) -> usize {
+    input_len.saturating_mul(4).max(MIN_FORMAT_BUDGET)
+}
 
 /// Format an hledger journal: postings indented by 4 spaces, and in each transaction the amounts
 /// of its postings ending in one column, at least 2 spaces after the account.
@@ -57,21 +63,37 @@ fn realign(file: &SourceFile, layouts: &[Vec<PostingLayout>]) -> String {
         None => ("", file.content.as_str()),
     };
     let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+    let budget = format_budget(file.content.len());
+    let mut projected = file.content.len();
     for tx in layouts {
-        for (index, rewritten) in rewrite_transaction(&lines, tx) {
+        let Some((rewritten, delta)) =
+            rewrite_transaction(&lines, tx, budget.saturating_sub(projected))
+        else {
+            return file.content.clone();
+        };
+        projected = projected.saturating_add(delta);
+        if projected > budget {
+            return file.content.clone();
+        }
+        for (index, text) in rewritten {
             if let Some(line) = lines.get_mut(index) {
-                *line = rewritten;
+                *line = text;
             }
         }
     }
     format!("{bom}{}", lines.join("\n"))
 }
 
-/// The posting lines of one transaction, rewritten: `(index into lines, new text)`.
-fn rewrite_transaction(lines: &[String], tx: &[PostingLayout]) -> Vec<(usize, String)> {
+/// The posting lines of one transaction, rewritten: `(index into lines, new text)` and the net
+/// byte growth, or `None` if padding would exceed `remaining_budget`.
+fn rewrite_transaction(
+    lines: &[String],
+    tx: &[PostingLayout],
+    remaining_budget: usize,
+) -> Option<(Vec<(usize, String)>, usize)> {
     let pieces: Option<Vec<Pieces>> = tx.iter().map(|p| Pieces::of(lines, p)).collect();
     let Some(pieces) = pieces else {
-        return Vec::new();
+        return Some((Vec::new(), 0));
     };
     // shortcut: char count, not display width (CJK/emoji misalign), upgrade if users report it
     let column = pieces
@@ -79,25 +101,45 @@ fn rewrite_transaction(lines: &[String], tx: &[PostingLayout]) -> Vec<(usize, St
         .filter_map(|p| p.amount.map(|a| INDENT + width(p.head) + GAP + width(a)))
         .max()
         .unwrap_or(0);
-    pieces
+    // Check total growth before allocating any padding string so a pathological line cannot OOM.
+    let mut growth = 0usize;
+    for p in &pieces {
+        let pad = p
+            .amount
+            .map_or(0, |a| column - INDENT - width(p.head) - width(a));
+        let new_len = INDENT
+            .saturating_add(p.head.len())
+            .saturating_add(pad)
+            .saturating_add(p.tail.len())
+            .saturating_add(usize::from(p.carriage_return));
+        let old_len = lines.get(p.index).map_or(0, String::len);
+        growth = growth.saturating_add(new_len.saturating_sub(old_len));
+        if growth > remaining_budget {
+            return None;
+        }
+    }
+    let rewritten = pieces
         .iter()
         .map(|p| {
-            let mut text = " ".repeat(INDENT);
+            let pad = p
+                .amount
+                .map_or(0, |a| column - INDENT - width(p.head) - width(a));
+            let mut text = String::with_capacity(
+                INDENT + p.head.len() + pad + p.tail.len() + usize::from(p.carriage_return),
+            );
+            text.extend(std::iter::repeat_n(' ', INDENT));
             text.push_str(p.head);
-            match p.amount {
-                Some(amount) => {
-                    let pad = column - INDENT - width(p.head) - width(amount);
-                    text.push_str(&" ".repeat(pad));
-                    text.push_str(p.tail);
-                }
-                None => text.push_str(p.tail),
+            if p.amount.is_some() {
+                text.extend(std::iter::repeat_n(' ', pad));
             }
+            text.push_str(p.tail);
             if p.carriage_return {
                 text.push('\r');
             }
             (p.index, text)
         })
-        .collect()
+        .collect();
+    Some((rewritten, growth))
 }
 
 fn width(text: &str) -> usize {

@@ -51,6 +51,46 @@ pub(crate) fn realign(file: &SourceFile, read: &HashSet<u32>) -> String {
         }
     }
 
+    // Check projected output size before allocating padding so a pathological line cannot OOM.
+    let budget = file.content.len().saturating_mul(4).max(16 * 1024 * 1024);
+    let mut projected = 0usize;
+    for (index, ((body, ending), shape)) in lines.iter().zip(&shapes).enumerate() {
+        if index > 0 {
+            projected = projected.saturating_add(1);
+        }
+        let line_len = match shape {
+            Some(Shape::Posting {
+                account,
+                number,
+                rest,
+                ..
+            }) => prefix_width
+                .max(indent.saturating_add(account.len()))
+                .saturating_add(2)
+                .saturating_add(number_width.max(number.len()))
+                .saturating_add(1)
+                .saturating_add(rest.len()),
+            Some(Shape::Dated {
+                prefix,
+                number,
+                rest,
+            }) => prefix_width
+                .max(prefix.len())
+                .saturating_add(2)
+                .saturating_add(number_width.max(number.len()))
+                .saturating_add(1)
+                .saturating_add(rest.len()),
+            Some(Shape::Account { rest, .. }) => indent.saturating_add(rest.len()),
+            None => body.len(),
+        };
+        projected = projected
+            .saturating_add(line_len)
+            .saturating_add(ending.len());
+        if projected > budget {
+            return file.content.clone();
+        }
+    }
+
     let pad = " ".repeat(indent);
     let mut out = String::with_capacity(file.content.len());
     for (index, ((body, ending), shape)) in lines.iter().zip(&shapes).enumerate() {
@@ -222,16 +262,17 @@ fn starts_with_currency(text: &str) -> bool {
     let after_run = body.chars().nth(run.len());
     // The currency may stop before the end of the run, wherever a word boundary falls. The `/…`
     // form must end in a capital, or in a digit after a capital.
-    (0..run.len()).any(|last| {
-        let Some(&end) = run.get(last) else {
-            return false;
-        };
-        let well_formed = !slashed
-            || end.is_ascii_uppercase()
-            || (end.is_ascii_digit() && run.iter().take(last).any(char::is_ascii_uppercase));
+    let mut seen_upper = false;
+    for (last, &end) in run.iter().enumerate() {
+        let well_formed =
+            !slashed || end.is_ascii_uppercase() || (end.is_ascii_digit() && seen_upper);
         let next = run.get(last + 1).copied().or(after_run);
-        well_formed && is_word(end) != next.is_some_and(is_word)
-    })
+        if well_formed && is_word(end) != next.is_some_and(is_word) {
+            return true;
+        }
+        seen_upper |= end.is_ascii_uppercase();
+    }
+    false
 }
 
 /// `number`, blanks and a currency at the start of `text` (which starts at the blanks before the
