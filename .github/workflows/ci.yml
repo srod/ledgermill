@@ -148,8 +148,8 @@ jobs:
           if [ "$EVENT_NAME" = "pull_request" ]; then
             commits=$(git log --no-merges --format=%H "$PR_BASE..$PR_HEAD")
           elif [ "${REF#refs/tags/}" != "$REF" ]; then
-            # A tag names a commit its branch's push already checked.
-            commits=""
+            # A tag: the commits no branch has, as a branch's push checked the others.
+            commits=$(git log --no-merges --format=%H "$PUSH_AFTER" --not --remotes=origin)
           elif [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$PUSH_BEFORE" ]; then
             # A new branch: every commit it has that the default branch does not.
             commits=$(git log --no-merges --format=%H "$PUSH_AFTER" --not "origin/$DEFAULT_BRANCH")
