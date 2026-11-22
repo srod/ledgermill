@@ -20,6 +20,11 @@ All notable changes to ledgermill are written here. The format follows
   remembered, so a journal pays for its distinct account names, not its postings. A 3.7 KB journal of 255 regex
   aliases took 0.6 s of CPU per posting, and 20,000 plain aliases took 27 ms per posting; both are now refused in a
   few milliseconds. A 1 MB journal with 150 aliases and 500 accounts loads in 0.09 s. See `spec/README.md`.
+- hledger: an `apply account` nesting that makes a prefix longer than 64 KiB, or account names that add up to more
+  than the same budget as the aliases (256 KiB plus 16 bytes per input byte of the files), is refused as
+  `unsupported-syntax` (`account-too-large`), with or without aliases. A journal of 100,000 nested
+  `apply account a` lines and 50,000 postings (2 MB) took 13 s and 2.8 GB; it is now refused in 0.06 s and
+  160 MB. See `spec/README.md`.
 - hledger: a number written with more than 4097 digits is refused as `number-too-large`, and `value()` and
   `holdings()` return `number-too-large` when a chain of prices gives a rate of more than 65,536 bits. See
   `spec/hledger/syntax.md` and `spec/README.md`.

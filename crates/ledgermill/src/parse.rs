@@ -4,7 +4,7 @@
 //! reference tool rejects it too, `unsupported-syntax` when it is something ledgermill does not
 //! read yet. A transaction with any such line is dropped, never half-reported.
 
-use crate::alias::{Alias, AliasSet, parse_alias};
+use crate::alias::{Alias, AliasSet, MAX_ACCOUNT_LEN, charge, parse_alias};
 use crate::amount::{Default, Styles, read_amount, read_symbol};
 use crate::balance::{Draft, Unbalanced};
 use crate::chars::{is_blank, trim_blank};
@@ -29,8 +29,9 @@ use serde_json::json;
 use std::sync::OnceLock;
 
 pub(crate) struct Output {
-    /// What the aliases of the whole load may still look at (see `alias::work_budget`).
-    pub alias_budget: usize,
+    /// What the aliases and account names of the whole load may still look at (see
+    /// `alias::work_budget`).
+    pub work_budget: usize,
     /// `(transaction, what `at_cost` and `value` need of it, its flat posting rows, date)`; sorted
     /// by the caller.
     pub transactions: Vec<(Transaction, Exact, Vec<FlatPosting>, Date)>,
@@ -46,7 +47,7 @@ impl Output {
     /// Nothing read yet, for files of `input_bytes` bytes in all.
     pub fn new(input_bytes: usize) -> Self {
         Self {
-            alias_budget: crate::alias::work_budget(input_bytes),
+            work_budget: crate::alias::work_budget(input_bytes),
             transactions: Vec::new(),
             prices: Vec::new(),
             findings: Vec::new(),
@@ -124,13 +125,56 @@ enum DirectiveBody {
     Free,
 }
 
+/// The `apply account` levels in force. The innermost level's account is the whole `prefix`;
+/// `outer_lens` holds, per level, the length the prefix had before it, to cut back to at its end.
+#[derive(Default)]
+struct Parents {
+    prefix: String,
+    outer_lens: Vec<usize>,
+}
+
+impl Parents {
+    /// Enters a level, unless the prefix would pass the limit on an account name.
+    fn push(&mut self, name: &str) -> Parsed<()> {
+        let outer = self.prefix.len();
+        let colon = usize::from(outer > 0);
+        if outer.saturating_add(colon).saturating_add(name.len()) > MAX_ACCOUNT_LEN {
+            return Err(Problem::Unsupported(Unsupported::AccountTooLarge));
+        }
+        if outer > 0 {
+            self.prefix.push(':');
+        }
+        self.prefix.push_str(name);
+        self.outer_lens.push(outer);
+        Ok(())
+    }
+
+    /// Leaves the innermost level; false when there is none.
+    fn pop(&mut self) -> bool {
+        let Some(outer) = self.outer_lens.pop() else {
+            return false;
+        };
+        self.prefix.truncate(outer);
+        true
+    }
+
+    /// `name` under the levels in force.
+    fn join(&self, name: &str) -> String {
+        if self.outer_lens.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}:{name}", self.prefix)
+        }
+    }
+}
+
 /// What a file has set up so far; directives reach only the lines after them in their file.
 #[derive(Default)]
 struct FileState {
     styles: Styles,
     year: Option<u32>,
     aliases: AliasSet,
-    parents: Vec<String>,
+    parents: Parents,
     /// Accounts declared with type `V` (Conversion).
     conversion_accounts: Vec<String>,
 }
@@ -676,7 +720,7 @@ impl FileParser<'_> {
                 if !comment_or_nothing(after) {
                     return invalid("Unexpected text after end apply account.");
                 }
-                if self.st.parents.pop().is_none() {
+                if !self.st.parents.pop() {
                     return invalid("end apply account without apply account.");
                 }
                 return plain;
@@ -714,8 +758,7 @@ impl FileParser<'_> {
             if name.contains("  ") {
                 return invalid("Unexpected text after the account.");
             }
-            let full = self.prefixed_account(name);
-            self.st.parents.push(full);
+            self.st.parents.push(name)?;
             return plain;
         }
         let one_space = rest.strip_prefix(' ').filter(|r| !r.starts_with(is_blank));
@@ -871,20 +914,31 @@ impl FileParser<'_> {
         Ok(())
     }
 
-    /// The account with any enclosing `apply account` parent prepended (before aliases).
-    fn prefixed_account(&self, name: &str) -> String {
-        match self.st.parents.last() {
-            Some(parent) => format!("{parent}:{name}"),
-            None => name.to_string(),
-        }
-    }
-
     /// The account with `apply account` parents and aliases applied (aliases see the parents).
+    /// Its length is charged to the load's budget, so the names of a load stay bounded.
     fn full_account(&mut self, name: &str) -> Parsed<String> {
-        let prefixed = self.prefixed_account(name);
-        self.st
+        // A prefix past what is left is refused whatever follows it: the name is longer than the
+        // prefix, and the first alias is charged the name's length. Saying so before the prefix is
+        // copied (and hashed, with aliases) for every posting keeps a refused journal of short
+        // postings under a 64 KiB prefix from costing 7 GB of copying per MB.
+        if self.st.parents.prefix.len() > self.out.work_budget {
+            return Err(Problem::Unsupported(if self.st.aliases.is_empty() {
+                Unsupported::AccountTooLarge
+            } else {
+                Unsupported::AliasTooLarge
+            }));
+        }
+        let prefixed = self.st.parents.join(name);
+        let full = self
+            .st
             .aliases
-            .resolve(prefixed, &mut self.out.alias_budget)
+            .resolve(prefixed, &mut self.out.work_budget)?;
+        charge(
+            &mut self.out.work_budget,
+            full.len(),
+            Unsupported::AccountTooLarge,
+        )?;
+        Ok(full)
     }
 
     fn indented(&mut self, state: State, line_no: u32, line: &str) -> State {

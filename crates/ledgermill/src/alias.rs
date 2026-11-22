@@ -7,8 +7,9 @@ use std::collections::HashMap;
 
 /// Maximum compiled NFA size per regex alias (64 KiB).
 const MAX_REGEX_NFA_BYTES: usize = 64 * 1024;
-/// Maximum byte length of an account name produced by alias expansion (64 KiB).
-const MAX_ACCOUNT_LEN: usize = 64 * 1024;
+/// Maximum byte length of an account name made by `apply account` nesting or alias expansion
+/// (64 KiB).
+pub(crate) const MAX_ACCOUNT_LEN: usize = 64 * 1024;
 
 // The limits above bound memory, not time: 243 cheap aliases scanning a 32 KiB name, which twelve
 // doubling aliases build from 8 bytes, cost 0.6 s per posting from a 3.7 KB journal, and 20,000
@@ -17,9 +18,10 @@ const MAX_ACCOUNT_LEN: usize = 64 * 1024;
 // legitimate journal's work grows with its size. An alias applied to a name is charged the
 // name's length, times the NFA size class for a regex (1, 4, 16 or 64 for up to 1, 4, 16 or 64
 // KiB), as the scan time per byte grows with the NFA: 20 ns for a small one, 8 us for one near
-// the limit. Each use of a finished name is charged its length too, so the account names of a
-// load cannot add up to more than the budget either (a 1 MB journal of `a  1` lines with an
-// alias that makes `a` 60 KB would otherwise hold gigabytes of names).
+// the limit. The parser charges the length of every finished account name too, with or without
+// aliases, so the account names of a load cannot add up to more than the budget either (a 1 MB
+// journal of `a  1` lines under a 60 KB `apply account` prefix, or with an alias that makes `a`
+// 60 KB, would otherwise hold gigabytes of names).
 //
 // A name that was resolved before is not resolved again (see `AliasSet`), so a journal pays for
 // its distinct account names, not for its postings: 150 aliases and 500 accounts in a 1 MB
@@ -34,17 +36,18 @@ const ALIAS_WORK_PER_INPUT_BYTE: usize = 16;
 const MAX_REMEMBERED_BYTES: usize = 4 * 1024 * 1024;
 const REMEMBERED_NAME_OVERHEAD: usize = 64;
 
-/// What the aliases of a load may look at, given the bytes of all its files.
+/// What the aliases and account names of a load may look at, given the bytes of all its files.
 pub(crate) fn work_budget(input_bytes: usize) -> usize {
     input_bytes
         .saturating_mul(ALIAS_WORK_PER_INPUT_BYTE)
         .saturating_add(ALIAS_WORK_FLOOR)
 }
 
-fn charge(budget: &mut usize, cost: usize) -> Parsed<()> {
+/// Takes `cost` from `budget`, or refuses as `refusal` when that is more than is left.
+pub(crate) fn charge(budget: &mut usize, cost: usize, refusal: Unsupported) -> Parsed<()> {
     *budget = budget
         .checked_sub(cost)
-        .ok_or(Problem::Unsupported(Unsupported::AliasTooLarge))?;
+        .ok_or(Problem::Unsupported(refusal))?;
     Ok(())
 }
 
@@ -75,6 +78,10 @@ impl AliasSet {
         self.forget();
     }
 
+    pub(crate) fn is_empty(&self) -> bool {
+        self.list.is_empty()
+    }
+
     pub(crate) fn regex_count(&self) -> usize {
         self.regex_count
     }
@@ -84,21 +91,19 @@ impl AliasSet {
         self.resolved_bytes = 0;
     }
 
-    /// `name` with every alias applied, the last defined first. `budget` is what the load's
-    /// aliases may still look at.
+    /// `name` with every alias applied, the last defined first. `budget` is what the load may
+    /// still look at.
     pub(crate) fn resolve(&mut self, name: String, budget: &mut usize) -> Parsed<String> {
-        if self.list.is_empty() {
+        if self.is_empty() {
             return Ok(name);
         }
         if let Some(full) = self.resolved.get(&name) {
-            charge(budget, full.len())?;
             return Ok(full.clone());
         }
         let mut full = name.clone();
         for alias in self.list.iter().rev() {
             alias.apply(&mut full, budget)?;
         }
-        charge(budget, full.len())?;
         self.remember(name, &full);
         Ok(full)
     }
@@ -233,7 +238,7 @@ impl Alias {
     fn apply(&self, account: &mut String, budget: &mut usize) -> Parsed<()> {
         match self {
             Alias::Plain { old, new } => {
-                charge(budget, account.len().max(1))?;
+                charge(budget, account.len().max(1), Unsupported::AliasTooLarge)?;
                 let rest_len = match account.strip_prefix(old.as_str()) {
                     Some(rest) if rest.is_empty() || rest.starts_with(':') => rest.len(),
                     _ => return Ok(()),
@@ -248,7 +253,11 @@ impl Alias {
                 weight,
                 replacement,
             } => {
-                charge(budget, account.len().saturating_mul(*weight))?;
+                charge(
+                    budget,
+                    account.len().saturating_mul(*weight),
+                    Unsupported::AliasTooLarge,
+                )?;
                 *account = replace_all(regex, replacement, account)?;
             }
         }

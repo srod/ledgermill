@@ -24,6 +24,9 @@ pub(crate) enum Unsupported {
     PriceAnnotation,
     /// A regex alias whose NFA, count, or expanded account name is too large to handle safely.
     AliasTooLarge,
+    /// An account name over 64 KiB, an `apply account` nesting that makes one, or the account
+    /// names of a load adding up to more than its work budget allows.
+    AccountTooLarge,
 }
 
 impl Unsupported {
@@ -40,6 +43,7 @@ impl Unsupported {
             Unsupported::Csv => "csv",
             Unsupported::PriceAnnotation => "price-annotation",
             Unsupported::AliasTooLarge => "alias-too-large",
+            Unsupported::AccountTooLarge => "account-too-large",
         }
     }
 
@@ -65,6 +69,9 @@ impl Unsupported {
             }
             Unsupported::AliasTooLarge => {
                 "This alias or its expanded account name is too large to handle."
+            }
+            Unsupported::AccountTooLarge => {
+                "The account names of this journal are too large to handle."
             }
         }
     }

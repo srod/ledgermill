@@ -141,10 +141,13 @@ lot or a label), `period-expression` (a period expression in a `~` rule
 that the notes cannot settle), `alias-too-large` (a regex alias whose compiled pattern needs more than 64 KiB,
 a 257th regex alias in force, an account name that aliases make longer than 64 KiB, or aliases that have
 looked at more text in one load than 256 KiB plus 16 bytes per input byte; applying an alias to a name counts for the
-name's length, times 1, 4, 16 or 64 by the pattern's size class for a regex, and so does each use of a finished name, but
+name's length, times 1, 4, 16 or 64 by the pattern's size class for a regex, but
 a name already worked out in the same file under the same aliases is not worked out again, so a journal pays for its
 distinct account names, not its postings; hledger has no such limit and a small journal must not take seconds of CPU
-per posting), and `timeclock`,
+per posting), `account-too-large` (an `apply account` that would make a prefix longer than 64 KiB, or account names
+that add up to more than the same budget of 256 KiB plus 16 bytes per input byte, aliases or not: every posting and
+`account` directive counts for the length of its finished name, so a deep or long `apply account` prefix repeated on
+many postings is refused; hledger has no such limit and a small journal must not hold gigabytes of names), and `timeclock`,
 `timedot`, `csv` (a file of that kind, by its extension, on line 1). A transaction with a refused line is not returned.
 `value()` and `holdings()` return `number-too-large` as their error when a chain of prices gives a rate of more
 than 65,536 bits. `!include` is a
