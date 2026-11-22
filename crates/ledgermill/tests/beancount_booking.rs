@@ -200,3 +200,40 @@ fn a_huge_unbalanced_cost_transaction_is_kept_and_reported_unbalanced() {
         json!([{ "commodity": "EUR", "quantity": "999999999999999999999999.0000" }])
     );
 }
+
+#[test]
+fn a_huge_unbalanced_cost_transaction_with_a_negative_residual_or_many_places_is_kept() {
+    // (units, cost, cash, residual): each residual is what bean-check 3.2.3 prints for the journal.
+    let cases = [
+        (
+            "-(1000000000000 * 1000000000000)",
+            "1.0000",
+            "1.0000",
+            "-999999999999999999999999.0000",
+        ),
+        (
+            "(1000000000000 * 1000000000000)",
+            "1.0000000000",
+            "-1.0000000000",
+            "999999999999999999999999.0000",
+        ),
+        (
+            "(1000000000000 * 1000000000000)",
+            "1",
+            "-1",
+            "999999999999999999999999",
+        ),
+    ];
+    for (units, cost, cash, residual) in cases {
+        let journal = format!(
+            "2026-01-01 open Assets:A\n2026-01-01 open Assets:Cash\n\n2026-01-02 * \"big\"\n  Assets:A  {units} AAPL {{{cost} EUR}}\n  Assets:Cash  {cash} EUR\n"
+        );
+        let ledger = ledgermill::load(&[file("u.beancount", &journal)]);
+        assert_eq!(ledger.transactions().len(), 1, "{units} {cost} {cash}");
+        assert_eq!(
+            ledger.check()[0].details["residual"],
+            json!([{ "commodity": "EUR", "quantity": residual }]),
+            "{units} {cost} {cash}"
+        );
+    }
+}

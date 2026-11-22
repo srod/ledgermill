@@ -956,13 +956,15 @@ impl Books {
         )) = &result
         {
             // The crate's balance check differs from ours at its edges; ours decides, so book
-            // again with the check out of the way. The crate scales `multiplier` by the finest
-            // quantum (`10^-places`), so `10^26` keeps high-precision unbalanced transactions
-            // within tolerance while staying well below `Decimal::MAX` (~7.9e28).
-            let huge = rust_decimal::Decimal::from_i128_with_scale(10i128.pow(26), 0);
+            // again with the check out of the way. An unbalanced transaction is still listed and
+            // reported (balancing.md), whatever the size of its residual, so the tolerance is the
+            // largest `Decimal`. The crate scales the multiplier by `10^-places`, which is why a
+            // smaller constant gave up on residuals far below the `Decimal` limit. The scaling
+            // only shrinks it, so the largest value cannot overflow. A residual of about `1e28`
+            // made of whole-number weights, next to an amount with decimals, is still refused.
             let loose = Tolerance {
-                multiplier: huge,
-                default: Some(huge),
+                multiplier: rust_decimal::Decimal::MAX,
+                default: Some(rust_decimal::Decimal::MAX),
             };
             result = booking::book(date, &refs, &loose, lookup, method);
         }
