@@ -40,8 +40,9 @@ All notable changes to ledgermill are written here. The format follows
 
 - Beancount `format()`: the size check counted the padding of an account of multi-byte letters in characters, so
   a file could be formatted to a little more than four times its size or 16 MiB.
-- Beancount: an entry with thousands of duplicate metadata keys, or of postings that divide by zero, took time
-  that grew with the square of their number: 24 s for 40,000 duplicate keys (1 MB). It takes 0.1 s now.
+- Beancount: an entry with thousands of duplicate metadata keys, or with thousands of postings whose amounts
+  divide by zero, took time that grew with the square of their number: 24 s for 40,000 duplicate keys
+  (1 MB). It takes 0.1 s now.
 - hledger: a regex alias whose replacement names a group the pattern lacks (`alias /(a)/ = \2`) is a
   `parse-error` when it matches an account, as hledger rejects it. The account was left unaliased. See
   `spec/hledger/aliases-and-parents.md`.
