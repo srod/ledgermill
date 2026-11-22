@@ -143,9 +143,13 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REF: ${{ github.ref }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
             commits=$(git log --no-merges --format=%H "$PR_BASE..$PR_HEAD")
+          elif [ "${REF#refs/tags/}" != "$REF" ]; then
+            # A tag names a commit its branch's push already checked.
+            commits=""
           elif [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$PUSH_BEFORE" ]; then
             # A new branch: every commit it has that the default branch does not.
             commits=$(git log --no-merges --format=%H "$PUSH_AFTER" --not "origin/$DEFAULT_BRANCH")
