@@ -54,10 +54,10 @@ fn starts_with_keyword(line: &str, keyword: &str) -> bool {
         .is_some_and(|rest| rest.is_empty() || rest.starts_with([' ', '\t', '"']))
 }
 
-/// The line without its quoted strings and its `;` comment.
-fn code_of(line: &str) -> String {
+/// The line without its quoted strings and its `;` comment, given whether a string is already open
+/// at the start of the line.
+fn code_of(line: &str, mut in_string: bool) -> String {
     let mut out = String::with_capacity(line.len());
-    let mut in_string = false;
     let mut escaped = false;
     for c in line.chars() {
         if in_string {
@@ -267,19 +267,25 @@ pub(super) fn prescan(text: &str) -> Prescan {
     let mut implicit_runs = 0usize;
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut offset = 0;
+    let mut in_string = false;
     for (index, raw) in text.split('\n').enumerate() {
         let line = u32::try_from(index + 1).unwrap_or(u32::MAX);
         let from_line = text.get(offset..).unwrap_or_default();
         offset += raw.len() + 1;
         let raw = raw.strip_suffix('\r').unwrap_or(raw);
+        let was_in_string = in_string;
+        in_string = string_after_line(raw, was_in_string);
+        if !was_in_string && is_comment_at_margin(raw) {
+            continue;
+        }
         let refuse = |construct, name| Refusal {
             line,
             construct,
             name,
         };
-        if starts_with_keyword(raw, "include") {
+        if !was_in_string && starts_with_keyword(raw, "include") {
             out.push(refuse("include", None));
-        } else if starts_with_keyword(raw, "plugin") {
+        } else if !was_in_string && starts_with_keyword(raw, "plugin") {
             // Each `implicit_prices` line runs it again; `auto_accounts` runs once however often it
             // is named. Any configuration string makes the reference fail to apply the plugin.
             match plugin_line(from_line) {
@@ -298,15 +304,15 @@ pub(super) fn prescan(text: &str) -> Prescan {
                 // The parser gives the syntax error, on the line the reference gives it.
                 PluginLine::Malformed => {}
             }
-        } else if starts_with_keyword(raw, "option") {
+        } else if !was_in_string && starts_with_keyword(raw, "option") {
             match option_name(raw) {
                 Some(name) if HARMLESS_OPTIONS.contains(&name.as_str()) => {}
                 name => out.push(refuse("option", name)),
             }
-        } else if plainly_fine(raw) {
-            // Nothing to refuse: the checks below would find nothing.
+        } else if plainly_fine(raw) || (was_in_string && in_string && !raw.contains('"')) {
+            // Nothing to refuse: the checks below would find nothing (or the line is all string).
         } else if raw.starts_with([' ', '\t']) {
-            let code = code_of(raw);
+            let code = code_of(raw, was_in_string);
             if longest_number(&code) > MAX_NUMBER_CHARS {
                 out.push(refuse("number-too-large", None));
             } else if has_partial_cost(&code) {
@@ -315,10 +321,10 @@ pub(super) fn prescan(text: &str) -> Prescan {
                 out.push(refuse("number-expression", None));
             }
         } else {
-            let code = code_of(raw);
+            let code = code_of(raw, was_in_string);
             if longest_number(&code) > MAX_NUMBER_CHARS {
                 out.push(refuse("number-too-large", None));
-            } else if is_amount_header(&code) && unreadable_sign(&code) {
+            } else if !was_in_string && is_amount_header(&code) && unreadable_sign(&code) {
                 out.push(refuse("number-expression", None));
             }
         }
@@ -420,9 +426,9 @@ fn posting_flag_at(line: &str) -> Option<usize> {
 
 /// `{{}}` as `{}`, and a comma right after `{` dropped (`{ , "label"}`), outside strings and
 /// comments: the reference reads both, the parser neither.
-fn braces_tidied(line: &str) -> String {
+fn braces_tidied(line: &str, mut in_string: bool) -> String {
     let mut out = String::with_capacity(line.len());
-    let (mut in_string, mut escaped) = (false, false);
+    let mut escaped = false;
     let mut skip_to = 0;
     for (i, c) in line.char_indices() {
         if i < skip_to {
@@ -474,9 +480,8 @@ fn braces_tidied(line: &str) -> String {
 }
 
 /// `{{ total }}` as `{# total}`, outside strings and comments.
-fn single_braces(line: &str) -> String {
+fn single_braces(line: &str, mut in_string: bool) -> String {
     let mut out = String::with_capacity(line.len());
-    let mut in_string = false;
     let mut escaped = false;
     let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
@@ -532,11 +537,27 @@ fn is_tag_line(line: &str) -> bool {
     count >= 2
 }
 
+/// Whether a digit run starting at byte offset `start` starts a numeric literal (rather than sitting
+/// inside a currency like `X1.Y`, `/1.A`, `X-1.Y`, a tag `#1.a`, a link `^1.a`, or a metadata key).
+fn number_starts_at(bytes: &[u8], start: usize, in_braces: bool) -> bool {
+    let start = match start.checked_sub(1).and_then(|i| bytes.get(i)) {
+        Some(b'+' | b'-') => start - 1,
+        _ => start,
+    };
+    match start.checked_sub(1).and_then(|i| bytes.get(i)) {
+        None => true,
+        Some(&b) => {
+            matches!(b, b' ' | b'\t' | b'{' | b'@' | b'~' | b',') || (in_braces && b == b'#')
+        }
+    }
+}
+
 /// `5.` as `5`: the reference reads a number that ends in a dot, the parser does not.
 ///
-/// On a directive line (`strict`) only a dot followed by a space or the end counts: a currency
-/// such as `X1.Y` has a dot after a digit too.
-fn trailing_dots_dropped(line: &str, strict: bool) -> Cow<'_, str> {
+/// Only drops a dot that ends a standalone numeric literal (including one glued to a currency like
+/// `10.EUR`); dots inside currencies (`X1.Y`, `/1.A`), tags, links, metadata keys, strings, and
+/// comments are preserved.
+fn trailing_dots_dropped(line: &str, mut in_string: bool) -> Cow<'_, str> {
     // Most lines have no dot that ends a number: a dot after a digit and before another digit
     // (`12.50`) never does, so leave those alone without a closer look.
     let bytes = line.as_bytes();
@@ -544,26 +565,23 @@ fn trailing_dots_dropped(line: &str, strict: bool) -> Cow<'_, str> {
         b == b'.'
             && i > 0
             && bytes.get(i - 1).is_some_and(u8::is_ascii_digit)
-            && !bytes.get(i + 1).is_some_and(u8::is_ascii_digit)
+            && !bytes
+                .get(i + 1)
+                .is_some_and(|next| next.is_ascii_digit() || *next == b'.')
     });
     if !candidate {
         return Cow::Borrowed(line);
     }
     // Copied only once a dot is dropped: most lines keep every character.
     let mut out: Option<String> = None;
-    let mut in_string = false;
     let mut escaped = false;
     let mut in_comment = false;
+    let mut brace_depth = 0usize;
+    let mut digit_start: Option<usize> = None;
     let mut previous = ' ';
     let mut chars = line.char_indices().peekable();
     while let Some((at, c)) = chars.next() {
-        let ends_number = if strict {
-            chars.peek().is_none_or(|(_, next)| next.is_whitespace())
-        } else {
-            !chars.peek().is_some_and(|(_, next)| next.is_ascii_digit())
-        };
-        let skip =
-            !in_string && !in_comment && c == '.' && previous.is_ascii_digit() && ends_number;
+        let mut skip = false;
         if in_string {
             if escaped {
                 escaped = false;
@@ -572,10 +590,46 @@ fn trailing_dots_dropped(line: &str, strict: bool) -> Cow<'_, str> {
             } else if c == '"' {
                 in_string = false;
             }
+            digit_start = None;
+        } else if in_comment {
+            digit_start = None;
         } else if c == '"' {
             in_string = true;
+            digit_start = None;
         } else if c == ';' {
             in_comment = true;
+            digit_start = None;
+        } else {
+            match c {
+                '{' => {
+                    brace_depth += 1;
+                    digit_start = None;
+                }
+                '}' => {
+                    brace_depth = brace_depth.saturating_sub(1);
+                    digit_start = None;
+                }
+                _ if c.is_ascii_digit() => {
+                    digit_start.get_or_insert(at);
+                }
+                ',' if digit_start.is_some() => {}
+                '.' => {
+                    let ends_number = !chars
+                        .peek()
+                        .is_some_and(|(_, next)| next.is_ascii_digit() || *next == '.');
+                    if previous.is_ascii_digit()
+                        && ends_number
+                        && digit_start
+                            .is_some_and(|start| number_starts_at(bytes, start, brace_depth > 0))
+                    {
+                        skip = true;
+                    }
+                    digit_start = None;
+                }
+                _ => {
+                    digit_start = None;
+                }
+            }
         }
         if skip {
             out.get_or_insert_with(|| line[..at].to_string());
@@ -632,7 +686,7 @@ pub(super) fn margin_errors(text: &str) -> Vec<u32> {
         if !in_string && body.starts_with(['*', '#']) && !is_margin_comment(body) {
             out.extend(u32::try_from(index + 1));
         }
-        in_string = string_open_after(body, in_string);
+        in_string = string_after_line(body, in_string);
     }
     out
 }
@@ -738,8 +792,7 @@ pub(super) fn glued_currency_errors(text: &str) -> Vec<u32> {
         } else {
             raw
         };
-        if !in_string && is_margin_comment(raw.strip_suffix('\r').unwrap_or(raw)) {
-            in_string = string_open_after(raw, false);
+        if !in_string && is_comment_at_margin(raw.strip_suffix('\r').unwrap_or(raw)) {
             continue;
         }
         let (found, open) = scan_line(raw.as_bytes(), in_string, index == last);
@@ -796,12 +849,7 @@ pub(super) fn stray_indent_errors(text: &str) -> StrayIndent {
             body
         };
         let inside_string = in_string;
-        // A quote in a comment at the margin starts no string, whatever the comment begins with.
-        in_string = if !inside_string && is_comment_at_margin(body) {
-            false
-        } else {
-            string_open_after(body, inside_string)
-        };
+        in_string = string_after_line(body, inside_string);
         if inside_string {
             continue;
         }
@@ -876,14 +924,33 @@ fn string_open_after(line: &str, mut open: bool) -> bool {
     open
 }
 
+/// Whether the line leaves a string open, given whether one was open when it began. A quote in a
+/// margin comment starts no string, whatever the comment begins with.
+fn string_after_line(body: &str, was_in_string: bool) -> bool {
+    if !was_in_string && is_comment_at_margin(body) {
+        false
+    } else {
+        string_open_after(body, was_in_string)
+    }
+}
+
 /// The lines of the options that a later line sets again: the reference lets the last one count
 /// and the parser calls a repeat an error. Only the options ledgermill accepts are looked at.
 fn superseded_options(text: &str) -> HashSet<usize> {
     let mut last: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut all: Vec<(usize, String)> = Vec::new();
+    let mut in_string = false;
     for (index, raw) in text.split('\n').enumerate() {
         let raw = raw.strip_suffix('\r').unwrap_or(raw);
-        if starts_with_keyword(raw, "option")
+        let raw = if index == 0 {
+            raw.strip_prefix('\u{feff}').unwrap_or(raw)
+        } else {
+            raw
+        };
+        let was_in_string = in_string;
+        in_string = string_after_line(raw, was_in_string);
+        if !was_in_string
+            && starts_with_keyword(raw, "option")
             && let Some(name) = option_name(raw)
             && HARMLESS_OPTIONS.contains(&name.as_str())
         {
@@ -913,18 +980,32 @@ pub(super) fn normalize(text: &str) -> Normalized {
                 Some(body) => (body, "\r\n"),
                 None => (body, "\n"),
             },
-            None => (raw, ""),
+            None => match raw.strip_suffix('\r') {
+                Some(body) => (body, "\r"),
+                None => (raw, ""),
+            },
+        };
+        let (bom, body) = if index == 0 {
+            match body.strip_prefix('\u{feff}') {
+                Some(rest) => ("\u{feff}", rest),
+                None => ("", body),
+            }
+        } else {
+            ("", body)
         };
         // A comment line (or an option set again later) becomes a `;` comment of the same length.
         let was_in_string = in_string;
-        in_string = string_open_after(body, in_string);
         if !was_in_string && (is_margin_comment(body) || superseded.contains(&index)) {
+            out.push_str(bom);
             out.push(';');
             out.push_str(body.get(1..).unwrap_or(""));
             out.push_str(end);
             continue;
         }
-        let at = if body.starts_with([' ', '\t']) {
+        in_string = string_after_line(body, was_in_string);
+        let at = if was_in_string {
+            None
+        } else if body.starts_with([' ', '\t']) {
             posting_flag_at(body)
         } else {
             header_flag_at(body)
@@ -938,11 +1019,11 @@ pub(super) fn normalize(text: &str) -> Normalized {
         // Arithmetic is cut out first: what is left is plain numbers.
         if Expressions::wants(&line) {
             let number = u32::try_from(index + 1).unwrap_or(u32::MAX);
-            let replaced = if indented || is_amount_header(&line) {
+            let replaced = if indented || (!was_in_string && is_amount_header(&line)) {
                 expressions.line(number, &line, was_in_string, |left| {
                     operator_left(left, indented)
                 })
-            } else if is_custom_header(&line) {
+            } else if !was_in_string && is_custom_header(&line) {
                 Some(expr::blank_operators(&line, was_in_string))
             } else {
                 None
@@ -952,23 +1033,24 @@ pub(super) fn normalize(text: &str) -> Normalized {
             }
         }
         if indented && line.contains('{') {
-            line = Cow::Owned(braces_tidied(&line));
+            line = Cow::Owned(braces_tidied(&line, was_in_string));
         }
         if indented && line.contains("{{") {
-            line = Cow::Owned(single_braces(&line));
+            line = Cow::Owned(single_braces(&line, was_in_string));
         }
         if line.contains('.')
-            && let Cow::Owned(dropped) = trailing_dots_dropped(&line, !indented)
+            && let Cow::Owned(dropped) = trailing_dots_dropped(&line, was_in_string)
         {
             line = Cow::Owned(dropped);
         }
-        if indented && is_tag_line(&line) {
+        if !was_in_string && indented && is_tag_line(&line) {
             line = Cow::Owned(format!("  ;{line}"));
         }
-        if let Some(at) = negative_tolerance_at(&line) {
+        if !was_in_string && let Some(at) = negative_tolerance_at(&line) {
             line.to_mut().replace_range(at..=at, " ");
             negative_tolerance.insert(u32::try_from(index + 1).unwrap_or(u32::MAX));
         }
+        out.push_str(bom);
         out.push_str(&line);
         out.push_str(end);
     }
@@ -1005,7 +1087,12 @@ fn operator_left(code: &str, indented: bool) -> bool {
         }
         _ => code,
     };
-    code.contains(['(', ')', '/', '*'])
+    let bytes = code.as_bytes();
+    bytes.iter().enumerate().any(|(i, &b)| match b {
+        b'(' | b')' | b'*' => true,
+        b'/' => !expr::starts_slashed_currency(bytes, i),
+        _ => false,
+    })
 }
 
 /// A `custom` directive: its values are never used, and each may be an expression.
