@@ -35,6 +35,7 @@ jobs:
       - run: crates/ledgermill-wasm/build.sh
       - name: Size budget (as in ci.yml)
         run: |
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends brotli
           budget=$(sed -n 's/^  WASM_SIZE_BUDGET: //p' .github/workflows/ci.yml)
           size=$(brotli -q 11 -c pkg/ledgermill_wasm_bg.wasm | wc -c)
@@ -112,10 +113,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Record host Python version for venv cache key
+        id: py
+        run: echo "ver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: ~/.cache/ledgermill-similarity
-          key: similarity-${{ hashFiles('scripts/similarity/lock.tsv', 'scripts/similarity/run.sh') }}
+          key: similarity-${{ runner.os }}-py${{ steps.py.outputs.ver }}-${{ hashFiles('scripts/similarity/lock.tsv', 'scripts/similarity/run.sh') }}
       - run: scripts/similarity/run.sh
 
   package:
