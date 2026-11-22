@@ -90,7 +90,7 @@ fn parse_holdings_query(query: &str) -> Result<ledgermill::HoldingsQuery, ledger
         line: 0,
         column: None,
         details: serde_json::json!({ "argument": "query", "value": query }),
-        message: format!("The holdings query is not valid JSON: {error}"),
+        message: format!("The holdings query is not valid: {error}"),
     })
 }
 
@@ -117,6 +117,21 @@ mod tests {
             assert_eq!(finding.severity, ledgermill::Severity::Error);
             assert_eq!(finding.details["argument"], "query");
             assert_eq!(finding.details["value"], bad);
+        }
+    }
+
+    #[test]
+    fn the_message_does_not_call_a_valid_json_query_invalid_json() {
+        for (bad, reason) in [("{", "EOF"), ("{}", "missing field `commodity`")] {
+            let Err(finding) = parse_holdings_query(bad) else {
+                panic!("expected error for {bad}");
+            };
+            assert!(
+                finding
+                    .message
+                    .starts_with("The holdings query is not valid: ")
+            );
+            assert!(finding.message.contains(reason), "{}", finding.message);
         }
     }
 }
