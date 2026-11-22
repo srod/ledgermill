@@ -337,7 +337,11 @@ impl Ledger {
             out.push(Holding {
                 account: segments.join(":"),
                 commodity: commodity.to_string(),
-                units: position.units.output(),
+                units: if position.units.is_zero() {
+                    "0".to_string()
+                } else {
+                    position.units.output()
+                },
                 cost: cost.quantities(),
                 value,
                 cost_value,

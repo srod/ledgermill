@@ -365,6 +365,15 @@ fn units_that_cancel_leave_no_holding_unless_a_cost_remains() {
         of("twocosts", all()),
         ["twocosts [X] | 0 | EUR -10 | - | EUR -10"]
     );
+    // Same with decimal places written: cancelled units still report "0", not "0.00".
+    let decimal_zero = (
+        "dec.journal",
+        "2026-01-01 buy\n  a  10.00 X @ 2 EUR\n  cash\n2026-01-02 sell\n  a  -10.00 X @ 3 EUR\n  cash\n",
+    );
+    assert_eq!(
+        of("a ", lines(decimal_zero, "EUR", None)),
+        ["a [X] | 0 | EUR -10 | - | EUR -10"]
+    );
 }
 
 #[test]
