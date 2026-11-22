@@ -112,19 +112,24 @@ enum Op {
 }
 
 #[derive(Debug)]
-enum Tree {
-    Number(Num),
-    /// A sign in front of an operand; `true` for `-`.
-    Sign(bool, Box<Tree>),
-    Binary(Op, Box<Tree>, Box<Tree>),
+enum Instr {
+    Push(Num),
+    /// Unary `-`: drops the sign of a zero.
+    Neg,
+    /// Unary `+`: drops the sign of a zero.
+    Pos,
+    Binary(Op),
 }
 
-/// Recursive descent: `sum = product (("+" | "-") product)*`, `product = operand (("*" | "/")
-/// operand)*`, `operand = ("+" | "-") operand | number | "(" sum ")"`. Every operator goes from
-/// the left and a sign belongs to the operand after it.
+/// Recursive descent into a flat stack program: `sum = product (("+" | "-") product)*`,
+/// `product = operand (("*" | "/") operand)*`, `operand = ("+" | "-") operand | number | "(" sum ")"`.
+/// Every operator goes from the left and a sign belongs to the operand after it. Emitting flat
+/// instructions keeps evaluation and drop iterative, so a long chain of binary operators cannot
+/// overflow the stack.
 struct Reader {
     tokens: Vec<Token>,
     at: usize,
+    code: Vec<Instr>,
 }
 
 impl Reader {
@@ -132,35 +137,35 @@ impl Reader {
         self.tokens.get(self.at)
     }
 
-    fn sum(&mut self, depth: usize) -> Result<Tree, Failure> {
-        let mut left = self.product(depth)?;
+    fn sum(&mut self, depth: usize) -> Result<(), Failure> {
+        self.product(depth)?;
         loop {
             let op = match self.peek() {
                 Some(Token::Plus) => Op::Add,
                 Some(Token::Minus) => Op::Sub,
-                _ => return Ok(left),
+                _ => return Ok(()),
             };
             self.at += 1;
-            let right = self.product(depth)?;
-            left = Tree::Binary(op, Box::new(left), Box::new(right));
+            self.product(depth)?;
+            self.code.push(Instr::Binary(op));
         }
     }
 
-    fn product(&mut self, depth: usize) -> Result<Tree, Failure> {
-        let mut left = self.operand(depth)?;
+    fn product(&mut self, depth: usize) -> Result<(), Failure> {
+        self.operand(depth)?;
         loop {
             let op = match self.peek() {
                 Some(Token::Star) => Op::Mul,
                 Some(Token::Slash) => Op::Div,
-                _ => return Ok(left),
+                _ => return Ok(()),
             };
             self.at += 1;
-            let right = self.operand(depth)?;
-            left = Tree::Binary(op, Box::new(left), Box::new(right));
+            self.operand(depth)?;
+            self.code.push(Instr::Binary(op));
         }
     }
 
-    fn operand(&mut self, depth: usize) -> Result<Tree, Failure> {
+    fn operand(&mut self, depth: usize) -> Result<(), Failure> {
         if depth > MAX_DEPTH {
             return Err(Failure::Syntax { at_end: false });
         }
@@ -169,17 +174,25 @@ impl Reader {
         };
         self.at += 1;
         match token {
-            Token::Number(value) => Ok(Tree::Number(value)),
+            Token::Number(value) => {
+                self.code.push(Instr::Push(value));
+                Ok(())
+            }
             Token::Plus | Token::Minus => {
-                let inner = self.operand(depth + 1)?;
-                Ok(Tree::Sign(matches!(token, Token::Minus), Box::new(inner)))
+                self.operand(depth + 1)?;
+                self.code.push(if matches!(token, Token::Minus) {
+                    Instr::Neg
+                } else {
+                    Instr::Pos
+                });
+                Ok(())
             }
             Token::Open => {
-                let inner = self.sum(depth + 1)?;
+                self.sum(depth + 1)?;
                 match self.peek() {
                     Some(Token::Close) => {
                         self.at += 1;
-                        Ok(inner)
+                        Ok(())
                     }
                     Some(_) => Err(Failure::Syntax { at_end: false }),
                     None => Err(Failure::Syntax { at_end: true }),
@@ -190,50 +203,61 @@ impl Reader {
     }
 }
 
-fn evaluate(tree: &Tree) -> Result<Num, Failure> {
-    match tree {
-        Tree::Number(value) => Ok(value.clone()),
-        Tree::Sign(negative, inner) => {
-            let value = evaluate(inner)?;
+fn evaluate(code: Vec<Instr>) -> Result<Num, Failure> {
+    let mut stack: Vec<Num> = Vec::new();
+    for instr in code {
+        match instr {
+            Instr::Push(value) => stack.push(value),
             // Either sign of a zero gives a plain zero.
-            Ok(if *negative {
-                value.negated()
-            } else {
-                value.negated().negated()
-            })
-        }
-        Tree::Binary(op, left, right) => {
-            let (left, right) = (evaluate(left)?, evaluate(right)?);
-            match op {
-                Op::Add => Ok(left.add(&right)),
-                Op::Sub => Ok(left.sub(&right)),
-                Op::Mul => Ok(left.mul(&right)),
-                Op::Div => left.div(&right).ok_or(Failure::DivisionByZero),
+            Instr::Neg => {
+                let value = stack.pop().ok_or(Failure::Syntax { at_end: false })?;
+                stack.push(value.negated());
+            }
+            Instr::Pos => {
+                let value = stack.pop().ok_or(Failure::Syntax { at_end: false })?;
+                stack.push(value.negated().negated());
+            }
+            Instr::Binary(op) => {
+                let right = stack.pop().ok_or(Failure::Syntax { at_end: false })?;
+                let left = stack.pop().ok_or(Failure::Syntax { at_end: false })?;
+                let result = match op {
+                    Op::Add => left.add(&right),
+                    Op::Sub => left.sub(&right),
+                    Op::Mul => left.mul(&right),
+                    Op::Div => left.div(&right).ok_or(Failure::DivisionByZero)?,
+                };
+                stack.push(result);
             }
         }
     }
+    stack.pop().ok_or(Failure::Syntax { at_end: false })
 }
 
 /// The value of an expression written as text.
 fn value_of(text: &[u8]) -> Result<Num, Failure> {
     let tokens = tokens(text).ok_or(Failure::Syntax { at_end: false })?;
-    let mut reader = Reader { tokens, at: 0 };
-    let tree = reader.sum(0)?;
+    let mut reader = Reader {
+        tokens,
+        at: 0,
+        code: Vec::new(),
+    };
+    reader.sum(0)?;
     if reader.at < reader.tokens.len() {
         return Err(Failure::Syntax { at_end: false });
     }
-    evaluate(&tree)
+    evaluate(reader.code)
 }
 
-/// A line's text with its strings and its comment blanked, byte for byte; whether a string is
-/// open at its end, given whether one was open at its start.
+/// A line's text with its strings masked to `\0` and its comment blanked to `' '`, byte for byte,
+/// given whether a string was open at its start. Masking strings with `\0` (not `' '`) keeps an
+/// expression from bridging across a quoted string while comments stay blank for end-of-line checks.
 fn masked(line: &str, mut open: bool) -> String {
     let mut out = String::with_capacity(line.len());
     let mut escaped = false;
     let mut comment = false;
     for c in line.chars() {
-        let keep = if comment {
-            false
+        let replacement = if comment {
+            Some(' ')
         } else if open {
             if escaped {
                 escaped = false;
@@ -242,20 +266,19 @@ fn masked(line: &str, mut open: bool) -> String {
             } else if c == '"' {
                 open = false;
             }
-            false
+            Some('\0')
         } else if c == '"' {
             open = true;
-            false
+            Some('\0')
         } else if c == ';' {
             comment = true;
-            false
+            Some(' ')
         } else {
-            true
+            None
         };
-        if keep {
-            out.push(c);
-        } else {
-            out.extend(std::iter::repeat_n(' ', c.len_utf8()));
+        match replacement {
+            None => out.push(c),
+            Some(fill) => out.extend(std::iter::repeat_n(fill, c.len_utf8())),
         }
     }
     out
@@ -265,7 +288,25 @@ fn is_blank(b: u8) -> bool {
     b == b' ' || b == b'\t'
 }
 
-/// Whether a run may go on at `at`: a comma only between two digits.
+/// Whether `/` at `at` starts a slashed currency (`/USD`, `/1.A`, `/2EUR`) rather than division:
+/// followed immediately by currency characters containing at least one uppercase letter.
+pub(super) fn starts_slashed_currency(text: &[u8], at: usize) -> bool {
+    if text.get(at) != Some(&b'/') {
+        return false;
+    }
+    let mut has_upper = false;
+    for &b in text.get(at + 1..).unwrap_or_default() {
+        if b.is_ascii_uppercase() {
+            has_upper = true;
+        } else if !(b.is_ascii_digit() || matches!(b, b'\'' | b'.' | b'_' | b'-')) {
+            break;
+        }
+    }
+    has_upper
+}
+
+/// Whether a run may go on at `at`: a comma only between two digits, and not a `/` that starts a
+/// slashed currency.
 fn continues(text: &[u8], at: usize) -> bool {
     match text.get(at) {
         Some(b',') => {
@@ -273,9 +314,10 @@ fn continues(text: &[u8], at: usize) -> bool {
                 && text.get(at - 1).is_some_and(u8::is_ascii_digit)
                 && text.get(at + 1).is_some_and(u8::is_ascii_digit)
         }
+        Some(b'/') => !starts_slashed_currency(text, at),
         Some(&b) => {
             b.is_ascii_digit()
-                || matches!(b, b'.' | b'+' | b'-' | b'*' | b'/' | b'(' | b')')
+                || matches!(b, b'.' | b'+' | b'-' | b'*' | b'(' | b')')
                 || is_blank(b)
         }
         None => false,

@@ -515,3 +515,31 @@ fn format_aligns_the_postings_of_an_entry_left_out_for_a_division_by_zero() {
     });
     assert!(got.contains("  Assets:B       -1 EUR\n"), "{got}");
 }
+
+#[test]
+fn a_long_chain_of_additions_does_not_overflow_the_stack() {
+    let mut expr = String::from("(0");
+    for _ in 0..30_000 {
+        expr.push_str(" + 1");
+    }
+    expr.push(')');
+    let journal = format!(
+        "2026-01-01 open Assets:A\n2026-01-01 open Equity:B\n2026-01-02 * \"chain\"\n  Assets:A  {expr} EUR\n  Equity:B\n"
+    );
+    assert_eq!(findings("x.beancount", &journal), json!([]));
+    assert_eq!(numbers(&journal).get(&4).map(String::as_str), Some("30000"));
+}
+
+#[test]
+fn an_expression_cannot_bridge_across_a_quoted_string() {
+    let journal = concat!(
+        "2026-01-01 open Assets:A\n",
+        "2026-01-01 open Equity:B\n",
+        "2026-01-02 * \"t\"\n",
+        "  Assets:A  (1 + 2) \"not-valid\" + 3 EUR\n",
+        "  Equity:B  -6 EUR\n",
+    );
+    let found = short_findings("x.beancount", journal);
+    assert_eq!(found[0][0], json!(4));
+    assert_eq!(found[0][1], json!("parse-error"));
+}
