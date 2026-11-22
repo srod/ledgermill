@@ -206,26 +206,28 @@ fn beancount_ledger(loaded: beancount::Loaded) -> Ledger {
     }
 }
 
-/// The position in `files` of the first file called `name`, or `otherwise`.
-fn position_of(files: &[SourceFile], name: &str, otherwise: usize) -> usize {
-    files
-        .iter()
-        .position(|f| f.name == name)
-        .unwrap_or(otherwise)
+/// Position in `files` of the first file with each name.
+fn file_positions(files: &[SourceFile]) -> foldhash::HashMap<&str, usize> {
+    let mut positions = foldhash::HashMap::default();
+    for (at, file) in files.iter().enumerate() {
+        positions.entry(file.name.as_str()).or_insert(at);
+    }
+    positions
 }
 
 /// `(part, index)` of the items of every part, sorted by `(date, position of their file)`. `keys`
 /// gives the `(date, file)` of each item of a part; the sort is stable, so the rest of the order is
 /// each ledger's own.
 fn merged_order(
-    files: &[SourceFile],
+    positions: &foldhash::HashMap<&str, usize>,
     parts: &[(usize, Ledger)],
     keys: impl for<'a> Fn(&'a Ledger) -> Vec<(&'a str, &'a str)>,
 ) -> Vec<(usize, usize)> {
     let mut keyed: Vec<(&str, usize, (usize, usize))> = Vec::new();
     for (part, (first, ledger)) in parts.iter().enumerate() {
         for (i, (date, file)) in keys(ledger).into_iter().enumerate() {
-            keyed.push((date, position_of(files, file, *first), (part, i)));
+            let at = positions.get(file).copied().unwrap_or(*first);
+            keyed.push((date, at, (part, i)));
         }
     }
     keyed.sort_by(|x, y| (x.0, x.1).cmp(&(y.0, y.1)));
@@ -234,7 +236,8 @@ fn merged_order(
 
 /// A ledger made of several, which are given in the order of their first file's position.
 fn merge_ledgers(files: &[SourceFile], mut parts: Vec<(usize, Ledger)>) -> Ledger {
-    let origin = merged_order(files, &parts, |l| {
+    let positions = file_positions(files);
+    let origin = merged_order(&positions, &parts, |l| {
         l.transactions
             .iter()
             .map(|t| (t.date.as_str(), t.source.file.as_str()))
@@ -245,16 +248,13 @@ fn merge_ledgers(files: &[SourceFile], mut parts: Vec<(usize, Ledger)>) -> Ledge
         .iter()
         .filter_map(|&(at, i)| part(at)?.transactions.get(i).cloned())
         .collect();
-    let postings = merged_order(files, &parts, |l| {
+    let posting_order = merged_order(&positions, &parts, |l| {
         l.postings
             .iter()
             .map(|p| (p.date.as_str(), p.file.as_str()))
             .collect()
-    })
-    .into_iter()
-    .filter_map(|(at, i)| part(at)?.postings.get(i).cloned())
-    .collect();
-    let price_list = merged_order(files, &parts, |l| {
+    });
+    let price_list = merged_order(&positions, &parts, |l| {
         l.price_list
             .iter()
             .map(|p| (p.date.as_str(), p.file.as_str()))
@@ -271,17 +271,28 @@ fn merge_ledgers(files: &[SourceFile], mut parts: Vec<(usize, Ledger)>) -> Ledge
             .beancount
             .then(|| ledger.findings.first())
             .flatten()
-            .map(|f| position_of(files, &f.file, *first));
+            .map(|f| positions.get(f.file.as_str()).copied().unwrap_or(*first));
         for f in &ledger.findings {
-            let at = block.unwrap_or_else(|| position_of(files, &f.file, *first));
+            let at =
+                block.unwrap_or_else(|| positions.get(f.file.as_str()).copied().unwrap_or(*first));
             findings.push((at, f.clone()));
         }
     }
     findings.sort_by_key(|(position, _)| *position);
-    // The parts answer `postings()` no more; the merged list does.
-    for (_, ledger) in &mut parts {
-        ledger.postings = Vec::new();
-    }
+    // Move postings out of the parts (the parts answer `postings()` no more) without cloning.
+    let mut taken_postings: Vec<Vec<Option<FlatPosting>>> = parts
+        .iter_mut()
+        .map(|(_, ledger)| {
+            std::mem::take(&mut ledger.postings)
+                .into_iter()
+                .map(Some)
+                .collect()
+        })
+        .collect();
+    let postings = posting_order
+        .into_iter()
+        .filter_map(|(at, i)| taken_postings.get_mut(at)?.get_mut(i)?.take())
+        .collect();
     Ledger {
         transactions,
         postings,

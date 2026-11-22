@@ -212,16 +212,24 @@ fn is_posting_line(line: &str) -> bool {
             .is_some_and(|first| !first.ends_with(':'))
 }
 
+/// Slice of the 0-based line `index` in `text`, using precomputed `starts` (without `\n`).
+fn line_slice<'a>(text: &'a str, starts: &[usize], index: usize) -> Option<&'a str> {
+    let start = *starts.get(index)?;
+    let end = starts
+        .get(index + 1)
+        .map_or(text.len(), |next| next.saturating_sub(1));
+    text.get(start..end)
+}
+
 /// The header line of the entry a metadata line belongs to, and whether a posting stands between
 /// the two (so the key is a posting's).
-fn entry_of(text: &str, line: u32) -> (u32, bool) {
-    let lines: Vec<&str> = text.split('\n').collect();
+fn entry_of(text: &str, starts: &[usize], line: u32) -> (u32, bool) {
     let at = usize::try_from(line).unwrap_or(1).saturating_sub(1);
     let mut posting = false;
     let mut index = at;
     while index > 0 {
         index -= 1;
-        let Some(&above) = lines.get(index) else {
+        let Some(above) = line_slice(text, starts, index) else {
             break;
         };
         if above.starts_with([' ', '\t']) || above.trim().is_empty() {
@@ -251,7 +259,7 @@ fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> Pars
         let name = bare(written);
         (IssueKind::PushNotPopped { metadata, name }, 0)
     } else if let Some(key) = reason.strip_prefix("duplicate key ") {
-        let (header, posting) = entry_of(text, line);
+        let (header, posting) = entry_of(text, starts, line);
         (
             IssueKind::DuplicateMetadata {
                 key: key.to_string(),
@@ -270,15 +278,13 @@ fn issue(reason: &str, span: parser::Span, text: &str, starts: &[usize]) -> Pars
 }
 
 /// The line of the entry that holds `line`: its own when it starts an entry, else the header above.
-fn entry_start(text: &str, line: u32) -> u32 {
-    let starts_entry = text
-        .split('\n')
-        .nth(usize::try_from(line).unwrap_or(1).saturating_sub(1))
-        .is_some_and(|l| !l.starts_with([' ', '\t']));
+fn entry_start(text: &str, starts: &[usize], line: u32) -> u32 {
+    let index = usize::try_from(line).unwrap_or(1).saturating_sub(1);
+    let starts_entry = line_slice(text, starts, index).is_some_and(|l| !l.starts_with([' ', '\t']));
     if starts_entry {
         line
     } else {
-        entry_of(text, line).0
+        entry_of(text, starts, line).0
     }
 }
 
@@ -338,6 +344,8 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
             return Err(margin);
         }
         Err(failure) => {
+            let stray_silent: foldhash::HashSet<u32> = stray.silent.into_iter().collect();
+            let stray_reported: foldhash::HashSet<u32> = stray.reported.into_iter().collect();
             let mut issues: Vec<ParseIssue> = failure
                 .errors
                 .iter()
@@ -345,13 +353,13 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
                 // The reference drops a stray line whole: on one after the first of its run it says
                 // nothing, and on the first only the stray error, not what the parser read there.
                 .filter(|i| {
-                    !(stray.silent.contains(&i.line)
-                        || (stray.reported.contains(&i.line)
+                    !(stray_silent.contains(&i.line)
+                        || (stray_reported.contains(&i.line)
                             && !matches!(i.kind, IssueKind::Syntax)))
                 })
                 .collect();
             // The parser may have objected to the same line (`2 ^ 3`): one error per line.
-            let seen: Vec<u32> = issues.iter().map(|i| i.line).collect();
+            let seen: foldhash::HashSet<u32> = issues.iter().map(|i| i.line).collect();
             issues.extend(margin);
             issues.extend(scanned.into_iter().filter(|i| !seen.contains(&i.line)));
             // The reference reports in file order, and the pushes left open last, after the file:
@@ -370,10 +378,10 @@ pub(super) fn read(text: &str) -> Result<Read, Vec<ParseIssue>> {
     let mut items = Vec::new();
     let mut left_out = Vec::new();
     // An entry with a division by zero is left out; the others are read.
-    let dropped: Vec<u32> = found
+    let dropped: foldhash::HashSet<u32> = found
         .zero_division
         .iter()
-        .map(|&line| entry_start(&normalized, line))
+        .map(|&line| entry_start(&normalized, &starts, line))
         .collect();
     let errors: Vec<ParseIssue> = found
         .zero_division

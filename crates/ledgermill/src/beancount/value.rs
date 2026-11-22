@@ -8,6 +8,7 @@
 use super::pydec::Num;
 use crate::model::{Amount, Finding, Holding, Posting, PriceDirective, Quantity, Transaction};
 use crate::problem::unsupported_finding;
+use foldhash::HashSet;
 use num_bigint::BigInt;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap};
@@ -16,16 +17,15 @@ use std::collections::{BTreeMap, HashMap};
 /// entry then follows no rule the notes settle (spec/beancount/convert-rates.md), so a valuation
 /// is refused (`price-both-ways`), on the line of the first such zero price.
 pub(crate) fn both_ways_refusal(prices: &[PriceDirective]) -> Option<Finding> {
-    let priced = |from: &str, to: &str| {
-        prices
-            .iter()
-            .any(|p| p.commodity == from && p.rate.commodity == to)
-    };
+    let pairs: HashSet<(&str, &str)> = prices
+        .iter()
+        .map(|p| (p.commodity.as_str(), p.rate.commodity.as_str()))
+        .collect();
     prices
         .iter()
         .find(|p| {
             Num::parse(&p.rate.quantity).is_some_and(|n| n.is_zero())
-                && priced(&p.rate.commodity, &p.commodity)
+                && pairs.contains(&(p.rate.commodity.as_str(), p.commodity.as_str()))
         })
         .map(|p| {
             unsupported_finding(
@@ -107,11 +107,15 @@ impl Rates {
     /// No chain of pairs.
     fn rate(&self, from: &str, to: &str, on: Option<&str>) -> Option<&Num> {
         let entries = self.pairs.get(from)?.get(to)?;
-        entries
-            .iter()
-            .rev()
-            .find(|(date, _)| on.is_none_or(|on| date.as_str() <= on))
-            .map(|(_, rate)| rate)
+        match on {
+            None => entries.last().map(|(_, rate)| rate),
+            Some(on) => {
+                let idx = entries.partition_point(|(date, _)| date.as_str() <= on);
+                idx.checked_sub(1)
+                    .and_then(|i| entries.get(i))
+                    .map(|(_, rate)| rate)
+            }
+        }
     }
 }
 
