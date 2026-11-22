@@ -21,6 +21,9 @@ use std::fmt;
 /// Significant digits kept by every operation.
 const PRECISION: u32 = 28;
 
+/// Largest exponent expanded into plain digits (`plain()` / `without_positive_exponent()`).
+const MAX_PLAIN_EXPONENT: i64 = 4096;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Num {
     coefficient: Coef,
@@ -101,7 +104,7 @@ impl Coef {
     }
 
     fn times_pow10(&self, shift: u32) -> Coef {
-        if shift == 0 {
+        if shift == 0 || self.is_zero() {
             return self.clone();
         }
         if let Coef::Small(small) = self
@@ -153,7 +156,7 @@ fn pow10(n: u32) -> BigInt {
     if n <= 19 {
         return BigInt::from(10u64.pow(n));
     }
-    num_traits::pow(BigInt::from(10u8), usize::try_from(n).unwrap_or(usize::MAX))
+    BigInt::from(10u8).pow(n)
 }
 
 fn digit_count(n: &BigInt) -> u32 {
@@ -236,7 +239,7 @@ impl Num {
             }
         };
         // A minus sign in front of a zero stays (`-0.00`): it is a zero that prints with its sign.
-        Some(Num::of(coefficient, exponent - places).signed_zero(negative))
+        Some(Num::of(coefficient, exponent.checked_sub(places)?).signed_zero(negative))
     }
 
     pub(super) fn zero() -> Num {
@@ -273,33 +276,91 @@ impl Num {
 
     /// Decimal places written: zero for a number with a positive exponent.
     pub(super) fn places(&self) -> u32 {
-        u32::try_from(-self.exponent).unwrap_or(0)
+        self.exponent
+            .checked_neg()
+            .and_then(|p| u32::try_from(p).ok())
+            .unwrap_or(0)
+    }
+
+    /// Canonical `(signed_digits, exponent)` with trailing zeros stripped, so equal values map to
+    /// the same key (`100`, `100.00` -> `("1", 2)`; any zero -> `("0", 0)`).
+    pub(super) fn canonical(&self) -> (String, i64) {
+        if self.is_zero() {
+            return ("0".to_string(), 0);
+        }
+        let raw = self.coefficient.digits();
+        let trimmed = raw.trim_end_matches('0');
+        let stripped = i64::try_from(raw.len() - trimmed.len()).unwrap_or(0);
+        let digits = if self.is_negative() {
+            format!("-{trimmed}")
+        } else {
+            trimmed.to_string()
+        };
+        (digits, self.exponent.saturating_add(stripped))
     }
 
     /// The value as an integer mantissa and a count of places, for `rust_decimal`; `None` when
     /// it does not fit.
     pub(super) fn scaled_i128(&self) -> Option<(i128, u32)> {
-        match u32::try_from(-self.exponent) {
-            Ok(places) => {
-                let mantissa = match &self.coefficient {
-                    Coef::Small(small) => i128::from(*small),
-                    Coef::Big(big) => big.to_i128()?,
-                };
-                Some((mantissa, places))
+        if let Some(places) = self
+            .exponent
+            .checked_neg()
+            .and_then(|p| u32::try_from(p).ok())
+        {
+            let mantissa = match &self.coefficient {
+                Coef::Small(small) => i128::from(*small),
+                Coef::Big(big) => big.to_i128()?,
+            };
+            Some((mantissa, places))
+        } else {
+            let shift = u32::try_from(self.exponent).ok()?;
+            if shift > 60 {
+                return None;
             }
-            Err(_) => {
-                let shift = u32::try_from(self.exponent).ok()?;
-                if shift > 60 {
-                    return None;
-                }
-                let mantissa = self.coefficient.to_big() * pow10(shift);
-                Some((mantissa.to_i128()?, 0))
-            }
+            let mantissa = self.coefficient.to_big() * pow10(shift);
+            Some((mantissa.to_i128()?, 0))
         }
     }
 
-    /// Compare values, whatever the exponents.
+    /// Position of the most significant digit: `exponent + digit_count - 1`.
+    fn adjusted_exponent(&self) -> i64 {
+        self.exponent
+            .saturating_add(i64::from(self.coefficient.digit_count()) - 1)
+    }
+
+    /// Compare values, whatever the exponents, without scaling across large exponent gaps.
     pub(super) fn cmp_value(&self, other: &Num) -> Ordering {
+        match (self.is_zero(), other.is_zero()) {
+            (true, true) => return Ordering::Equal,
+            (true, false) => {
+                return if other.is_negative() {
+                    Ordering::Greater
+                } else {
+                    Ordering::Less
+                };
+            }
+            (false, true) => {
+                return if self.is_negative() {
+                    Ordering::Less
+                } else {
+                    Ordering::Greater
+                };
+            }
+            (false, false) => {}
+        }
+        match (self.is_negative(), other.is_negative()) {
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            _ => {}
+        }
+        let by_scale = self.adjusted_exponent().cmp(&other.adjusted_exponent());
+        if by_scale != Ordering::Equal {
+            return if self.is_negative() {
+                by_scale.reverse()
+            } else {
+                by_scale
+            };
+        }
         let exponent = self.exponent.min(other.exponent);
         match self.exponent.cmp(&other.exponent) {
             Ordering::Equal => self.coefficient.cmp(&other.coefficient),
@@ -310,7 +371,10 @@ impl Num {
 
     /// The coefficient at a smaller or equal exponent.
     fn aligned(&self, exponent: i64) -> Coef {
-        let shift = u32::try_from(self.exponent - exponent).unwrap_or(u32::MAX);
+        if self.is_zero() {
+            return Coef::Small(0);
+        }
+        let shift = u32::try_from(self.exponent.saturating_sub(exponent)).unwrap_or(u32::MAX);
         self.coefficient.times_pow10(shift)
     }
 
@@ -325,10 +389,10 @@ impl Num {
         }
         let drop = count - PRECISION;
         let (mut coefficient, _) = divide_rounded(&self.coefficient.to_big(), &pow10(drop));
-        let mut exponent = self.exponent + i64::from(drop);
+        let mut exponent = self.exponent.saturating_add(i64::from(drop));
         if digit_count(&coefficient) > PRECISION {
             coefficient /= 10u8;
-            exponent += 1;
+            exponent = exponent.saturating_add(1);
         }
         Num::new(coefficient, exponent)
     }
@@ -338,10 +402,44 @@ impl Num {
         if self.exponent <= 0 {
             return self.clone();
         }
+        if self.is_zero() {
+            return Num::of(Coef::Small(0), 0).signed_zero(self.negative_zero);
+        }
+        if self.exponent > MAX_PLAIN_EXPONENT {
+            return self.clone();
+        }
         Num::of(self.aligned(0), 0).signed_zero(self.negative_zero)
     }
 
     pub(super) fn add(&self, other: &Num) -> Num {
+        // A zero reached by cancelling is plain; two zeros are negative only when both are.
+        let negative_zero = self.negative_zero && other.negative_zero;
+        match (self.is_zero(), other.is_zero()) {
+            (true, true) => {
+                return Num::of(Coef::Small(0), self.exponent.min(other.exponent))
+                    .signed_zero(negative_zero);
+            }
+            (true, false) => return add_zero(other, self.exponent),
+            (false, true) => return add_zero(self, other.exponent),
+            (false, false) => {}
+        }
+        // When one term is more than PRECISION + 2 orders of magnitude smaller, it can only
+        // contribute a sticky bit at PRECISION + 2 digits below the larger term; avoid `pow10`
+        // over huge exponent gaps.
+        let (self_adj, other_adj) = (self.adjusted_exponent(), other.adjusted_exponent());
+        let (big, big_adj, small, gap) = if self_adj >= other_adj {
+            (self, self_adj, other, self_adj.saturating_sub(other_adj))
+        } else {
+            (other, other_adj, self, other_adj.saturating_sub(self_adj))
+        };
+        if gap > i64::from(PRECISION) + 2 {
+            let target = big
+                .exponent
+                .min(big_adj.saturating_sub(i64::from(PRECISION) + 2));
+            let sticky = Coef::Small(if small.is_negative() { -1 } else { 1 });
+            let sum = big.aligned(target).add(&sticky);
+            return Num::of(sum, target).rounded();
+        }
         let exponent = self.exponent.min(other.exponent);
         // The term that already has the finer exponent needs no copy.
         let sum = match self.exponent.cmp(&other.exponent) {
@@ -349,15 +447,13 @@ impl Num {
             Ordering::Less => self.coefficient.add(&other.aligned(exponent)),
             Ordering::Greater => self.aligned(exponent).add(&other.coefficient),
         };
-        // A zero reached by cancelling is plain; two zeros are negative only when both are.
-        let negative_zero = self.negative_zero && other.negative_zero;
         Num::of(sum, exponent).rounded().signed_zero(negative_zero)
     }
 
     pub(super) fn mul(&self, other: &Num) -> Num {
         Num::of(
             self.coefficient.mul(&other.coefficient),
-            self.exponent + other.exponent,
+            self.exponent.saturating_add(other.exponent),
         )
         .rounded()
         .signed_zero(self.has_minus() != other.has_minus())
@@ -368,7 +464,7 @@ impl Num {
         if divisor.is_zero() {
             return None;
         }
-        let ideal = self.exponent - divisor.exponent;
+        let ideal = self.exponent.saturating_sub(divisor.exponent);
         if self.is_zero() {
             return Some(
                 Num::new(BigInt::zero(), ideal)
@@ -383,7 +479,7 @@ impl Num {
         let numerator = self.coefficient.to_big() * pow10(k);
         let (q, r) = numerator.div_rem(&divisor_coefficient);
         let digits = digit_count(&q);
-        let exponent = ideal - i64::from(k);
+        let exponent = ideal.saturating_sub(i64::from(k));
         if r.is_zero() {
             // Exact: drop trailing zeros, but not past the exponent the operands suggest.
             let ten = BigInt::from(10u8);
@@ -394,17 +490,17 @@ impl Num {
                     break;
                 }
                 coefficient = next;
-                exponent += 1;
+                exponent = exponent.saturating_add(1);
             }
             return Some(Num::new(coefficient, exponent).rounded());
         }
         let drop = digits.saturating_sub(PRECISION);
         let (mut coefficient, _) =
             divide_rounded(&numerator, &(&divisor_coefficient * pow10(drop)));
-        let mut exponent = exponent + i64::from(drop);
+        let mut exponent = exponent.saturating_add(i64::from(drop));
         if digit_count(&coefficient) > PRECISION {
             coefficient /= 10u8;
-            exponent += 1;
+            exponent = exponent.saturating_add(1);
         }
         Some(Num::new(coefficient, exponent))
     }
@@ -412,13 +508,34 @@ impl Num {
     /// Round half to even to exactly `places` places, padding with zeros when it has fewer.
     pub(super) fn quantized(&self, places: u32) -> Num {
         let exponent = -i64::from(places);
+        if self.is_zero() {
+            return Num::of(Coef::Small(0), exponent).signed_zero(self.negative_zero);
+        }
         if self.exponent >= exponent {
             return Num::of(self.aligned(exponent), exponent).signed_zero(self.negative_zero);
         }
-        let drop = u32::try_from(exponent - self.exponent).unwrap_or(u32::MAX);
+        let drop = exponent.saturating_sub(self.exponent);
+        // Strictly smaller than half a ULP at `exponent`: rounds to zero without `pow10(drop)`.
+        if drop > i64::from(self.coefficient.digit_count()) + 1 {
+            return Num::of(Coef::Small(0), exponent);
+        }
+        let drop = u32::try_from(drop).unwrap_or(u32::MAX);
         let (coefficient, _) = divide_rounded(&self.coefficient.to_big(), &pow10(drop));
         Num::new(coefficient, exponent)
     }
+}
+
+/// Add a zero at `zero_exp` to a non-zero `nz`, preserving exact places up to `PRECISION` digits
+/// without allocating `pow10` across huge exponent gaps.
+fn add_zero(nz: &Num, zero_exp: i64) -> Num {
+    if zero_exp >= nz.exponent {
+        return nz.clone().rounded();
+    }
+    let min_exp = nz
+        .adjusted_exponent()
+        .saturating_sub(i64::from(PRECISION) - 1);
+    let target = zero_exp.max(min_exp);
+    Num::of(nz.aligned(target), target).rounded()
 }
 
 impl Num {
@@ -426,9 +543,19 @@ impl Num {
     /// print numbers this way (spec/beancount/pad.md).
     pub(super) fn plain(&self) -> String {
         let sign = if self.has_minus() { "-" } else { "" };
+        if self.is_zero() && self.exponent >= 0 {
+            return format!("{sign}0");
+        }
+        if self.exponent.unsigned_abs() > u64::try_from(MAX_PLAIN_EXPONENT).unwrap_or(u64::MAX) {
+            return self.to_string();
+        }
         let digits = self.coefficient.digits();
-        let body = match usize::try_from(-self.exponent) {
-            Ok(places) if places > 0 => {
+        let body = match self
+            .exponent
+            .checked_neg()
+            .and_then(|p| usize::try_from(p).ok())
+        {
+            Some(places) if places > 0 => {
                 let padded = format!("{digits:0>width$}", width = places + 1);
                 let (int, frac) = padded.split_at(padded.len() - places);
                 format!("{int}.{frac}")
@@ -447,12 +574,12 @@ impl fmt::Display for Num {
         let sign = if self.has_minus() { "-" } else { "" };
         let digits = self.coefficient.digits();
         let len = i64::try_from(digits.len()).unwrap_or(i64::MAX);
-        let adjusted = self.exponent + len - 1;
+        let adjusted = self.exponent.saturating_add(len - 1);
         if self.exponent <= 0 && adjusted >= -6 {
             if self.exponent == 0 {
                 return write!(f, "{sign}{digits}");
             }
-            let places = -self.exponent;
+            let places = self.exponent.saturating_neg();
             if len > places {
                 let point = usize::try_from(len - places).unwrap_or(0);
                 let (int, frac) = digits.split_at(point);
@@ -467,7 +594,7 @@ impl fmt::Display for Num {
         write!(
             f,
             "{sign}{head}{point}{tail}E{exponent_sign}{}",
-            adjusted.abs()
+            adjusted.unsigned_abs()
         )
     }
 }

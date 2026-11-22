@@ -13,6 +13,7 @@ use foldhash::{HashMap, HashSet};
 use serde_json::{Value, json};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::ops::Bound;
 
 /// Where an entry stands: the position of its file in the set, and its line.
 #[derive(Clone, Copy)]
@@ -129,24 +130,29 @@ fn within(account: &str, root: &str) -> bool {
             .is_some_and(|rest| rest.starts_with(':'))
 }
 
-fn same_lot(a: &Lot, b: &Lot) -> bool {
-    a.currency == b.currency
-        && a.date == b.date
-        && a.label == b.label
-        && a.per_unit.cmp_value(&b.per_unit) == Ordering::Equal
-}
+/// Key of a lot held inside an account: currency, lot cost currency, date, label, canonical cost.
+type LotKey = (String, String, Day, Option<String>, (String, i64));
 
 /// What every account holds, by currency, as the walk goes on.
-#[derive(Default)]
 struct Sums {
     /// By account, then currency: ordered like (account, currency) pairs, and a posting of a pair
     /// already seen looks it up without copying its names.
     units: BTreeMap<String, BTreeMap<String, Num>>,
-    /// Units held in lots with a cost: account, currency, lot.
-    lots: Vec<(String, String, Lot, Num)>,
+    /// Units held in lots with a cost, keyed by account then lot key (populated only when
+    /// `track_lots` is true, i.e. during `pad_step`).
+    lots: BTreeMap<String, HashMap<LotKey, Num>>,
+    track_lots: bool,
 }
 
 impl Sums {
+    fn new(track_lots: bool) -> Sums {
+        Sums {
+            units: BTreeMap::new(),
+            lots: BTreeMap::new(),
+            track_lots,
+        }
+    }
+
     fn apply(&mut self, postings: &[Posted]) {
         for p in postings {
             if !self.units.contains_key(&p.account) {
@@ -162,36 +168,69 @@ impl Sums {
                 continue;
             };
             *sum = sum.add(&p.units);
+            if !self.track_lots {
+                continue;
+            }
             let Some(lot) = &p.lot else { continue };
-            let held = self.lots.iter_mut().find(|(account, currency, other, _)| {
-                *account == p.account && *currency == p.currency && same_lot(other, lot)
-            });
-            match held {
-                Some((.., units)) => *units = units.add(&p.units),
-                None => self.lots.push((
-                    p.account.clone(),
-                    p.currency.clone(),
-                    lot.clone(),
-                    p.units.clone(),
-                )),
+            let key: LotKey = (
+                p.currency.clone(),
+                lot.currency.clone(),
+                lot.date,
+                lot.label.clone(),
+                lot.per_unit.canonical(),
+            );
+            let account_lots = self.lots.entry(p.account.clone()).or_default();
+            match account_lots.get_mut(&key) {
+                Some(units) => {
+                    *units = units.add(&p.units);
+                    if units.is_zero() {
+                        account_lots.remove(&key);
+                    }
+                }
+                None if !p.units.is_zero() => {
+                    account_lots.insert(key, p.units.clone());
+                }
+                None => {}
             }
         }
     }
 
     /// The units of `currency` held by `root` and everything below it.
     fn total(&self, root: &str, currency: &str) -> Num {
-        self.units
-            .iter()
-            .filter(|(account, _)| within(account, root))
-            .filter_map(|(_, held)| held.get(currency))
-            .fold(Num::zero(), |sum, units| sum.add(units))
+        let mut sum = self
+            .units
+            .get(root)
+            .and_then(|held| held.get(currency))
+            .cloned()
+            .unwrap_or_else(Num::zero);
+        let prefix = format!("{root}:");
+        for (account, held) in self
+            .units
+            .range::<str, _>((Bound::Included(prefix.as_str()), Bound::Unbounded))
+            .take_while(|(account, _)| account.starts_with(&prefix))
+        {
+            debug_assert!(within(account, root));
+            if let Some(units) = held.get(currency) {
+                sum = sum.add(units);
+            }
+        }
+        sum
     }
 
     /// Whether `root` or anything below it holds `currency` in a lot with a cost.
     fn holds_cost(&self, root: &str, currency: &str) -> bool {
-        self.lots.iter().any(|(account, c, _, units)| {
-            c == currency && within(account, root) && !units.is_zero()
-        })
+        let has_in = |lots: &HashMap<LotKey, Num>| {
+            lots.iter()
+                .any(|((c, ..), units)| c == currency && !units.is_zero())
+        };
+        if self.lots.get(root).is_some_and(has_in) {
+            return true;
+        }
+        let prefix = format!("{root}:");
+        self.lots
+            .range::<str, _>((Bound::Included(prefix.as_str()), Bound::Unbounded))
+            .take_while(|(account, _)| account.starts_with(&prefix))
+            .any(|(_, lots)| has_in(lots))
     }
 }
 
@@ -358,13 +397,13 @@ struct PadState<'a> {
     date: Day,
     at: At,
     /// The currencies it has seen an assertion for, whether or not it padded.
-    handled: Vec<&'a str>,
+    handled: HashSet<&'a str>,
     made: bool,
 }
 
 /// Step 4: add the padding transactions, then report the pads that did nothing.
 fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
-    let mut sums = Sums::default();
+    let mut sums = Sums::new(true);
     let mut pads: Vec<PadState> = Vec::new();
     // Indexes into `pads`, the pad of each account that is still waiting.
     let mut active: Vec<usize> = Vec::new();
@@ -386,7 +425,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
                     source,
                     date: *date,
                     at: *at,
-                    handled: Vec::new(),
+                    handled: HashSet::default(),
                     made: false,
                 });
             }
@@ -405,10 +444,9 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
                 let mut made = Vec::new();
                 for &i in &active {
                     let Some(pad) = pads.get_mut(i) else { continue };
-                    if !within(account, pad.account) || pad.handled.contains(&currency.as_str()) {
+                    if !within(account, pad.account) || !pad.handled.insert(currency.as_str()) {
                         continue;
                     }
-                    pad.handled.push(currency);
                     let actual = sums.total(pad.account, currency);
                     let difference = expected.add(&actual.negated());
                     if within_tolerance(&difference, &tolerance) {
@@ -454,7 +492,7 @@ fn pad_step(entries: &[Entry], problems: &mut Vec<Problem>) -> Vec<Padding> {
 
 /// Step 5: every `balance`, walking the entries so that it sees what came before its day.
 fn balance_assertions(entries: &[Entry], accounts: &Accounts, problems: &mut Vec<Problem>) {
-    let mut sums = Sums::default();
+    let mut sums = Sums::new(false);
     for entry in entries {
         match entry {
             Entry::Transaction(kept, _) => sums.apply(&kept.postings),
