@@ -26,7 +26,7 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `number-expression-tolerance-sum` | accepts: `0 ~ 1 + 2 EUR`, a tolerance that is a sum, no parentheses | `number-expression` |
 | `number-expression-operands-too-large` | accepts: operands of 28 and 29 digits, `(1234567890123456789012345678 + 0.5) EUR` is `1234567890123456789012345678` (a tie to the even digit) | `number-too-large` |
 | `number-expression-result-too-large` | accepts: `(12345678901234567890 * 12345678901234567890) EUR` is `1.524157875323883675019051999E+38` | `number-too-precise` |
-| `booking-result-too-large` | accepts: `10000000000000000000 AAPL {10000000000000000000 EUR}`, the same units at `@` a price, and two weights of `5E+28`, each with an elided posting, give weights of `1E+38`, `1E+38` and `1E+29` | `number-too-precise` (the booking code overflows `Decimal`, 96 bits, and refuses) |
+| `booking-result-too-large` | accepts: `10000000000000000000 AAPL {10000000000000000000 EUR}`, the same units at `@` a price, and two weights of `5E+28` that share one elided posting, give weights of `1E+38`, `1E+38` and `1E+29` | `number-too-precise` (the booking code overflows `Decimal`, 96 bits, and refuses) |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
 | `plugin-check-commodity` | accepts, the plugin runs (it has nothing to say here) | `plugin` (`details.name`) |

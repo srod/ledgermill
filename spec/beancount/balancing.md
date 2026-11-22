@@ -20,7 +20,7 @@ residual; bean-query still lists the transaction and its postings. ledgermill re
 `unbalanced-transaction` at the header line (`details.residual`: one `{commodity, quantity}` per
 group, the sum of the weights, same sign as the reference's) and still returns the transaction.
 
-The size of the residual does not change this. bean-check reports a residual of 9999 with four places
+The size of the residual, up to about 1e24, does not change this (the one known limit follows). bean-check reports a residual of 9999 with four places
 on each side (`10000.0000 AAPL {1.0000 EUR}` against `-1.0000 EUR`) and one of about 1e24
 (`(1000000000000 * 1000000000000) AAPL {1.0000 EUR}`), positive or negative, with four, ten or no
 places, and bean-query lists each transaction. ledgermill does the same, with the residual bean-check
