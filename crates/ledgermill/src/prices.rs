@@ -3,6 +3,8 @@
 
 use crate::date::Date;
 use crate::decimal::{DIVISION_PLACES, Decimal};
+use crate::model::Finding;
+use crate::problem::unsupported_finding;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 /// One `P` line: on `date`, one unit of `from` was worth `rate` of `to`.
@@ -102,6 +104,33 @@ impl Graph {
             }
         }
         PathRate::Found(rate)
+    }
+
+    /// [`Graph::rate`] from `from` to `to`, kept in `rates` by `from` so a commodity is resolved
+    /// once per valuation (`to` is the same throughout one). `None` when no path leads there; a
+    /// rate too large to hold is the `number-too-large` refusal.
+    pub(crate) fn cached_rate<'a>(
+        &self,
+        rates: &'a mut HashMap<String, Option<Decimal>>,
+        from: &str,
+        to: &str,
+    ) -> Result<Option<&'a Decimal>, Finding> {
+        if !rates.contains_key(from) {
+            let resolved = match self.rate(from, to) {
+                PathRate::Found(rate) => Some(rate),
+                PathRate::None => None,
+                PathRate::TooLarge => {
+                    return Err(unsupported_finding(
+                        "number-too-large",
+                        "A price path produces a number too large to handle.",
+                        "",
+                        0,
+                    ));
+                }
+            };
+            rates.insert(from.to_string(), resolved);
+        }
+        Ok(rates.get(from).and_then(Option::as_ref))
     }
 
     /// The rates along the path, from `from` to `to`.

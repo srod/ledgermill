@@ -8,7 +8,7 @@ use crate::date::Date;
 use crate::decimal::{DIVISION_PLACES, Decimal};
 use crate::model::{Finding, Holding, HoldingsQuery, PostingKind, Quantity, Severity};
 use crate::posting::WrittenAmount;
-use crate::prices::{Graph, PathRate};
+use crate::prices::Graph;
 use crate::problem::unsupported_finding;
 use std::collections::{BTreeMap, HashMap};
 
@@ -74,22 +74,7 @@ fn valued<'a>(
         let rate = if commodity == target {
             None
         } else {
-            if !rates.contains_key(commodity) {
-                let resolved = match graph.rate(commodity, target) {
-                    PathRate::Found(r) => Some(r),
-                    PathRate::None => None,
-                    PathRate::TooLarge => {
-                        return Err(unsupported_finding(
-                            "number-too-large",
-                            "A price path produces a number too large to handle.",
-                            "",
-                            0,
-                        ));
-                    }
-                };
-                rates.insert(commodity.to_string(), resolved);
-            }
-            rates.get(commodity).and_then(Option::as_ref)
+            graph.cached_rate(rates, commodity, target)?
         };
         match rate {
             Some(rate) => sums.add(
@@ -245,7 +230,8 @@ impl Ledger {
     /// A finding with code `invalid-argument` (details `argument`: `end` or `today`) for a date that
     /// is not a real `YYYY-MM-DD`. A finding with code `unsupported-syntax` (details `construct`):
     /// `value-without-commodity` for an empty `query.commodity`, `cost-conversion-postings` for a
-    /// transaction [`Ledger::at_cost`] refuses, and for a Beancount ledger the first
+    /// transaction [`Ledger::at_cost`] refuses, `number-too-large` for a chain of prices whose
+    /// product passes 65,536 bits, and for a Beancount ledger the first
     /// `unsupported-syntax` finding of [`Ledger::check`], if any, or `price-both-ways` (a price of zero in a pair
     /// priced both ways).
     pub fn holdings(&self, query: &HoldingsQuery) -> Result<Vec<Holding>, Finding> {

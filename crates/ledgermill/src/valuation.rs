@@ -8,7 +8,7 @@ use crate::decimal::{DIVISION_PLACES, Decimal, OrdDecimal, ZeroTie};
 use crate::model::{Amount, Finding, Posting, Severity, Transaction};
 use crate::parse::report_amount;
 use crate::posting::{CostKind, WrittenAmount, WrittenCost};
-use crate::prices::{Graph, PathRate};
+use crate::prices::Graph;
 use crate::problem::unsupported_finding;
 use std::collections::{BTreeMap, HashMap};
 
@@ -138,22 +138,7 @@ fn value_posting(
         let rate = if a.commodity == target {
             None
         } else {
-            if !rates.contains_key(&a.commodity) {
-                let resolved = match graph.rate(&a.commodity, target) {
-                    PathRate::Found(r) => Some(r),
-                    PathRate::None => None,
-                    PathRate::TooLarge => {
-                        return Err(unsupported_finding(
-                            "number-too-large",
-                            "A price path produces a number too large to handle.",
-                            "",
-                            0,
-                        ));
-                    }
-                };
-                rates.insert(a.commodity.clone(), resolved);
-            }
-            rates.get(&a.commodity).and_then(Option::as_ref)
+            graph.cached_rate(rates, &a.commodity, target)?
         };
         terms.push(match rate {
             Some(rate) => Term {
@@ -193,7 +178,8 @@ impl Ledger {
     /// A finding with code `invalid-argument` when `date` is not a real `YYYY-MM-DD` date. A
     /// finding with code `unsupported-syntax` (details `construct`): `value-without-commodity`
     /// for an empty `commodity` (hledger reads `--value=DATE,` as another mode that the spec
-    /// does not cover), and for a Beancount ledger the first `unsupported-syntax` finding of
+    /// does not cover), `number-too-large` for a chain of prices whose product passes 65,536
+    /// bits, and for a Beancount ledger the first `unsupported-syntax` finding of
     /// [`Ledger::check`], if any; also `price-both-ways` for a Beancount ledger with a price of zero in a
     /// pair priced both ways (spec/beancount/convert-rates.md).
     ///
