@@ -371,23 +371,29 @@ fn beancount_extreme_exponents_do_not_oom() {
 
 #[test]
 fn beancount_repeated_implicit_prices_do_not_oom() {
-    // 5,000 implicit_prices plugin lines × 250 priced transactions = 1,250,000 entries -> refused.
+    // The most `plugin` lines a file may have for it is 256 (one more is refused before anything
+    // is read), each making the same entries again. 3,907 distinct prices make 1,000,192 entries,
+    // past the million the load may hold.
     let mut repeated = String::new();
-    for _ in 0..5_000 {
+    for _ in 0..256 {
         repeated.push_str("plugin \"beancount.plugins.implicit_prices\"\n");
     }
     repeated.push_str("2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n");
-    for i in 0..250 {
+    for i in 0..3_907 {
         repeated.push_str(&format!(
-            "2026-01-02 * \"t{i}\"\n  Assets:A  1 C{i} @ 2 EUR\n  Assets:B\n"
+            "2026-01-02 * \"t{i}\"\n  Assets:A  1 AAA @ {} EUR\n  Assets:B\n",
+            i + 2
         ));
     }
+    // What the load found before it reached the limit is kept next to the refusal.
+    repeated.push_str("2026-01-03 * \"bad\"\n  Assets:A  1 EUR\n  Assets:B  -2 EUR\n");
     let ledger = load(&[file("rep.beancount", &repeated)]);
-    assert_eq!(ledger.check()[0].code, "unsupported-syntax");
-    assert_eq!(
-        ledger.check()[0].details["construct"],
-        "implicit-prices-limit"
-    );
+    let findings = ledger.check();
+    assert_eq!(findings[0].code, "unsupported-syntax");
+    assert_eq!(findings[0].details["construct"], "implicit-prices-limit");
+    let codes: Vec<&str> = findings.iter().map(|f| f.code.as_str()).collect();
+    assert_eq!(codes, ["unsupported-syntax", "unbalanced-transaction"]);
+    assert!(ledger.transactions().is_empty());
 }
 
 #[test]
