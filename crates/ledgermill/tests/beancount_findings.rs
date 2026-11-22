@@ -1,6 +1,6 @@
 //! What ledgermill reports for Beancount instead of figures. The reference tool (bean-check
 //! 3.2.3) accepts every `unsupported-syntax` journal here unless the note says otherwise
-//! (spec/beancount/refusals.md) and rejects every `parse-error`, `booking-error` and
+//! (spec/beancount/refused.md) and rejects every `parse-error`, `booking-error` and
 //! `unbalanced-transaction` one.
 // Integration tests are compiled outside `cfg(test)`; a panic here is a failed test.
 #![allow(clippy::unwrap_used, clippy::expect_used)]

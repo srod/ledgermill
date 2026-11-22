@@ -18,7 +18,7 @@ Three classes, as for Beancount ([syntax](../beancount/syntax.md)).
 - **supported**: read, and the result is what hledger gives, errors included: `check()` reports what
   hledger rejects, with the file and line of its first error ([check-vs-print](check-vs-print.md): that
   is what a plain `hledger check` rejects, nothing more). A directive that changes nothing ledgermill
-  reports (`payee`, `P`, `python`, ...) is supported: there is nothing to ignore and no finding.
+  reports (`payee`, `python`, ...) is supported: there is nothing to ignore and no finding.
 - **ignored (warning)**: read in full, kept nowhere, with an `ignored-syntax` warning
   (`details.construct` names it). The rest of the file is read as if the lines were not there. Only the
   `=` and `~` rules are in this class, by design ([rules-ignored](rules-ignored.md)): hledger applies

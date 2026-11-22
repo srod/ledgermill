@@ -1,4 +1,4 @@
-//! `alias OLD = NEW` and `alias /REGEX/ = REPLACEMENT`. See `spec/hledger/aliases.md`.
+//! `alias OLD = NEW` and `alias /REGEX/ = REPLACEMENT`. See `spec/hledger/aliases-and-parents.md`.
 
 use crate::chars::{is_blank, trim_blank};
 use crate::problem::{Parsed, Problem, Unsupported, invalid};

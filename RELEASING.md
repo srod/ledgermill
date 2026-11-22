@@ -30,7 +30,7 @@ owner's explicit yes for that release; an agent may run them once it has it.
       at the commit `crates/ledgermill/Cargo.toml` pins;
    2. `ledgermill-beancount-booking`: the same in `srod/limabean-booking`.
 
-      Both forks are on crates.io since 2026-10-26 (parser 0.16.3, booking 0.10.5), so these two
+      Both forks are on crates.io since 2026-10-26 (parser 0.16.4, booking 0.10.5), so these two
       are only needed again when a fork changes. A published version can't be replaced: bump the
       fork's version, publish it, then pin the new commit and its exact version (`=X.Y.Z`) in
       `crates/ledgermill/Cargo.toml`;
