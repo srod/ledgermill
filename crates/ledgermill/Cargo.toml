@@ -18,7 +18,7 @@ include = ["src/**/*.rs", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
 beancount-parser-lima = { package = "ledgermill-beancount-parser", git = "https://github.com/srod/beancount-parser-lima", rev = "2771ebe893235571a55702ecbebabdf6743b0b57", version = "=0.16.4" }
 # A fast hasher for the maps of a load (SipHash was ~4% of it); already in the tree via chumsky.
 foldhash = "0.1"
-limabean-booking = { package = "ledgermill-beancount-booking", git = "https://github.com/srod/limabean-booking", rev = "00ffbda3b29c6486281748bcdb1d2f4bf307aa03", version = "=0.10.5", default-features = false, features = ["rust-decimal"] }
+limabean-booking = { package = "ledgermill-beancount-booking", git = "https://github.com/srod/limabean-booking", rev = "ea09b5908941e093f30a3ed906145c2462d63ba9", version = "=0.10.5", default-features = false, features = ["rust-decimal"] }
 num-bigint = "0.5"
 num-integer = "0.1"
 num-traits = "0.2"

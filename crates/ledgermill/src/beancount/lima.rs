@@ -701,6 +701,11 @@ fn failure(error: &booking::BookingError) -> BookFailure {
         E::Transaction(T::AutoPostMultipleBuckets(currencies)) => {
             BookFailure::SeveralCurrencies(currencies.clone())
         }
+        // The reference has no limit here; a figure the booking code cannot hold is refused as
+        // `number-too-precise`, like the result of arithmetic that needs too many digits
+        // (spec/beancount/refused.md). `number-too-large` is for a written number of more than 22
+        // characters, which this is not: each figure here was accepted.
+        E::Transaction(T::Overflow) => BookFailure::TooPrecise,
         // Matching a reduction against the lots is reported at the transaction.
         E::Posting(_, P::AmbiguousMatches) => BookFailure::Booking("ambiguous-lot-match"),
         E::Posting(_, P::MultipleCostCurrenciesMatch) => {
@@ -865,27 +870,32 @@ impl Books {
             *units.get_mut(at)? = left;
         }
         let mut rows = Vec::with_capacity(postings.len());
+        // Added to copies, so that a sum that overflows leaves the inventory as it was, for the
+        // crate to report.
+        let mut staged: HashMap<&str, booking::Positions<Types>> = HashMap::default();
         for (origin, (p, units)) in postings.iter().zip(units).enumerate() {
             let own = p.currency.as_deref().or(first).unwrap_or_default();
             let method =
                 booking_method(self.method_of(&p.account)).unwrap_or(booking::Booking::Strict);
-            if !self.inventory.contains_key(p.account.as_str()) {
+            let positions = staged.entry(p.account.as_str()).or_insert_with(|| {
                 self.inventory
-                    .insert(Arc::from(p.account.as_str()), booking::Positions::default());
-            }
-            if let Some(positions) = self.inventory.get_mut(p.account.as_str()) {
-                // The currency is shared with the position that holds it, when there is one.
-                let shared = positions
-                    .iter()
-                    .find(|held| &*held.currency == own)
-                    .map(|held| held.currency.clone());
-                positions.accumulate(
+                    .get(p.account.as_str())
+                    .cloned()
+                    .unwrap_or_default()
+            });
+            // The currency is shared with the position that holds it, when there is one.
+            let shared = positions
+                .iter()
+                .find(|held| &*held.currency == own)
+                .map(|held| held.currency.clone());
+            positions
+                .accumulate(
                     units,
                     shared.unwrap_or_else(|| Arc::from(own)),
                     None,
                     method,
-                );
-            }
+                )
+                .ok()?;
             // As written, not through `rust_decimal`: the result of an expression can have
             // more places than it holds.
             rows.push(Row {
@@ -894,6 +904,9 @@ impl Books {
                 currency: own.to_string(),
                 lot: None,
             });
+        }
+        for (account, positions) in staged {
+            self.inventory.insert(Arc::from(account), positions);
         }
         Some(rows)
     }
@@ -930,12 +943,14 @@ impl Books {
             if units.is_sign_negative() {
                 let positions = self.inventory.entry(p.account.clone()).or_default();
                 if !positions.iter().any(|pos| &pos.currency == currency) {
-                    positions.accumulate(
-                        rust_decimal::Decimal::ZERO,
-                        currency.clone(),
-                        None,
-                        booking::Booking::Strict,
-                    );
+                    positions
+                        .accumulate(
+                            rust_decimal::Decimal::ZERO,
+                            currency.clone(),
+                            None,
+                            booking::Booking::Strict,
+                        )
+                        .map_err(|_| BookFailure::TooPrecise)?;
                 }
             }
         }

@@ -259,7 +259,7 @@ dependencies = [
 [[package]]
 name = "ledgermill-beancount-booking"
 version = "0.10.5"
-source = "git+https://github.com/srod/limabean-booking?rev=00ffbda3b29c6486281748bcdb1d2f4bf307aa03#00ffbda3b29c6486281748bcdb1d2f4bf307aa03"
+source = "git+https://github.com/srod/limabean-booking?rev=ea09b5908941e093f30a3ed906145c2462d63ba9#ea09b5908941e093f30a3ed906145c2462d63ba9"
 dependencies = [
  "hashbrown 0.15.5",
  "rust_decimal",
