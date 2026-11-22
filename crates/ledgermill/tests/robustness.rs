@@ -138,6 +138,27 @@ fn chained_regex_aliases_and_large_nfas_are_refused_without_oom() {
 }
 
 #[test]
+fn regex_aliases_that_do_too_much_work_for_a_small_journal_are_refused() {
+    // Each limit above holds here: 255 regex aliases, one account name of at most 32 KiB, and
+    // every name compiled small. Yet the 243 `x` aliases each scan the 32 KiB name the twelve
+    // doublings build from 8 bytes, for every posting: about 8 MB of scanning per posting, from a
+    // 3.7 KB journal.
+    let mut journal = String::new();
+    for _ in 0..243 {
+        journal.push_str("alias /x/ = x\n");
+    }
+    for _ in 0..12 {
+        journal.push_str("alias /^(.*)$/ = \\1\\1\n");
+    }
+    journal.push_str("2026-01-01 t\n    xxxxxxxx  1\n    b  -1\n");
+    let ledger = load(&[file("work.journal", &journal)]);
+    let findings = ledger.check();
+    assert!(!findings.is_empty(), "the journal was loaded in full");
+    assert_eq!(findings[0].code, "unsupported-syntax");
+    assert_eq!(findings[0].details["construct"], "alias-too-large");
+}
+
+#[test]
 fn format_alignment_bombs_return_unchanged_without_oom() {
     // 100k-char account + 500 short postings would expand to ~50 MB of spaces (over the 16 MB budget).
     let long = "a".repeat(100_000);
