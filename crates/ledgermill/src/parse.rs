@@ -693,7 +693,7 @@ impl FileParser<'_> {
             if name.contains("  ") {
                 return invalid("Unexpected text after the account.");
             }
-            let full = self.full_account(name);
+            let full = self.prefixed_account(name);
             self.st.parents.push(full);
             return plain;
         }
@@ -823,7 +823,7 @@ impl FileParser<'_> {
         if name.starts_with(['(', '[']) {
             return invalid("A declared account cannot be virtual.");
         }
-        let name = self.full_account(trim_blank(name));
+        let name = self.full_account(trim_blank(name))?;
         if !after.is_empty() {
             let Some(comment) = after.strip_prefix(';') else {
                 return invalid("Unexpected text after the account name.");
@@ -850,18 +850,21 @@ impl FileParser<'_> {
         Ok(())
     }
 
-    /// The account with `apply account` parents and aliases applied (aliases see the parents).
-    fn full_account(&self, name: &str) -> String {
-        let mut full = match self.st.parents.last() {
+    /// The account with any enclosing `apply account` parent prepended (before aliases).
+    fn prefixed_account(&self, name: &str) -> String {
+        match self.st.parents.last() {
             Some(parent) => format!("{parent}:{name}"),
             None => name.to_string(),
-        };
-        for alias in self.st.aliases.iter().rev() {
-            if let Ok(next) = alias.apply(&full) {
-                full = next;
-            }
         }
-        full
+    }
+
+    /// The account with `apply account` parents and aliases applied (aliases see the parents).
+    fn full_account(&self, name: &str) -> Parsed<String> {
+        let mut full = self.prefixed_account(name);
+        for alias in self.st.aliases.iter().rev() {
+            full = alias.apply(&full)?;
+        }
+        Ok(full)
     }
 
     fn indented(&mut self, state: State, line_no: u32, line: &str) -> State {
@@ -945,7 +948,12 @@ impl FileParser<'_> {
         if let (DirectiveBody::Commodity(symbol), Some(format)) =
             (&body, content.strip_prefix("format"))
         {
-            match self.sample_mark(format, false) {
+            let sample = if format.starts_with(is_blank) {
+                self.sample_mark(format, false)
+            } else {
+                invalid("A blank was expected after format.")
+            };
+            match sample {
                 Ok((commodity, Some(mark), _)) if &commodity == symbol => {
                     self.st.styles.commodity_marks.insert(commodity, mark);
                 }
@@ -1017,7 +1025,14 @@ impl FileParser<'_> {
             self.report(line_no, None, problem, None);
             tx.refused = true;
         }
-        let account = self.full_account(&p.account);
+        let account = match self.full_account(&p.account) {
+            Ok(account) => account,
+            Err(problem) => {
+                self.report(line_no, None, problem, None);
+                tx.refused = true;
+                return;
+            }
+        };
         tx.postings.push(PostingDraft {
             account,
             kind: p.kind,

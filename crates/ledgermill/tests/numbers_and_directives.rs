@@ -324,3 +324,39 @@ fn more_than_255_decimal_places_is_an_error_even_through_an_exponent() {
         assert_eq!(short_findings("n.journal", &journal), json!([]), "{number}");
     }
 }
+
+#[test]
+fn a_regex_alias_backreference_to_a_missing_group_is_a_parse_error_when_it_matches() {
+    let on_posting = "alias /(a)/ = \\2\n2026-01-01 t\n  a  1\n  b  -1\n";
+    assert_eq!(
+        short_findings("a.journal", on_posting),
+        json!([[3, "parse-error", null]])
+    );
+    let on_account = "alias /(a)/ = \\2\naccount a\n2026-01-01 t\n  x  1\n  b  -1\n";
+    assert_eq!(
+        short_findings("a.journal", on_account),
+        json!([[2, "parse-error", null]])
+    );
+    // Unmatched accounts (and an unused apply-account block) are unaffected.
+    let unmatched =
+        "alias /(a)/ = \\2\napply account a\nend apply account\n2026-01-01 t\n  x  1\n  b  -1\n";
+    assert_eq!(short_findings("a.journal", unmatched), json!([]));
+    // `apply account` applies aliases once to the full prefixed name, not twice.
+    let once = "alias a = a:b\napply account a\n2026-01-01 t\n  x  1\n  y  -1\nend apply account\n";
+    assert_eq!(
+        accounts("a.journal", once),
+        json!([[3, ["a:b:x", "a:b:y"]]])
+    );
+}
+
+#[test]
+fn commodity_format_subdirective_requires_a_blank_after_format() {
+    for line in ["  format1.00 USD", "  formatted yes"] {
+        let journal = format!("commodity USD\n{line}\n2026-01-01 t\n  a  1 USD\n  b\n");
+        assert_eq!(
+            short_findings("c.journal", &journal),
+            json!([[2, "parse-error", null]]),
+            "{line}"
+        );
+    }
+}
