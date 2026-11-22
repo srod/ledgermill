@@ -157,3 +157,23 @@ fn average_booking_is_refused_without_a_panic() {
         json!([[5, "unsupported-syntax", "average-booking"]])
     );
 }
+
+#[test]
+fn a_large_high_precision_unbalanced_cost_transaction_is_kept_and_reported_unbalanced() {
+    let journal = concat!(
+        "2026-01-01 open Assets:A\n",
+        "2026-01-01 open Assets:Cash\n",
+        "2026-01-01 * \"unbalanced\"\n",
+        "  Assets:A  10000.0000 AAPL {1.0000 EUR}\n",
+        "  Assets:Cash  -1.0000 EUR\n",
+    );
+    let ledger = ledgermill::load(&[file("u.beancount", journal)]);
+    assert_eq!(ledger.transactions().len(), 1);
+    assert_eq!(ledger.check().len(), 1);
+    assert_eq!(ledger.check()[0].code, "unbalanced-transaction");
+    assert_eq!(ledger.check()[0].line, 3);
+    assert_eq!(
+        ledger.check()[0].details["residual"],
+        json!([{ "commodity": "EUR", "quantity": "9999.00000000" }])
+    );
+}

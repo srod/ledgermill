@@ -948,8 +948,10 @@ impl Books {
         )) = &result
         {
             // The crate's balance check differs from ours at its edges; ours decides, so book
-            // again with the check out of the way.
-            let huge = rust_decimal::Decimal::from(10_000_000i64);
+            // again with the check out of the way. The crate scales `multiplier` by the finest
+            // quantum (`10^-places`), so `10^26` keeps high-precision unbalanced transactions
+            // within tolerance while staying well below `Decimal::MAX` (~7.9e28).
+            let huge = rust_decimal::Decimal::from_i128_with_scale(10i128.pow(26), 0);
             let loose = Tolerance {
                 multiplier: huge,
                 default: Some(huge),
