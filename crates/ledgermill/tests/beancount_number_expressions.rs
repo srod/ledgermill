@@ -494,6 +494,22 @@ fn a_posting_flag_a_merge_mark_and_a_negative_amount_are_not_arithmetic() {
 }
 
 #[test]
+fn the_star_of_a_cost_merge_mark_is_not_an_operator_next_to_an_expression() {
+    // The lot merge itself is refused, but the `*` of its mark must not also be reported as
+    // arithmetic that cannot be read.
+    for cost in ["{*}", "{ * }", "{10 EUR, *}", "{10 EUR,\t*\t }"] {
+        let journal = format!(
+            "2026-01-01 open Assets:Stock BTC \"STRICT\"\n2026-01-01 open Assets:Bank\n2026-01-02 * \"t\"\n  Assets:Stock  (1 + 1) BTC {cost}\n  Assets:Bank  -20 EUR\n"
+        );
+        assert_eq!(
+            short_findings("x.beancount", &journal),
+            json!([[3, "unsupported-syntax", "cost-merge"]]),
+            "{cost}"
+        );
+    }
+}
+
+#[test]
 fn a_star_flag_straight_before_the_account_is_a_flag() {
     let journal = include_str!("../../../spec/beancount/probes/format-flag-gap-star.beancount");
     assert_eq!(findings("x.beancount", journal), json!([]));
@@ -528,6 +544,17 @@ fn a_long_chain_of_additions_does_not_overflow_the_stack() {
     );
     assert_eq!(findings("x.beancount", &journal), json!([]));
     assert_eq!(numbers(&journal).get(&4).map(String::as_str), Some("30000"));
+}
+
+#[test]
+fn a_posting_followed_by_a_very_long_run_of_blanks_is_read_like_one_without() {
+    // Evaluating an expression blanks it out, so a long expression leaves a long run of blanks.
+    let blanks = " ".repeat(200_000);
+    let journal = format!(
+        "2026-01-01 open Assets:A\n2026-01-01 open Equity:B\n2026-01-02 * \"blanks\"\n  Assets:A  (1) EUR{blanks}\n  Equity:B\n"
+    );
+    assert_eq!(findings("x.beancount", &journal), json!([]));
+    assert_eq!(numbers(&journal).get(&4).map(String::as_str), Some("1"));
 }
 
 #[test]

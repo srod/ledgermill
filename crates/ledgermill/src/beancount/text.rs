@@ -82,17 +82,19 @@ fn code_of(line: &str, mut in_string: bool) -> String {
 
 /// `{*}` and `, *}` mark a lot merge; the `*` is not an operator.
 fn merge_marker_removed(code: &str) -> String {
-    let chars: Vec<char> = code.chars().collect();
-    let mut out = String::with_capacity(code.len());
-    for (i, c) in chars.iter().enumerate() {
-        let before_brace = chars
-            .get(i + 1..)
-            .is_some_and(|rest| rest.iter().find(|c| !c.is_whitespace()) == Some(&'}'));
-        if !(*c == '*' && before_brace) {
-            out.push(*c);
+    // Walking backwards keeps "is the next char that is not blank a `}`" as one flag, where
+    // looking ahead from every `*` would rescan a long run of blanks each time.
+    let mut backwards = Vec::with_capacity(code.len());
+    let mut before_brace = false;
+    for c in code.chars().rev() {
+        if !(c == '*' && before_brace) {
+            backwards.push(c);
+        }
+        if !c.is_whitespace() {
+            before_brace = c == '}';
         }
     }
-    out
+    backwards.into_iter().rev().collect()
 }
 
 fn longest_number(code: &str) -> usize {
