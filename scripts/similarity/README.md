@@ -27,8 +27,8 @@ rewrite), `copydetect_scores.py`, `report.py` (reads JPlag's JSON, prints, decid
 ## What it needs
 
 - Java 25 or newer for JPlag 6.3.0. The script looks at `JAVA_HOME_25_X64`,
-  `JAVA_HOME_25_arm64`, `JAVA_HOME`, Homebrew's `openjdk` and then `java` on `PATH`. The
-  ubuntu-24.04 runners have JDK 25 installed; locally use `brew install openjdk`.
+  `JAVA_HOME_25_ARM64`, `JAVA_HOME_25_arm64`, `JAVA_HOME`, Homebrew's `openjdk` and then `java` on
+  `PATH`. The ubuntu-24.04 runners have JDK 25 installed; locally use `brew install openjdk`.
 - `python3` with `venv`, `curl`, `tar`, `git`. copydetect is installed into
   `~/.cache/ledgermill-similarity/venv` on first use.
 - Network on the first run. Downloads are cached in `~/.cache/ledgermill-similarity`
