@@ -7,9 +7,8 @@
 //! balance), so that list holds one entry, unless an assignment with a price in its asserted
 //! amount put priced entries there.
 
-use crate::decimal::{Decimal, ZeroTie};
+use crate::decimal::{Decimal, OrdDecimal, ZeroTie};
 use crate::posting::{CostKind, WrittenAmount, WrittenCost, WrittenLot};
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound;
 
@@ -41,33 +40,31 @@ impl Price {
     }
 }
 
-/// Whether two entries are one amount to hledger's sums: no price, or the same kind of price in
-/// the same commodity and, for a unit price, the same value.
-fn same_group(a: &Option<Price>, b: &Option<Price>) -> bool {
-    match (a, b) {
-        (None, None) => true,
-        (Some(x), Some(y)) => {
-            x.kind == y.kind
-                && x.commodity == y.commodity
-                && (x.kind == CostKind::Total || x.value.cmp_value(&y.value).is_eq())
-        }
-        _ => false,
-    }
+/// Canonical price-group key matching hledger's grouping and ordering: no price first, then by
+/// price commodity, a total price before a unit price, then by unit price value.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum GroupKey {
+    None,
+    Priced {
+        commodity: String,
+        is_unit: bool,
+        unit_value: OrdDecimal,
+    },
 }
 
-/// The order amounts of one commodity are listed in: no price first, then by price commodity,
-/// a total price before a unit price, then by price value.
-fn cmp_group(a: &Option<Price>, b: &Option<Price>) -> Ordering {
-    match (a, b) {
-        (None, None) => Ordering::Equal,
-        (None, Some(_)) => Ordering::Less,
-        (Some(_), None) => Ordering::Greater,
-        (Some(x), Some(y)) => {
-            let rank = |p: &Price| u8::from(p.kind == CostKind::Unit);
-            x.commodity
-                .cmp(&y.commodity)
-                .then(rank(x).cmp(&rank(y)))
-                .then_with(|| x.value.cmp_value(&y.value))
+impl GroupKey {
+    fn of(price: Option<&Price>) -> GroupKey {
+        match price {
+            None => GroupKey::None,
+            Some(p) => GroupKey::Priced {
+                commodity: p.commodity.clone(),
+                is_unit: p.kind == CostKind::Unit,
+                unit_value: OrdDecimal(if p.kind == CostKind::Unit {
+                    p.value.clone()
+                } else {
+                    Decimal::zero()
+                }),
+            },
         }
     }
 }
@@ -91,10 +88,11 @@ struct Group {
     lot: Option<WrittenLot>,
 }
 
-fn groups(entries: &[&Entry]) -> Vec<Group> {
-    let mut out: Vec<Group> = Vec::new();
+fn groups(entries: &[&Entry]) -> BTreeMap<GroupKey, Group> {
+    let mut out: BTreeMap<GroupKey, Group> = BTreeMap::new();
     for e in entries {
-        match out.iter_mut().find(|g| same_group(&g.price, &e.price)) {
+        let key = GroupKey::of(e.price.as_ref());
+        match out.get_mut(&key) {
             Some(g) => {
                 g.quantity = g.quantity.combine(&e.quantity, ZeroTie::KeepLater);
                 g.shown = g.shown.max(e.shown);
@@ -105,22 +103,26 @@ fn groups(entries: &[&Entry]) -> Vec<Group> {
                 }
                 g.lot = None;
             }
-            None => out.push(Group {
-                price: e.price.clone(),
-                quantity: e.quantity.clone(),
-                shown: e.shown,
-                lot: e.lot.clone(),
-            }),
+            None => {
+                out.insert(
+                    key,
+                    Group {
+                        price: e.price.clone(),
+                        quantity: e.quantity.clone(),
+                        shown: e.shown,
+                        lot: e.lot.clone(),
+                    },
+                );
+            }
         }
     }
-    out.sort_by(|a, b| cmp_group(&a.price, &b.price));
     out
 }
 
 /// `held - taken`, per price group; a group `taken` has none of is left as it is.
-fn subtract(held: &mut [Group], taken: &[Group]) {
-    for g in held.iter_mut() {
-        let Some(t) = taken.iter().find(|t| same_group(&t.price, &g.price)) else {
+fn subtract(held: &mut BTreeMap<GroupKey, Group>, taken: &BTreeMap<GroupKey, Group>) {
+    for (key, t) in taken {
+        let Some(g) = held.get_mut(key) else {
             continue;
         };
         // Observed places (assignments.md): nothing is taken off when the account holds a
@@ -165,13 +167,14 @@ impl Piece {
 
 /// `asserted - held`, per price group, listed in group order. Where one side is zero the other
 /// comes back with its own places; the amounts of a group nothing is asserted for are negated.
-fn difference(asserted: Option<&WrittenAmount>, held: &[Group]) -> Vec<Piece> {
+fn difference(asserted: Option<&WrittenAmount>, held: &BTreeMap<GroupKey, Group>) -> Vec<Piece> {
     let asserted_price = asserted.and_then(|a| a.cost.as_ref().map(Price::of));
-    let mut out = Vec::new();
+    let asserted_key = asserted.map(|_| GroupKey::of(asserted_price.as_ref()));
+    let mut out: BTreeMap<GroupKey, Piece> = BTreeMap::new();
     let mut used = false;
-    for g in held {
+    for (key, g) in held {
         match asserted {
-            Some(a) if same_group(&asserted_price, &g.price) => {
+            Some(a) if asserted_key.as_ref() == Some(key) => {
                 used = true;
                 let price = asserted_price.clone().map(|mut p| {
                     if let (CostKind::Total, Some(held_price)) = (p.kind, &g.price) {
@@ -181,38 +184,48 @@ fn difference(asserted: Option<&WrittenAmount>, held: &[Group]) -> Vec<Piece> {
                     }
                     p
                 });
-                out.push(Piece {
-                    price,
-                    quantity: a
-                        .quantity
-                        .combine(&g.quantity.negated(), ZeroTie::KeepEarlier),
-                    shown: a.display_places.max(g.shown),
-                    lot: None,
-                });
+                out.insert(
+                    key.clone(),
+                    Piece {
+                        price,
+                        quantity: a
+                            .quantity
+                            .combine(&g.quantity.negated(), ZeroTie::KeepEarlier),
+                        shown: a.display_places.max(g.shown),
+                        lot: None,
+                    },
+                );
             }
-            _ => out.push(Piece {
-                price: g.price.clone().map(|mut p| {
-                    if p.kind == CostKind::Total {
-                        p.value = p.value.negated();
-                    }
-                    p
-                }),
-                quantity: g.quantity.negated(),
-                shown: g.shown,
-                lot: g.lot.clone(),
-            }),
+            _ => {
+                out.insert(
+                    key.clone(),
+                    Piece {
+                        price: g.price.clone().map(|mut p| {
+                            if p.kind == CostKind::Total {
+                                p.value = p.value.negated();
+                            }
+                            p
+                        }),
+                        quantity: g.quantity.negated(),
+                        shown: g.shown,
+                        lot: g.lot.clone(),
+                    },
+                );
+            }
         }
     }
-    if let (Some(a), false) = (asserted, used) {
-        out.push(Piece {
-            price: asserted_price,
-            quantity: a.quantity.clone(),
-            shown: a.display_places,
-            lot: None,
-        });
+    if let (Some(a), Some(key), false) = (asserted, asserted_key, used) {
+        out.insert(
+            key,
+            Piece {
+                price: asserted_price,
+                quantity: a.quantity.clone(),
+                shown: a.display_places,
+                lot: None,
+            },
+        );
     }
-    out.sort_by(|a, b| cmp_group(&a.price, &b.price));
-    out
+    out.into_values().collect()
 }
 
 /// The amount the account holds in `commodity` is not the asserted one.
@@ -223,10 +236,12 @@ pub(crate) struct Mismatch {
     pub actual: Decimal,
 }
 
+type AccountCommodities = BTreeMap<String, BTreeMap<GroupKey, Entry>>;
+
 /// The balances of every account, as one file's walk builds them.
 #[derive(Debug, Default)]
 pub(crate) struct Balances {
-    accounts: BTreeMap<String, BTreeMap<String, Vec<Entry>>>,
+    accounts: BTreeMap<String, AccountCommodities>,
 }
 
 impl Balances {
@@ -240,13 +255,14 @@ impl Balances {
         } else {
             None
         };
+        let key = GroupKey::of(price.as_ref());
         let entries = self
             .accounts
             .entry(account.to_string())
             .or_default()
             .entry(amount.commodity.clone())
             .or_default();
-        match entries.iter_mut().find(|e| same_group(&e.price, &price)) {
+        match entries.get_mut(&key) {
             Some(e) => {
                 e.quantity = e.quantity.combine(&amount.quantity, ZeroTie::KeepLater);
                 e.shown = e.shown.max(amount.display_places);
@@ -258,19 +274,21 @@ impl Balances {
                 e.lot = None;
             }
             None => {
-                entries.push(Entry {
-                    quantity: amount.quantity.clone(),
-                    shown: amount.display_places,
-                    price,
-                    lot: amount.lot.clone(),
-                });
-                entries.sort_by(|a, b| cmp_group(&a.price, &b.price));
+                entries.insert(
+                    key,
+                    Entry {
+                        quantity: amount.quantity.clone(),
+                        shown: amount.display_places,
+                        price,
+                        lot: amount.lot.clone(),
+                    },
+                );
             }
         }
     }
 
     /// The entries of the sub-accounts (`a:` prefix), in name order.
-    fn below(&self, account: &str) -> Vec<&BTreeMap<String, Vec<Entry>>> {
+    fn below(&self, account: &str) -> Vec<&AccountCommodities> {
         let prefix = format!("{account}:");
         self.accounts
             .range::<str, _>((Bound::Included(prefix.as_str()), Bound::Unbounded))
@@ -280,7 +298,7 @@ impl Balances {
     }
 
     /// The accounts whose entries count: `account`, then, if `inclusive`, everything below it.
-    fn scope(&self, account: &str, inclusive: bool) -> Vec<&BTreeMap<String, Vec<Entry>>> {
+    fn scope(&self, account: &str, inclusive: bool) -> Vec<&AccountCommodities> {
         let mut scope: Vec<_> = self.accounts.get(account).into_iter().collect();
         if inclusive {
             scope.extend(self.below(account));
@@ -288,18 +306,19 @@ impl Balances {
         scope
     }
 
-    fn entries<'a>(scope: &[&'a BTreeMap<String, Vec<Entry>>], commodity: &str) -> Vec<&'a Entry> {
+    fn entries<'a>(scope: &[&'a AccountCommodities], commodity: &str) -> Vec<&'a Entry> {
         scope
             .iter()
             .filter_map(|held| held.get(commodity))
-            .flatten()
+            .flat_map(BTreeMap::values)
             .collect()
     }
 
-    /// What the account holds in `commodity`, priced entries included; zero if it holds none.
-    pub(crate) fn total(&self, account: &str, inclusive: bool, commodity: &str) -> Decimal {
-        Self::entries(&self.scope(account, inclusive), commodity)
-            .into_iter()
+    fn total_in(scope: &[&AccountCommodities], commodity: &str) -> Decimal {
+        scope
+            .iter()
+            .filter_map(|held| held.get(commodity))
+            .flat_map(BTreeMap::values)
             .fold(None, |sum: Option<Decimal>, e| {
                 Some(match sum {
                     Some(sum) => sum.combine(&e.quantity, ZeroTie::KeepLater),
@@ -307,14 +326,6 @@ impl Balances {
                 })
             })
             .unwrap_or_else(Decimal::zero)
-    }
-
-    /// The commodities the account holds, in code point order.
-    fn commodities(&self, account: &str, inclusive: bool) -> BTreeSet<String> {
-        self.scope(account, inclusive)
-            .into_iter()
-            .flat_map(|held| held.keys().cloned())
-            .collect()
     }
 
     /// Compare the account with an assertion; `None` when it holds. With `total`, every other
@@ -326,7 +337,8 @@ impl Balances {
         inclusive: bool,
         asserted: &WrittenAmount,
     ) -> Option<Mismatch> {
-        let actual = self.total(account, inclusive, &asserted.commodity);
+        let scope = self.scope(account, inclusive);
+        let actual = Self::total_in(&scope, &asserted.commodity);
         if !actual.cmp_value(&asserted.quantity).is_eq() {
             return Some(Mismatch {
                 commodity: asserted.commodity.clone(),
@@ -339,13 +351,13 @@ impl Balances {
         }
         // Only the commodities the account holds itself are looked at: one held only by a
         // sub-account is not, even with a star.
-        self.commodities(account, false)
-            .into_iter()
-            .filter(|c| *c != asserted.commodity)
+        let own = self.accounts.get(account)?;
+        own.keys()
+            .filter(|c| **c != asserted.commodity)
             .find_map(|commodity| {
-                let actual = self.total(account, inclusive, &commodity);
+                let actual = Self::total_in(&scope, commodity);
                 (!actual.is_zero()).then(|| Mismatch {
-                    commodity,
+                    commodity: commodity.clone(),
                     expected: Decimal::zero(),
                     actual,
                 })
@@ -366,44 +378,60 @@ impl Balances {
         inclusive: bool,
         asserted: &WrittenAmount,
     ) -> Vec<WrittenAmount> {
+        let own_scope: Vec<&AccountCommodities> = self.accounts.get(account).into_iter().collect();
+        let below_scope = if inclusive {
+            self.below(account)
+        } else {
+            Vec::new()
+        };
         let mut commodities = BTreeSet::from([asserted.commodity.clone()]);
         if total {
-            commodities.extend(self.commodities(account, inclusive));
+            commodities.extend(
+                own_scope
+                    .iter()
+                    .chain(&below_scope)
+                    .flat_map(|h| h.keys().cloned()),
+            );
         } else if inclusive {
-            commodities.extend(self.below(account).iter().flat_map(|h| h.keys().cloned()));
+            commodities.extend(below_scope.iter().flat_map(|h| h.keys().cloned()));
         }
         let mut amounts = Vec::new();
-        let mut replacements: Vec<(String, Vec<Entry>)> = Vec::new();
+        let mut replacements: Vec<(String, BTreeMap<GroupKey, Entry>)> = Vec::new();
         for commodity in commodities {
             let is_asserted = commodity == asserted.commodity;
             let target = is_asserted.then_some(asserted);
-            let own = Self::entries(&self.scope(account, false), &commodity);
+            let own = Self::entries(&own_scope, &commodity);
             let below = if inclusive {
-                Self::entries(&self.below(account), &commodity)
+                Self::entries(&below_scope, &commodity)
             } else {
                 Vec::new()
             };
             let mut all_entries = own.clone();
             all_entries.extend(&below);
             let mut held = groups(&all_entries);
-            if !total && !is_asserted {
+            let in_two_steps = inclusive && asserted.cost.is_none() && is_asserted;
+            let own_groups = ((!total && !is_asserted) || in_two_steps).then(|| groups(&own));
+            if !total
+                && !is_asserted
+                && let Some(own_groups) = own_groups.as_ref()
+            {
                 // Another commodity, with a star only: what the sub-accounts hold, worked out as
                 // the whole less the account's own, which can give other places than their sum.
-                subtract(&mut held, &groups(&own));
+                subtract(&mut held, own_groups);
             }
-            let own_groups = groups(&own);
-            let below_groups = groups(&below);
+            let below_groups = (in_two_steps || total || is_asserted).then(|| groups(&below));
             // With a star and a price-less assertion, the price-less part of the asserted commodity
             // is (asserted - the sub-accounts' price-less sum) - own, which has other places than
             // asserted - (own + sub-accounts) when that whole is zero; priced entries beside it are
             // only negated (assignments.md).
-            let in_two_steps = inclusive && asserted.cost.is_none() && is_asserted;
             // Zero pieces are not listed on the posting, but they still carry their places into
             // the balance (assignments.md, "Places of the balance after a star").
             let mut pieces: Vec<Piece> = difference(target, &held);
             let plain = |pieces: Vec<Piece>| pieces.into_iter().find(|p| p.price.is_none());
             if in_two_steps
-                && let Some(after_subs) = plain(difference(target, &below_groups))
+                && let (Some(own_groups), Some(below_groups)) =
+                    (own_groups.as_ref(), below_groups.as_ref())
+                && let Some(after_subs) = plain(difference(target, below_groups))
                 && let Some(two_steps) = plain(difference(
                     Some(&WrittenAmount {
                         commodity: commodity.clone(),
@@ -412,32 +440,41 @@ impl Balances {
                         cost: None,
                         lot: None,
                     }),
-                    &own_groups,
+                    own_groups,
                 ))
                 && let Some(slot) = pieces.iter_mut().find(|p| p.price.is_none())
             {
                 *slot = two_steps;
             }
-            let left: Vec<Entry> = if total || is_asserted {
+            let left: BTreeMap<GroupKey, Entry> = if total || is_asserted {
                 // What the account itself holds afterwards: the asserted amount less what the
                 // sub-accounts hold (all of it, for `=` and `==`, which look at no sub-account).
                 // A zeroed commodity keeps the lot of the one posting below that made it
                 // (assignment-lots-and-costs.md); the asserted one never has a lot.
-                difference(target, &groups(&below))
+                let empty = BTreeMap::new();
+                difference(target, below_groups.as_ref().unwrap_or(&empty))
                     .into_iter()
-                    .map(|p| Entry {
-                        quantity: p.quantity,
-                        shown: p.shown,
-                        price: p.price,
-                        lot: if is_asserted { None } else { p.lot },
+                    .map(|p| {
+                        let key = GroupKey::of(p.price.as_ref());
+                        (
+                            key,
+                            Entry {
+                                quantity: p.quantity,
+                                shown: p.shown,
+                                price: p.price,
+                                lot: if is_asserted { None } else { p.lot },
+                            },
+                        )
                     })
                     .collect()
-            } else if pieces.is_empty() {
-                own.into_iter().cloned().collect()
             } else {
-                let mut left: Vec<Entry> = own.into_iter().cloned().collect();
+                let mut left: BTreeMap<GroupKey, Entry> = own
+                    .into_iter()
+                    .map(|e| (GroupKey::of(e.price.as_ref()), e.clone()))
+                    .collect();
                 for p in &pieces {
-                    match left.iter_mut().find(|e| same_group(&e.price, &p.price)) {
+                    let key = GroupKey::of(p.price.as_ref());
+                    match left.get_mut(&key) {
                         Some(e) => {
                             e.quantity = e.quantity.combine(&p.quantity, ZeroTie::KeepLater);
                             e.shown = e.shown.max(p.shown);
@@ -448,15 +485,19 @@ impl Balances {
                             }
                             e.lot = None;
                         }
-                        None => left.push(Entry {
-                            quantity: p.quantity.clone(),
-                            shown: p.shown,
-                            price: p.price.clone(),
-                            lot: p.lot.clone(),
-                        }),
+                        None => {
+                            left.insert(
+                                key,
+                                Entry {
+                                    quantity: p.quantity.clone(),
+                                    shown: p.shown,
+                                    price: p.price.clone(),
+                                    lot: p.lot.clone(),
+                                },
+                            );
+                        }
                     }
                 }
-                left.sort_by(|a, b| cmp_group(&a.price, &b.price));
                 left
             };
             for piece in pieces.into_iter().filter(|p| !p.is_zero()) {
