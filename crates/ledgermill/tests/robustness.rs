@@ -181,6 +181,43 @@ fn plain_aliases_that_do_too_much_work_for_a_small_journal_are_refused() {
 }
 
 #[test]
+fn a_deep_apply_account_nesting_is_refused_as_account_too_large() {
+    // Forty levels of 2,000 characters make an 80 KB prefix, past the 64 KiB an account name may
+    // have. Every level used to keep its own copy of the prefix, so a journal of short names
+    // nested 100,000 deep held gigabytes.
+    let mut journal = String::new();
+    for _ in 0..40 {
+        journal.push_str(&format!("apply account {}\n", "x".repeat(2_000)));
+    }
+    journal.push_str("2026-01-01 t\n    a  1\n    b  -1\n");
+    let ledger = load(&[file("deep.journal", &journal)]);
+    let findings = ledger.check();
+    assert!(!findings.is_empty(), "the journal was loaded in full");
+    assert_eq!(findings[0].code, "unsupported-syntax");
+    assert_eq!(findings[0].details["construct"], "account-too-large");
+}
+
+#[test]
+fn postings_under_a_long_apply_account_prefix_are_refused_as_account_too_large() {
+    // The prefix is 60 KB, under the limit, and a thousand postings each get a name of that size:
+    // 60 MB of names from a journal of 70 KB, with no alias in sight.
+    let mut journal = String::new();
+    for _ in 0..30 {
+        journal.push_str(&format!("apply account {}\n", "x".repeat(2_000)));
+    }
+    journal.push_str("2026-01-01 t\n");
+    for _ in 0..1_000 {
+        journal.push_str("    a  1\n");
+    }
+    journal.push_str("    b\n");
+    let ledger = load(&[file("names.journal", &journal)]);
+    let findings = ledger.check();
+    assert!(!findings.is_empty(), "the journal was loaded in full");
+    assert_eq!(findings[0].code, "unsupported-syntax");
+    assert_eq!(findings[0].details["construct"], "account-too-large");
+}
+
+#[test]
 fn many_aliases_load_on_a_journal_that_names_few_accounts_often() {
     // What a real journal looks like: 150 aliases (100 regex, 50 plain) and 8,000 postings (300 KB)
     // that name only 500 accounts and the bank. The aliases need to run once per account, not once
