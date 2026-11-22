@@ -138,8 +138,19 @@ to.
 `details.construct` names it: `include`, `date-without-year`, `control-character`,
 `number-too-large`, `conversion-postings`, `price-annotation` (a `P` line whose rate is followed by a price, a
 lot or a label), `period-expression` (a period expression in a `~` rule
-that the notes cannot settle), and `timeclock`, `timedot`, `csv` (a file of that kind, by its
-extension, on line 1). A transaction with a refused line is not returned. `!include` is a
+that the notes cannot settle), `alias-too-large` (a regex alias whose compiled pattern needs more than 64 KiB,
+a 257th regex alias in force, an account name that aliases make longer than 64 KiB, or aliases that have
+looked at more text in one load than 256 KiB plus 16 bytes per input byte; applying an alias to a name counts for the
+name's length, times 1, 4, 16 or 64 by the pattern's size class for a regex, but
+a name already worked out in the same file under the same aliases is not worked out again, so a journal pays for its
+distinct account names, not its postings; hledger has no such limit and a small journal must not take seconds of CPU
+per posting), `account-too-large` (an `apply account` that would make a prefix longer than 64 KiB, or account names
+that add up to more than the same budget of 256 KiB plus 16 bytes per input byte, aliases or not: every posting and
+`account` directive counts for the length of its finished name, so a deep or long `apply account` prefix repeated on
+many postings is refused; hledger has no such limit and a small journal must not hold gigabytes of names), and `timeclock`,
+`timedot`, `csv` (a file of that kind, by its extension, on line 1). A transaction with a refused line is not returned.
+`value()` and `holdings()` return `number-too-large` as their error when a chain of prices gives a rate of more
+than 65,536 bits. `!include` is a
 `parse-error`, as in hledger. [hledger/syntax.md](hledger/syntax.md) is the published list of
 every construct and its class.
 
@@ -211,6 +222,8 @@ both merges their lists ([several-files](beancount/several-files.md)). `include`
 - `inferred-price` (a price to work out next to a cost, or with zero units), `inferred-cost` (a
   cost to work out next to a reduction with an open cost, or with zero units and nothing to pay),
   `cost-partial` (`{# 5 EUR}`, `{2 # EUR}`), `cost-merge` (`{..., *}`), `number-too-precise`;
+- `implicit-prices-limit`: more than 256 `implicit_prices` plugin lines, or more than 1,000,000 price entries
+  from them;
 - `average-booking` (`details.account`): an account booked with AVERAGE;
 - `holdings-sum` (`holdings()` of several ledgers only; not expected): a quantity two ledgers print
   for one holding could not be read back to be added.
@@ -304,4 +317,5 @@ them: the parser we build on gives up on the whole file. Any `unsupported-syntax
 [convert-positions](beancount/convert-positions.md), [cost-of-position](beancount/cost-of-position.md) and
 [holdings](beancount/holdings.md). A Beancount file with an `unsupported-syntax` finding lists no transaction and no
 price, and these reads then return that finding as their error instead of an empty answer. `invalid-argument`
-(`details.argument`: `date`, `end` or `today`) and `value-without-commodity` are as for hledger. `price-both-ways` (`unsupported-syntax`): `value()` or `holdings()` of a Beancount ledger with a price of zero in a pair priced both ways (convert-rates.md).
+(`details.argument`: `date`, `end` or `today`; in the wasm binding also `query`, when the `holdings()` query is not
+valid JSON or lacks a field) and `value-without-commodity` are as for hledger. `price-both-ways` (`unsupported-syntax`): `value()` or `holdings()` of a Beancount ledger with a price of zero in a pair priced both ways (convert-rates.md).

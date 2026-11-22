@@ -1,2 +1,2 @@
 #!/bin/sh
-exec scripts/no-private-tracker-ids.sh "$1"
+exec "$(dirname "$0")/../scripts/no-private-tracker-ids.sh" "$1"

@@ -116,3 +116,6 @@ format-status-gap (full `show.sh` lines, shortened here to the amounts): `*    e
    are ignored, as a posting line's column moves), the original is returned.
 8. **Idempotent by construction.** The widths used for the column do not depend on the original
    spacing, so formatting the output gives the output.
+9. **Size limit.** If the aligned file would be larger than four times the original or 16 MiB,
+   whichever is larger, the original is returned. One very long account among many short postings
+   could otherwise pad the file to gigabytes.

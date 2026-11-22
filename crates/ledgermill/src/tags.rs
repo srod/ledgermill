@@ -43,7 +43,11 @@ fn tags_at(text: &str) -> Vec<(usize, &str, &str)> {
             None => (after, ""),
         };
         if !name.is_empty() && preceded_ok {
-            out.push((name_start, name, trim_blank(value)));
+            out.push((
+                text.len() - rest.len() + name_start,
+                name,
+                trim_blank(value),
+            ));
         }
         rest = next;
     }

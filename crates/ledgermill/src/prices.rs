@@ -30,6 +30,17 @@ pub(crate) struct Graph {
     inverse: Edges,
 }
 
+/// Bit-length cap on an accumulated price path rate (~19,700 decimal digits, ~8 KB) so a long
+/// chain of extreme `P` directives (e.g. `1e4096`) cannot blow up memory during valuation.
+const MAX_RATE_BITS: u64 = 65_536;
+
+/// Result of folding a price path between two commodities.
+pub(crate) enum PathRate {
+    Found(Decimal),
+    None,
+    TooLarge,
+}
+
 impl Graph {
     /// `prices` are in parse order. A price of a commodity in itself is no edge.
     pub(crate) fn at(prices: &[Price], date: Date) -> Graph {
@@ -69,15 +80,28 @@ impl Graph {
     /// shortest wins, and a tie goes to the first found by a breadth-first search that tries
     /// each commodity's forward neighbours (by name), then its inverse ones. The rate is folded
     /// from the start, rounded to 255 places at each product.
-    pub(crate) fn rate(&self, from: &str, to: &str) -> Option<Decimal> {
-        let path = self
+    pub(crate) fn rate(&self, from: &str, to: &str) -> PathRate {
+        let Some(path) = self
             .path(from, to, false)
-            .or_else(|| self.path(from, to, true))?;
+            .or_else(|| self.path(from, to, true))
+        else {
+            return PathRate::None;
+        };
         let mut rates = path.into_iter();
-        let first = rates.next()?;
-        Some(rates.fold(first.clone(), |rate, next| {
-            rate.mul(next).rounded(DIVISION_PLACES)
-        }))
+        let Some(first) = rates.next() else {
+            return PathRate::None;
+        };
+        let mut rate = first.clone();
+        for next in rates {
+            if rate.mantissa_bits().saturating_add(next.mantissa_bits()) > MAX_RATE_BITS {
+                return PathRate::TooLarge;
+            }
+            rate = rate.mul(next).rounded(DIVISION_PLACES);
+            if rate.mantissa_bits() > MAX_RATE_BITS {
+                return PathRate::TooLarge;
+            }
+        }
+        PathRate::Found(rate)
     }
 
     /// The rates along the path, from `from` to `to`.

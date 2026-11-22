@@ -18,7 +18,7 @@ Three classes, as for Beancount ([syntax](../beancount/syntax.md)).
 - **supported**: read, and the result is what hledger gives, errors included: `check()` reports what
   hledger rejects, with the file and line of its first error ([check-vs-print](check-vs-print.md): that
   is what a plain `hledger check` rejects, nothing more). A directive that changes nothing ledgermill
-  reports (`payee`, `P`, `python`, ...) is supported: there is nothing to ignore and no finding.
+  reports (`payee`, `python`, ...) is supported: there is nothing to ignore and no finding.
 - **ignored (warning)**: read in full, kept nowhere, with an `ignored-syntax` warning
   (`details.construct` names it). The rest of the file is read as if the lines were not there. Only the
   `=` and `~` rules are in this class, by design ([rules-ignored](rules-ignored.md)): hledger applies
@@ -193,6 +193,8 @@ SKIP on the hledger side. What is left to know:
 - A file that is not valid UTF-8 is an error in hledger with no position; ledgermill is given a string, so
   the caller decides how to decode: nothing to do.
 - A positive exponent up to 4096 and a number of up to 255 decimal places are read exactly as hledger does;
-  an exponent above 4096 is `number-too-large`. hledger reads `1e100000` (a mantissa of a hundred thousand
+  an exponent above 4096 is `number-too-large`, and so is a number written with more than 4097 digits (`1e4096`
+  has 4097). hledger reads a number of 5,000 written digits (run 2026-11-22, `hledger --no-conf -f - print -O json`
+  on a posting of 5,000 `1`s gives a mantissa of 5,000 digits and no places). hledger also reads `1e100000` (a mantissa of a hundred thousand
   digits) and does not finish on `1e9999999999999999999`: not probed further.
 - A line of only `*` is not a posting: [posting-star-line](posting-star-line.md).

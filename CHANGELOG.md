@@ -4,6 +4,82 @@ All notable changes to ledgermill are written here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- wasm: the package ships TypeScript types for the values the calls return, at `@ledgermill/wasm/types`.
+
+### Changed
+
+- hledger: a regex alias whose compiled pattern needs more than 64 KiB, a 257th regex alias in force, or an
+  account name that aliases make longer than 64 KiB is refused as `unsupported-syntax` (`alias-too-large`).
+  Chained aliases could grow one account name to gigabytes. See `spec/README.md`.
+- hledger: aliases that look at more text in one load than a budget (256 KiB plus 16 bytes per input byte of the
+  files; a regex counts by the size of its pattern) are refused the same way. A name already worked out in a file is
+  remembered, so a journal pays for its distinct account names, not its postings. A 3.7 KB journal of 255 regex
+  aliases took 0.6 s of CPU per posting, and 20,000 plain aliases took 27 ms per posting; both are now refused in a
+  few milliseconds. A 1 MB journal with 150 aliases and 500 accounts loads in 0.09 s. See `spec/README.md`.
+- hledger: an `apply account` nesting that makes a prefix longer than 64 KiB, or account names that add up to more
+  than the same budget as the aliases (256 KiB plus 16 bytes per input byte of the files), is refused as
+  `unsupported-syntax` (`account-too-large`), with or without aliases. A journal of 100,000 nested
+  `apply account a` lines and 50,000 postings (2 MB) took 13 s and 2.8 GB; it is now refused in 0.06 s and
+  160 MB. See `spec/README.md`.
+- hledger: a number written with more than 4097 digits is refused as `number-too-large`, and `value()` and
+  `holdings()` return `number-too-large` when a chain of prices gives a rate of more than 65,536 bits. See
+  `spec/hledger/syntax.md` and `spec/README.md`.
+- Beancount: more than 256 `implicit_prices` plugin lines, or more than 1,000,000 price entries from them, is
+  refused as `unsupported-syntax` (`implicit-prices-limit`). Thousands of such lines used to exhaust memory or
+  the stack. See `spec/README.md`.
+- `format()` returns the file unchanged when the aligned file would be larger than four times the original or
+  16 MiB, whichever is larger. See `spec/hledger/format.md` and `spec/beancount/format.md`.
+- wasm: `ledgermill-wasm` asks for `wasm-bindgen` `0.2.130` instead of exactly `=0.2.130`, so a Rust crate
+  that depends on it can take a later patch release.
+
+### Fixed
+
+- hledger: a regex alias whose replacement names a group the pattern lacks (`alias /(a)/ = \2`) is a
+  `parse-error` when it matches an account, as hledger rejects it. The account was left unaliased. See
+  `spec/hledger/aliases-and-parents.md`.
+- hledger: under `apply account`, aliases apply once to the prefixed name. They were applied twice, so
+  `alias a = a:b` turned `x` into `a:b:b:x`. See `spec/hledger/aliases-and-parents.md`.
+- hledger: a `format` line in a `commodity` directive needs a blank after `format`. `format1.00 USD` was
+  accepted; it is a `parse-error`, as in hledger. See `spec/hledger/directives-numbers.md`.
+- hledger: when a posting comment holds both a `[DATE]` and a `date:` tag, the one written first gives the
+  posting date. A `date:` tag after a comma could win over an earlier `[DATE]`, so `check()` could see a
+  posting on the wrong day. See `spec/hledger/assertion-order.md`.
+- hledger `format()`: a posting with no commodity under a `D` directive is aligned when a `commodity`
+  directive and `D` declare opposite decimal marks. It was left as written.
+- hledger: `holdings()` gives `"0"` for units that cancel to zero while a cost remains, not `"0.00"`. See
+  `spec/hledger/holdings.md`.
+- wasm: `holdings()` with a query that is not valid JSON, or that lacks a field, throws an `invalid-argument`
+  finding (`details.argument: query`) like any other refusal. It threw the JSON decoder's text. See
+  `spec/README.md`.
+- Beancount: an unbalanced transaction with a cost is listed and reported as `unbalanced-transaction`
+  whatever the size of its residual, as bean-check reports it. A residual of 9999 with four places, or of
+  about 1e24, was a `booking-error` that left the transaction out. A residual of about 1e28 made of
+  whole-number weights next to an amount with decimals is still a `booking-error`. See
+  `spec/beancount/balancing.md`.
+- Beancount: a cost, a price or a sum of weights beyond the range of the booking code's decimals made the
+  core panic (`Multiplication overflowed`), a crash in a browser or an app. The transaction is now refused
+  as `number-too-precise`. See `spec/beancount/refused.md`.
+- Beancount: a number expression with a long chain of `+` or `*` (30,000 terms) overflowed the stack, a
+  crash. It is evaluated without recursion now. See `spec/beancount/number-expressions.md`.
+- Beancount: a line with a long run of blanks, such as a long expression or many trailing spaces, took time
+  that grew with the square of its length: 6 s for a 40,000-term expression, 9 s for 200,000 trailing
+  spaces. It now takes milliseconds.
+- Beancount: an expression stops at a quoted string and before a currency that starts with `/`, so
+  `(1 + 2) "text" + 3 EUR` is a `parse-error`.
+- Beancount: a `"` in a comment at the margin no longer opens a string. It could hide a glued one-letter
+  currency error or skip the `division-by-zero` check on the lines after it.
+- Beancount: the text of a narration that runs over several lines no longer triggers a refusal, turns on a
+  plugin or replaces an option, and is kept as written.
+- Beancount: currencies such as `X1.Y`, `X-1.Y` and `/1.A` after a number with a trailing point (`10. X1.Y`)
+  are kept as written.
+- Beancount: with `implicit_prices`, a zero price from a total price (`0.1 BTC @@ 0 EUR`) and a zero unit
+  price (`1 BTC @ 0 EUR`) of the same day are one price entry, as bean-query lists them. They were two. See
+  `spec/beancount/implicit-prices.md`.
+
 ## 0.2.1 – 2026-11-17
 
 ### Fixed

@@ -204,11 +204,7 @@ pub(crate) fn parse_posting(
         }
     } else {
         let main = read_amount(&mut cur, styles, Default::Apply)?;
-        // Read again with `Default::Ignore` below, that read gives the same amount (and so stops
-        // at the same place) unless `D` could give this one a commodity and so another mark.
-        if main.named || styles.default_commodity.is_none() {
-            amount_end = Some(content.len() - cur.rest().len());
-        }
+        amount_end = Some(content.len() - cur.rest().len());
         Some(finish_amount_tail(
             &mut cur,
             main,
@@ -217,20 +213,10 @@ pub(crate) fn parse_posting(
             Tail::Posting,
         )?)
     };
-    // The amount alone: read again from its start, which stops where the first read did.
-    let amount_span = if amount.is_some() && mode == Mode::Transaction {
-        match amount_end {
-            Some(end) => Some((rest_start, end)),
-            None => {
-                let mut again = Cursor::new(rest);
-                read_amount(&mut again, styles, Default::Ignore)
-                    .ok()
-                    .map(|_| (rest_start, content.len() - again.rest().len()))
-            }
-        }
-    } else {
-        None
-    };
+    let amount_span = (mode == Mode::Transaction)
+        .then_some(amount_end)
+        .flatten()
+        .map(|end| (rest_start, end));
     cur.skip_blanks();
     let assertion = if cur.peek() == Some('=') {
         let offset = content.len() - cur.rest().len();

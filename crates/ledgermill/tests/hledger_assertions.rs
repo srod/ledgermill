@@ -609,3 +609,17 @@ fn double_equals_with_a_star_looks_at_the_commodities_the_account_holds_itself()
         );
     }
 }
+
+#[test]
+fn a_bracket_date_before_a_later_comma_date_tag_wins_for_posting_date() {
+    // The bracketed date (2026-01-05) comes before `date:2026-01-10`, so the posting lands on
+    // 2026-01-05 — before the 2026-01-06 assertion.
+    let journal = concat!(
+        "2026-01-01 t\n",
+        "    a  1 EUR  ; x [2026-01-05] note:hi, date:2026-01-10\n",
+        "    b  -1 EUR\n",
+        "2026-01-06 check\n",
+        "    a  0 EUR = 1 EUR\n",
+    );
+    assert_eq!(findings("x.journal", journal), json!([]));
+}

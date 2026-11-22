@@ -2,7 +2,7 @@
 //! check that each group sums to zero. See `spec/hledger/balancing.md`, `elided-amounts.md`,
 //! `inferred-prices.md` and `conversion.md`.
 
-use crate::decimal::{DIVISION_PLACES, Decimal, OUTPUT_PLACES, ZeroTie};
+use crate::decimal::{DIVISION_PLACES, Decimal, OUTPUT_PLACES, OrdDecimal, ZeroTie};
 use crate::model::PostingKind;
 use crate::posting::{CostKind, WrittenAmount, WrittenCost, WrittenLot};
 use std::collections::BTreeMap;
@@ -328,16 +328,18 @@ fn precisions(postings: &[Draft]) -> BTreeMap<&str, u32> {
 /// sums a zero term gives back the other term, decimal places included.
 fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec<WrittenAmount> {
     // (costed, commodity, kind: 0 none / 1 total / 2 unit, cost commodity, unit price)
-    type Key = (bool, String, u8, String, Decimal);
+    type Key = (bool, String, u8, String, OrdDecimal);
     struct Group {
         quantity: Decimal,
         /// The places the group's result is listed with: the most among the amounts it was made
         /// from; for a group with a price, those of its first price.
         shown: u32,
         total: Option<Decimal>,
-        lots: Vec<Option<WrittenLot>>,
+        /// At most one lot survives; `None` once a second amount joins the group.
+        lot: Option<WrittenLot>,
+        count: usize,
     }
-    let mut groups: Vec<(Key, Group)> = Vec::new();
+    let mut groups: BTreeMap<Key, Group> = BTreeMap::new();
     for &i in members {
         for a in postings[i].amounts.iter().flatten() {
             let cost = if exempt[i] { None } else { a.cost.as_ref() };
@@ -347,29 +349,29 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
                     a.commodity.clone(),
                     0,
                     String::new(),
-                    Decimal::zero(),
+                    OrdDecimal(Decimal::zero()),
                 ),
                 Some(c) if c.kind == CostKind::Total => (
                     true,
                     a.commodity.clone(),
                     1,
                     c.commodity.clone(),
-                    Decimal::zero(),
+                    OrdDecimal(Decimal::zero()),
                 ),
                 Some(c) => (
                     true,
                     a.commodity.clone(),
                     2,
                     c.commodity.clone(),
-                    c.value.normalized(),
+                    OrdDecimal(c.value.normalized()),
                 ),
             };
             let total = cost
                 .filter(|c| c.kind == CostKind::Total)
                 .map(|c| c.value.clone());
             let shown = cost.map_or(a.display_places, |c| c.display_places);
-            match groups.iter_mut().find(|(k, _)| *k == key) {
-                Some((_, g)) => {
+            match groups.get_mut(&key) {
+                Some(g) => {
                     if key.2 == 0 {
                         g.shown = g.shown.max(shown);
                     }
@@ -380,59 +382,52 @@ fn elided_amounts(postings: &[Draft], members: &[usize], exempt: &[bool]) -> Vec
                             None => t,
                         });
                     }
-                    g.lots.push(a.lot.clone());
+                    g.lot = None;
+                    g.count += 1;
                 }
-                None => groups.push((
-                    key,
-                    Group {
-                        quantity: a.quantity.clone(),
-                        shown,
-                        total,
-                        lots: vec![a.lot.clone()],
-                    },
-                )),
+                None => {
+                    groups.insert(
+                        key,
+                        Group {
+                            quantity: a.quantity.clone(),
+                            shown,
+                            total,
+                            lot: a.lot.clone(),
+                            count: 1,
+                        },
+                    );
+                }
             }
         }
     }
-    groups.sort_by(|(a, _), (b, _)| {
-        (a.0, &a.1, a.2, &a.3)
-            .cmp(&(b.0, &b.1, b.2, &b.3))
-            .then_with(|| a.4.cmp_value(&b.4))
-    });
-    let mut result: BTreeMap<String, (Decimal, u32, Vec<Option<WrittenLot>>)> = BTreeMap::new();
-    for ((costed, commodity, kind, cost_commodity, unit), g) in groups {
-        let (target, value, lots) = match (costed, kind, g.total) {
-            (true, 1, Some(total)) => (cost_commodity, total, vec![None, None]),
-            (true, _, _) => (
-                cost_commodity,
-                g.quantity.mul(&unit).normalized(),
-                vec![None, None],
-            ),
-            _ => (commodity, g.quantity, g.lots),
+    let mut result: BTreeMap<String, (Decimal, u32, Option<WrittenLot>, usize)> = BTreeMap::new();
+    for ((costed, commodity, kind, cost_commodity, OrdDecimal(unit)), g) in groups {
+        let (target, value, lot, count) = match (costed, kind, g.total) {
+            (true, 1, Some(total)) => (cost_commodity, total, None, 2),
+            (true, _, _) => (cost_commodity, g.quantity.mul(&unit).normalized(), None, 2),
+            _ => (commodity, g.quantity, g.lot, g.count),
         };
         match result.get_mut(&target) {
-            Some((sum, shown, all)) => {
+            Some((sum, shown, kept_lot, total_count)) => {
                 *sum = sum.combine(&value, ZeroTie::KeepEarlier);
                 *shown = (*shown).max(g.shown);
-                all.extend(lots);
+                *kept_lot = None;
+                *total_count += count;
             }
             None => {
-                result.insert(target, (value, g.shown, lots));
+                result.insert(target, (value, g.shown, lot, count));
             }
         }
     }
     result
         .into_iter()
-        .map(|(commodity, (sum, shown, lots))| WrittenAmount {
+        .map(|(commodity, (sum, shown, lot, count))| WrittenAmount {
             commodity,
             display_places: sum.places().max(shown),
             quantity: sum.negated(),
             cost: None,
             // A lot survives only when exactly one amount contributed.
-            lot: match lots.as_slice() {
-                [Some(lot)] => Some(lot.clone()),
-                _ => None,
-            },
+            lot: if count == 1 { lot } else { None },
         })
         .collect()
 }

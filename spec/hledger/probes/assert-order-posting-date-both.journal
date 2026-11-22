@@ -1,0 +1,13 @@
+2026-01-01 a bracket date and a date: tag in one comment, in both orders
+  a  1 EUR  ; x [2026-01-05] note:hi, date:2026-01-10
+  b  2 EUR  ; date:2026-01-10, note:hi [2026-01-05]
+  z
+
+2026-01-06 a has its bracket date, b its tag date
+  a  0 EUR = 1 EUR
+  b  0 EUR = 0 EUR
+  y
+
+2026-01-10 b is in on the day of its tag
+  b  0 EUR = 2 EUR
+  y

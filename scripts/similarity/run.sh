@@ -51,7 +51,8 @@ java_major() { "$1" -version 2>&1 | sed -n '1s/[^"]*"\([0-9]*\).*/\1/p'; }
 
 find_java() { # JPlag 6.3.0 needs Java 25 or newer
   local c m
-  for c in "${JAVA_HOME_25_X64:+$JAVA_HOME_25_X64/bin/java}" "${JAVA_HOME_25_arm64:+$JAVA_HOME_25_arm64/bin/java}" \
+  for c in "${JAVA_HOME_25_X64:+$JAVA_HOME_25_X64/bin/java}" "${JAVA_HOME_25_ARM64:+$JAVA_HOME_25_ARM64/bin/java}" \
+    "${JAVA_HOME_25_arm64:+$JAVA_HOME_25_arm64/bin/java}" \
     "${JAVA_HOME:+$JAVA_HOME/bin/java}" /opt/homebrew/opt/openjdk/bin/java /usr/local/opt/openjdk/bin/java \
     "$(command -v java || true)"; do
     if [ -n "$c" ] && [ -x "$c" ]; then

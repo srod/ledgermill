@@ -12,7 +12,9 @@ engines. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; its clean-room rules bin
 - Never put text from the hledger manual or Beancount docs in code, tests, docs or commits. You
   may read them to learn rules; write everything in your own words.
 - Learn behaviour only by running the reference tools (`hledger`, `bean-check`, `bean-query`,
-  `bean-format`) on journals you write, and record it as a spec note in `spec/`.
+  `bean-format`) on journals you write, and record it as a spec note in `spec/`. Run Beancount
+  tools through `spec/beancount/run-ref.sh` so Python tracebacks (which quote upstream source
+  lines) are stripped before reaching the session.
 - Never copy test journals from upstream. Write your own.
 - Commits: `git commit -s`, plus an `Assisted-by: <tool> (<model>, <vendor>)` trailer, e.g.
   `Assisted-by: pi (Claude, Anthropic)`.
@@ -51,10 +53,11 @@ the mechanical ones are enforced by `[workspace.lints]` in `Cargo.toml`.
 ## Checks before you finish
 
 - `cargo fmt --check` and `cargo clippy --workspace --all-targets --locked -- -D warnings`
-- `cargo deny check` (licences: permissive only, no GPL/LGPL/AGPL; advisories; sources),
+- `cargo deny check` (licences: permissive plus `MPL-2.0` file-level copyleft, no GPL/LGPL/AGPL;
+  advisories; sources),
   `cargo machete` (unused dependencies) and `typos` (spelling). Install: `cargo install
   --locked cargo-deny cargo-machete typos-cli`. A new dependency's licence must be in
-  `deny.toml`'s allow-list; never widen the list to admit a copyleft licence.
+  `deny.toml`'s allow-list; never widen the list to admit a strong copyleft licence.
 - `cargo test --workspace`
 - the harness (`harness/README.md`)
 - builds for wasm32, `aarch64-apple-ios` and `aarch64-linux-android`, and the size budget

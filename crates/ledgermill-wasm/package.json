@@ -16,7 +16,10 @@
   "bugs": {
     "url": "https://github.com/srod/ledgermill/issues"
   },
-  "repository": "github:srod/ledgermill",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/srod/ledgermill.git"
+  },
   "type": "module",
   "main": "./ledgermill_wasm.js",
   "types": "./ledgermill_wasm.d.ts",
@@ -25,13 +28,18 @@
       "types": "./ledgermill_wasm.d.ts",
       "default": "./ledgermill_wasm.js"
     },
-    "./ledgermill_wasm_bg.wasm": "./ledgermill_wasm_bg.wasm"
+    "./types": {
+      "types": "./types.d.ts"
+    },
+    "./ledgermill_wasm_bg.wasm": "./ledgermill_wasm_bg.wasm",
+    "./package.json": "./package.json"
   },
   "files": [
     "ledgermill_wasm.js",
     "ledgermill_wasm.d.ts",
     "ledgermill_wasm_bg.wasm",
     "ledgermill_wasm_bg.wasm.d.ts",
+    "types.d.ts",
     "README.md",
     "LICENSE-APACHE",
     "LICENSE-MIT"

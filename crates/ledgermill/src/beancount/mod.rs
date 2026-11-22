@@ -96,6 +96,9 @@ fn refusal_message(construct: &str) -> &'static str {
         "inferred-cost" => "A lot cost to work out is not supported in this form.",
         "average-booking" => "AVERAGE booking is not supported.",
         "number-too-precise" => "This number needs more digits than are handled.",
+        "implicit-prices-limit" => {
+            "Repeating implicit_prices produces too many price entries to handle."
+        }
         _ => "This is not supported yet.",
     }
 }
@@ -567,7 +570,22 @@ fn load_for(files: &[&SourceFile], with_amount_lines: bool) -> Loaded {
         .map(|p| padding_transaction(name_of(p.at), p))
         .collect();
     let ranks = ranks(files);
-    let implied = implicit.map_or_else(Vec::new, |run| run.repeated(implicit_runs));
+    let implied = match implicit {
+        None => Vec::new(),
+        Some(run) => match run.repeated(implicit_runs) {
+            Some(implied) => implied,
+            None => {
+                let root_name = files.first().map_or("", |f| f.name.as_str());
+                return nothing_but(vec![unsupported(
+                    root_name,
+                    0,
+                    "implicit-prices-limit",
+                    json!({}),
+                    refusal_message("implicit-prices-limit"),
+                )]);
+            }
+        },
+    };
     // A refused file never gets here, so this is the same answer as "no `unsupported-syntax`
     // finding" without looking through them.
     let amount_lines = reads

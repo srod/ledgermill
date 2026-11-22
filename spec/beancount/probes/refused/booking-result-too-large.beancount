@@ -1,0 +1,13 @@
+2026-01-01 open Assets:A
+2026-01-01 open Assets:B
+2026-01-01 open Assets:Cash
+2026-01-02 * "units times a cost per unit beyond 96 bits"
+  Assets:A  10000000000000000000 AAPL {10000000000000000000 EUR}
+  Assets:Cash
+2026-01-03 * "units times a price beyond 96 bits"
+  Assets:B  10000000000000000000 AAPL @ 10000000000000000000 EUR
+  Assets:Cash
+2026-01-04 * "a sum of weights beyond 96 bits"
+  Assets:A  (50000000000000 * 1000000000000000) EUR
+  Assets:B  (50000000000000 * 1000000000000000) EUR
+  Assets:Cash

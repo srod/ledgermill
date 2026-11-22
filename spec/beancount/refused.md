@@ -26,6 +26,7 @@ complete), and the harness shows SKIP. What bean-check says about each probe:
 | `number-expression-tolerance-sum` | accepts: `0 ~ 1 + 2 EUR`, a tolerance that is a sum, no parentheses | `number-expression` |
 | `number-expression-operands-too-large` | accepts: operands of 28 and 29 digits, `(1234567890123456789012345678 + 0.5) EUR` is `1234567890123456789012345678` (a tie to the even digit) | `number-too-large` |
 | `number-expression-result-too-large` | accepts: `(12345678901234567890 * 12345678901234567890) EUR` is `1.524157875323883675019051999E+38` | `number-too-precise` |
+| `booking-result-too-large` | accepts: `10000000000000000000 AAPL {10000000000000000000 EUR}`, the same units at `@` a price, and two weights of `5E+28`, each with an elided posting, give weights of `1E+38`, `1E+38` and `1E+29` | `number-too-precise` (the booking code overflows `Decimal`, 96 bits, and refuses) |
 | `option-tolerance` | rejects: "does not balance", the tolerance options do not rescue it | `option` (`details.name`) |
 | `option-unknown` | accepts, the account root is renamed | `option` (`details.name`) |
 | `plugin-check-commodity` | accepts, the plugin runs (it has nothing to say here) | `plugin` (`details.name`) |
@@ -41,7 +42,7 @@ change tolerances, account names or booking; `cost-merge` (`{..., *}`) and AVERA
 lots. A sign in front of a sign and a tolerance that is a sum are read by the reference but not by the
 parser ledgermill is built on, which takes one sign and a plain number there; the same two inside
 parentheses are read (number-expressions.md). A result that needs more digits than the booking code holds
-is `number-too-precise`, as any other number is. ledgermill refuses a rejected journal as unsupported rather than as an error when the
+is `number-too-precise`, as any other number is, whether it comes from arithmetic in a number or from booking (units times a cost or a price, or a sum of weights). ledgermill refuses a rejected journal as unsupported rather than as an error when the
 construct is one it would refuse anyway, so the harness reports SKIP, not "both fail".
 
 Also refused, without a probe because nothing needs a reference to confirm it:
@@ -59,12 +60,13 @@ Also refused, without a probe because nothing needs a reference to confirm it:
 
 ## Probe
 
-`probes/refused/average-booking.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/implicit-prices-zero-units-total.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression-operands-too-large.beancount`, `probes/refused/number-expression-result-too-large.beancount`, `probes/refused/number-expression-stacked-sign.beancount`, `probes/refused/number-expression-tolerance-sum.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin-auto-accounts-config.beancount`, `probes/refused/plugin-check-commodity.beancount`, `probes/refused/plugin-escaped-control.beancount`, `probes/refused/plugin-escaped-name.beancount`, `probes/refused/plugin-implicit-prices-config.beancount`, `probes/refused/plugin-unknown-module.beancount`
+`probes/refused/average-booking.beancount`, `probes/refused/booking-result-too-large.beancount`, `probes/refused/cost-merge.beancount`, `probes/refused/implicit-prices-zero-units-total.beancount`, `probes/refused/include.beancount`, `probes/refused/number-expression-operands-too-large.beancount`, `probes/refused/number-expression-result-too-large.beancount`, `probes/refused/number-expression-stacked-sign.beancount`, `probes/refused/number-expression-tolerance-sum.beancount`, `probes/refused/option-tolerance.beancount`, `probes/refused/option-unknown.beancount`, `probes/refused/plugin-auto-accounts-config.beancount`, `probes/refused/plugin-check-commodity.beancount`, `probes/refused/plugin-escaped-control.beancount`, `probes/refused/plugin-escaped-name.beancount`, `probes/refused/plugin-implicit-prices-config.beancount`, `probes/refused/plugin-unknown-module.beancount`
 
 Command:
 
 ```sh
 spec/beancount/show.sh spec/beancount/probes/refused/average-booking.beancount
+spec/beancount/show.sh spec/beancount/probes/refused/booking-result-too-large.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/cost-merge.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/include.beancount
 spec/beancount/show.sh spec/beancount/probes/refused/number-expression-operands-too-large.beancount
@@ -90,6 +92,22 @@ bean-check: average-booking.beancount:8: AVERAGE method is not supported
 ef883d,transaction,8,2026-01-10,*,,sell
 20c573,Assets:Stock,,1,BTC,10,EUR,2026-01-02,,,,6
 20c573,Assets:Bank,,-10,EUR,,,,,,,7
+```
+
+booking-result-too-large:
+
+```text
+bean-check: (no output, exit 0)
+e457f7,transaction,4,2026-01-02,*,,units times a cost per unit beyond 96 bits
+f9a7bb,transaction,7,2026-01-03,*,,units times a price beyond 96 bits
+9d60d1,transaction,10,2026-01-04,*,,a sum of weights beyond 96 bits
+e457f7,Assets:A,,10000000000000000000,AAPL,10000000000000000000,EUR,2026-01-02,,,,5
+e457f7,Assets:Cash,,-1.000000000000000000000000000E+38,EUR,,,,,,,6
+f9a7bb,Assets:B,,10000000000000000000,AAPL,,,,,10000000000000000000,EUR,8
+f9a7bb,Assets:Cash,,-1.000000000000000000000000000E+38,EUR,,,,,,,9
+9d60d1,Assets:A,,5.000000000000000000000000000E+28,EUR,,,,,,,11
+9d60d1,Assets:B,,5.000000000000000000000000000E+28,EUR,,,,,,,12
+9d60d1,Assets:Cash,,-1.000000000000000000000000000E+29,EUR,,,,,,,13
 ```
 
 cost-merge:

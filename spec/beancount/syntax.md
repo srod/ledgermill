@@ -12,7 +12,7 @@ what the reference does.
 Three classes.
 
 - **supported**: read, and the result is what the reference gives, errors included (check-errors.md,
-  check-order.md). A directive that changes nothing (`price`, `event`, ...) is supported: there is
+  check-order.md). A directive that changes nothing (`event`, `query`, `custom`, ...) is supported: there is
   nothing to ignore, and no finding.
 - **ignored (warning)**: skipped on purpose with an `ignored-syntax` warning (`details.construct`
   names it), because ledgermill cannot reproduce what the reference does with it. The file is still

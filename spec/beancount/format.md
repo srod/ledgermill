@@ -793,7 +793,9 @@ stated, the one that satisfies the acceptance (equality with `bean-format`).
 9. **Safety check.** The original and the formatted text are loaded under the same name. If their `transactions()`,
    `postings()`, `prices()` or `check()` differ (a finding's column and message are ignored, as a line's column moves),
    the original is returned. (It catches the string case if rule 1 misses it.) This is the same check as the hledger
-   formatter's.
+   formatter's. Before that, if the aligned file would be larger than four times the original or 16 MiB, whichever is
+   larger, the original is returned too, as in the hledger formatter: one very long account among many short postings
+   could otherwise pad the file to gigabytes.
 10. **Idempotent by construction.** `I`, `P` and `N` do not depend on the spacing the lines have: `I` is stable
     because all account lines are written with it, `P` and `N` are worked out from the account, prefix and number
     texts alone. Formatting the output gives the output (`bean-format` does not: 23 of the 400 random files).
