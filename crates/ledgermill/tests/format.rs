@@ -107,6 +107,13 @@ fn formatting_twice_gives_the_same_text() {
     assert_eq!(journal(&once), once);
 }
 
+#[test]
+fn default_commodity_with_different_mark_than_commodity_directive_still_aligns() {
+    let input = "commodity EUR 1,00\nD 1.00 EUR\n\n2026-01-01 t\n  assets:a  1,5e2\n  assets:longaccount  -150\n";
+    let want = "commodity EUR 1,00\nD 1.00 EUR\n\n2026-01-01 t\n    assets:a           1,5e2\n    assets:longaccount  -150\n";
+    assert_eq!(journal(input), want);
+}
+
 /// Every `.journal` under `dir`, recursively.
 fn journals(dir: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap() {
