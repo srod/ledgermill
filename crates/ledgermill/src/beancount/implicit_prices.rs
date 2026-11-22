@@ -6,6 +6,10 @@ use super::plain::{Day, Item};
 use super::pydec::Num;
 use foldhash::HashSet;
 
+/// Upper bound on total price entries produced across repeated `implicit_prices` runs so a file
+/// repeating the plugin line thousands of times cannot exhaust memory.
+const MAX_IMPLICIT_PRICES: usize = 1_000_000;
+
 /// The module name that turns the plugin on.
 pub(super) const MODULE: &str = "beancount.plugins.implicit_prices";
 
@@ -73,12 +77,17 @@ impl Run {
     }
 
     /// The entries of `runs` runs of the plugin (one per `plugin` line, each making the same
-    /// entries again), in the order they are listed in.
-    pub(super) fn repeated(self, runs: usize) -> Vec<(usize, Item)> {
-        let mut all = Vec::with_capacity(self.entries.len() * runs);
+    /// entries again), in the order they are listed in; `None` if repeating would exceed
+    /// [`MAX_IMPLICIT_PRICES`].
+    pub(super) fn repeated(self, runs: usize) -> Option<Vec<(usize, Item)>> {
+        let total = self.entries.len().checked_mul(runs)?;
+        if total > MAX_IMPLICIT_PRICES {
+            return None;
+        }
+        let mut all = Vec::with_capacity(total);
         for _ in 0..runs {
             all.extend(self.entries.iter().cloned());
         }
-        all
+        Some(all)
     }
 }

@@ -296,7 +296,13 @@ pub(super) fn prescan(text: &str) -> Prescan {
                 PluginLine::Named {
                     module: implicit_prices::MODULE,
                     config: false,
-                } => implicit_runs += 1,
+                } => {
+                    const MAX_IMPLICIT_PLUGIN_LINES: usize = 256;
+                    implicit_runs += 1;
+                    if implicit_runs == MAX_IMPLICIT_PLUGIN_LINES + 1 {
+                        out.push(refuse("implicit-prices-limit", None));
+                    }
+                }
                 PluginLine::Named { module, .. } => {
                     out.push(refuse("plugin", Some(module.to_string())));
                 }
@@ -993,9 +999,21 @@ pub(super) fn normalize(text: &str) -> Normalized {
         } else {
             ("", body)
         };
-        // A comment line (or an option set again later) becomes a `;` comment of the same length.
+        // A comment line (or an option set again later, or an accepted single-line plugin which
+        // `prescan` already read) becomes a `;` comment of the same length.
         let was_in_string = in_string;
-        if !was_in_string && (is_margin_comment(body) || superseded.contains(&index)) {
+        let accepted_plugin = !was_in_string
+            && starts_with_keyword(body, "plugin")
+            && matches!(
+                plugin_line(body),
+                PluginLine::Named {
+                    module: auto_accounts::MODULE | implicit_prices::MODULE,
+                    config: false,
+                }
+            );
+        if !was_in_string
+            && (is_margin_comment(body) || superseded.contains(&index) || accepted_plugin)
+        {
             out.push_str(bom);
             out.push(';');
             out.push_str(body.get(1..).unwrap_or(""));
