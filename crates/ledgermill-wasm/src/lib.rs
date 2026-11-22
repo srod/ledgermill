@@ -56,7 +56,8 @@ impl Ledger {
     /// as `cost(position)` (`Ledger::at_cost`).
     ///
     /// When the core refuses, this throws an `Error` whose `message` is the finding as JSON
-    /// (`code`, `severity`, `file`, `line`, `details`, `message`), as it does for any other failure.
+    /// (`code`, `severity`, `file`, `line`, optional `column`, `details`, `message`), as it does
+    /// for any other failure.
     #[wasm_bindgen(js_name = atCost)]
     pub fn at_cost(&self) -> Result<String, JsError> {
         answer(self.0.at_cost())
