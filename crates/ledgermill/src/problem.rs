@@ -22,6 +22,8 @@ pub(crate) enum Unsupported {
     Csv,
     /// A `P` line whose rate is followed by a price, a lot or a label.
     PriceAnnotation,
+    /// A regex alias whose NFA, count, or expanded account name is too large to handle safely.
+    AliasTooLarge,
 }
 
 impl Unsupported {
@@ -37,6 +39,7 @@ impl Unsupported {
             Unsupported::Timedot => "timedot",
             Unsupported::Csv => "csv",
             Unsupported::PriceAnnotation => "price-annotation",
+            Unsupported::AliasTooLarge => "alias-too-large",
         }
     }
 
@@ -59,6 +62,9 @@ impl Unsupported {
             Unsupported::Csv => "CSV files are not supported.",
             Unsupported::PriceAnnotation => {
                 "A price, a lot or a label after the rate of a P line is not supported."
+            }
+            Unsupported::AliasTooLarge => {
+                "This alias or its expanded account name is too large to handle."
             }
         }
     }

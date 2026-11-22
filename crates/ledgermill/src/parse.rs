@@ -593,7 +593,20 @@ impl FileParser<'_> {
             return invalid("An alias needs something before the `=`.");
         }
         if text.starts_with('/') || text.contains('=') {
-            self.st.aliases.push(parse_alias(rest)?);
+            const MAX_REGEX_ALIASES: usize = 256;
+            let parsed = parse_alias(rest)?;
+            if matches!(parsed, Alias::Regex { .. })
+                && self
+                    .st
+                    .aliases
+                    .iter()
+                    .filter(|a| matches!(a, Alias::Regex { .. }))
+                    .count()
+                    >= MAX_REGEX_ALIASES
+            {
+                return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
+            }
+            self.st.aliases.push(parsed);
             return Ok(Some(DirectiveBody::Plain));
         }
         let mut old = text.to_string();

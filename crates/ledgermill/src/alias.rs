@@ -1,8 +1,13 @@
 //! `alias OLD = NEW` and `alias /REGEX/ = REPLACEMENT`. See `spec/hledger/aliases.md`.
 
 use crate::chars::{is_blank, trim_blank};
-use crate::problem::{Parsed, invalid};
-use regex_lite::Regex;
+use crate::problem::{Parsed, Problem, Unsupported, invalid};
+use regex_lite::{Regex, RegexBuilder};
+
+/// Maximum compiled NFA size per regex alias (64 KiB).
+const MAX_REGEX_NFA_BYTES: usize = 64 * 1024;
+/// Maximum byte length of an account name produced by alias expansion (64 KiB).
+const MAX_ACCOUNT_LEN: usize = 64 * 1024;
 
 #[derive(Debug)]
 pub(crate) enum Alias {
@@ -81,8 +86,16 @@ pub(crate) fn parse_alias(text: &str) -> Parsed<Alias> {
         let Some(replacement) = after.strip_prefix('=') else {
             return invalid("An alias needs `=`.");
         };
-        let regex = Regex::new(&translate(&pattern)?)
-            .or(invalid("This regular expression is not valid."))?;
+        let regex = RegexBuilder::new(&translate(&pattern)?)
+            .size_limit(MAX_REGEX_NFA_BYTES)
+            .build()
+            .map_err(|err| {
+                if err.to_string().contains("size limit") {
+                    Problem::Unsupported(Unsupported::AliasTooLarge)
+                } else {
+                    Problem::Invalid("This regular expression is not valid.")
+                }
+            })?;
         return Ok(Alias::Regex {
             regex,
             replacement: replacement.trim_start_matches(is_blank).to_string(),
@@ -100,13 +113,26 @@ pub(crate) fn parse_alias(text: &str) -> Parsed<Alias> {
 impl Alias {
     pub(crate) fn apply(&self, account: &str) -> Parsed<String> {
         match self {
-            Alias::Plain { old, new } => Ok(match account.strip_prefix(old.as_str()) {
-                Some(rest) if rest.is_empty() || rest.starts_with(':') => format!("{new}{rest}"),
-                _ => account.to_string(),
-            }),
+            Alias::Plain { old, new } => match account.strip_prefix(old.as_str()) {
+                Some(rest) if rest.is_empty() || rest.starts_with(':') => {
+                    if new.len().saturating_add(rest.len()) > MAX_ACCOUNT_LEN {
+                        return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
+                    }
+                    Ok(format!("{new}{rest}"))
+                }
+                _ => Ok(account.to_string()),
+            },
             Alias::Regex { regex, replacement } => replace_all(regex, replacement, account),
         }
     }
+}
+
+fn push_bounded(out: &mut String, piece: &str) -> Parsed<()> {
+    if out.len().saturating_add(piece.len()) > MAX_ACCOUNT_LEN {
+        return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
+    }
+    out.push_str(piece);
+    Ok(())
 }
 
 /// Replace every match. Unlike `Regex::replace_all`, an empty match right after another match
@@ -117,7 +143,7 @@ fn replace_all(regex: &Regex, replacement: &str, text: &str) -> Parsed<String> {
     let mut pos = 0;
     while let Some(caps) = regex.captures_at(text, pos) {
         let Some(whole) = caps.get(0) else { break };
-        out.push_str(text.get(copied..whole.start()).unwrap_or(""));
+        push_bounded(&mut out, text.get(copied..whole.start()).unwrap_or(""))?;
         expand(replacement, &caps, &mut out)?;
         copied = whole.end();
         pos = whole.end();
@@ -125,12 +151,15 @@ fn replace_all(regex: &Regex, replacement: &str, text: &str) -> Parsed<String> {
             let Some(c) = text.get(pos..).and_then(|rest| rest.chars().next()) else {
                 break;
             };
+            if out.len().saturating_add(c.len_utf8()) > MAX_ACCOUNT_LEN {
+                return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
+            }
             out.push(c);
             pos += c.len_utf8();
             copied = pos;
         }
     }
-    out.push_str(text.get(copied..).unwrap_or(""));
+    push_bounded(&mut out, text.get(copied..).unwrap_or(""))?;
     Ok(out)
 }
 
@@ -149,9 +178,14 @@ fn expand(replacement: &str, caps: &regex_lite::Captures, out: &mut String) -> P
                 if index >= caps.len() {
                     return invalid("This alias refers to a group its regular expression lacks.");
                 }
-                out.push_str(caps.get(index).map_or("", |m| m.as_str()));
+                push_bounded(out, caps.get(index).map_or("", |m| m.as_str()))?;
             }
-            _ => out.push(c),
+            _ => {
+                if out.len().saturating_add(c.len_utf8()) > MAX_ACCOUNT_LEN {
+                    return Err(Problem::Unsupported(Unsupported::AliasTooLarge));
+                }
+                out.push(c);
+            }
         }
     }
     Ok(())
