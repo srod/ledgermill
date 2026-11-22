@@ -9,7 +9,6 @@
 ref="$(cd "$(dirname "$0")" && pwd)/run-ref.sh"
 cd "$(dirname "$0")/probes/several-files" || exit 1
 HERE=$(pwd)
-PY="$(dirname "$(readlink "$(command -v bean-check)")")/python"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 clean() { sed -E "s#[^ :,]*/##" | grep -v '^ *$'; }
@@ -91,7 +90,7 @@ for f in include-open include-rename; do
   echo "== $f.beancount"
   out=$("$ref" bean-check "$f.beancount" 2>&1 | clean)
   echo "bean-check: ${out:-(no output)}"
-  "$PY" -c "
+  "$ref" bean-python -c "
 import sys
 from beancount import loader
 entries, errors, options = loader.load_file(sys.argv[1])

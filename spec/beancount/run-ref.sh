@@ -3,12 +3,13 @@
 # frames of a Python traceback, which quote upstream source lines (CONTRIBUTING.md clean-room
 # rules). Standard output and standard error stay separate, each passed through the same filter,
 # and the exit status is the tool's. The last line of a traceback, the exception that was raised,
-# is kept; so is everything outside a traceback.
-# usage: spec/beancount/run-ref.sh <bean-check|bean-query|bean-format> [args...]
+# is kept; so is everything outside a traceback. `bean-python` is the Python that runs bean-check,
+# for the few helpers that call the loader themselves.
+# usage: spec/beancount/run-ref.sh <bean-check|bean-query|bean-format|bean-python> [args...]
 set -eu
 
 if [ $# -lt 1 ]; then
-  echo "usage: $0 <bean-check|bean-query|bean-format> [args...]" >&2
+  echo "usage: $0 <bean-check|bean-query|bean-format|bean-python> [args...]" >&2
   exit 2
 fi
 
@@ -16,8 +17,9 @@ tool=$1
 shift
 case "$tool" in
   bean-check|bean-query|bean-format) ;;
+  bean-python) tool="$(dirname "$(readlink "$(command -v bean-check)")")/python" ;;
   *)
-    echo "run-ref.sh: refused tool '$tool' (expected bean-check, bean-query, or bean-format)" >&2
+    echo "run-ref.sh: refused tool '$tool' (expected bean-check, bean-query, bean-format or bean-python)" >&2
     exit 2
     ;;
 esac
@@ -32,12 +34,13 @@ status=$?
 set -e
 
 # A traceback runs from its header to the first line that does not start with a blank: the
-# exception. awk exits 10 when it dropped frames.
+# exception. An exception group's header and frames are indented (`  + Exception Group Traceback`,
+# `  | ...`), so its whole report is dropped. awk exits 10 when it dropped frames.
 stripped=0
 strip() {
   rc=0
   awk '
-    /^Traceback \(most recent call last\):$/ { tracing = 1; dropped = 1; next }
+    /^[[:space:]+|]*(Exception Group )?Traceback \(most recent call last\):$/ { tracing = 1; dropped = 1; next }
     tracing && /^[^[:space:]]/ { print; tracing = 0; next }
     !tracing { print }
     END { exit dropped ? 10 : 0 }
