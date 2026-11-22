@@ -177,3 +177,26 @@ fn a_large_high_precision_unbalanced_cost_transaction_is_kept_and_reported_unbal
         json!([{ "commodity": "EUR", "quantity": "9999.00000000" }])
     );
 }
+
+#[test]
+fn a_huge_unbalanced_cost_transaction_is_kept_and_reported_unbalanced() {
+    // bean-check 3.2.3 prints `(999999999999999999999999.0000 EUR)` for this journal.
+    let journal = concat!(
+        "2026-01-01 open Assets:A\n",
+        "2026-01-01 open Assets:Cash\n",
+        "\n",
+        "2026-01-02 * \"big\"\n",
+        "  Assets:A  (1000000000000 * 1000000000000) AAPL {1.0000 EUR}\n",
+        "  Assets:Cash  -1.0000 EUR\n",
+    );
+    let ledger = ledgermill::load(&[file("u.beancount", journal)]);
+    assert_eq!(ledger.transactions().len(), 1);
+    assert_eq!(
+        short_findings("u.beancount", journal),
+        json!([[4, "unbalanced-transaction", null]])
+    );
+    assert_eq!(
+        ledger.check()[0].details["residual"],
+        json!([{ "commodity": "EUR", "quantity": "999999999999999999999999.0000" }])
+    );
+}
