@@ -12,7 +12,9 @@ const GAP: usize = 2;
 /// Floor on allowed formatted output size before refusing quadratic alignment padding.
 const MIN_FORMAT_BUDGET: usize = 16 * 1024 * 1024;
 
-fn format_budget(input_len: usize) -> usize {
+/// The most bytes `format` may return for an input of `input_len` bytes: four times the input, at
+/// least 16 MiB. Alignment that would grow past it leaves the file as it was.
+pub(crate) fn format_budget(input_len: usize) -> usize {
     input_len.saturating_mul(4).max(MIN_FORMAT_BUDGET)
 }
 

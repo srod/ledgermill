@@ -271,6 +271,39 @@ fn format_alignment_bombs_return_unchanged_without_oom() {
     assert_eq!(format(&file("bomb.beancount", &bc_bomb)), bc_bomb);
 }
 
+/// A Beancount file with one wide account and `short` postings on a two-byte-letter account,
+/// each padded out to the wide one's width. `format` keeps its output within 16 MiB (the floor of
+/// its budget); the padding of a short account is counted in bytes, not characters.
+fn multibyte_padding_journal(short: usize, wide: usize) -> String {
+    let mut journal = format!("2026-01-02 * \"x\"\n  Assets:{}  1 EUR\n", "A".repeat(wide));
+    for _ in 0..short {
+        journal.push_str("  Assets:É  1 EUR\n");
+    }
+    journal.push_str("  Assets:B\n");
+    journal
+}
+
+#[test]
+fn beancount_format_budget_counts_the_bytes_of_multibyte_padding() {
+    const BUDGET: usize = 16 * 1024 * 1024;
+    // 999 short postings pad out to 16,761,027 bytes: formatted.
+    let within = multibyte_padding_journal(999, 16_743);
+    let formatted = format(&file("within.beancount", &within));
+    assert!(
+        formatted != within,
+        "the journal within budget was not formatted"
+    );
+    assert!(formatted.len() <= BUDGET, "{}", formatted.len());
+    // One more makes 16,777,788 bytes, 572 over: returned as written.
+    let over = multibyte_padding_journal(1_000, 16_743);
+    let kept = format(&file("over.beancount", &over));
+    assert!(
+        kept == over,
+        "formatted to {} bytes, over the budget",
+        kept.len()
+    );
+}
+
 #[test]
 fn extreme_price_chains_and_huge_integer_literals_are_refused() {
     // 20 chained `1e4096` prices would exceed the 65,536-bit cap (~19,700 decimal digits).
