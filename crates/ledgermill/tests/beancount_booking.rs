@@ -237,3 +237,155 @@ fn a_huge_unbalanced_cost_transaction_with_a_negative_residual_or_many_places_is
         );
     }
 }
+
+/// Four accounts open on lines 1-4, a blank line, so the first transaction starts on line 6.
+const OPENED: &str = "2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n2026-01-01 open Assets:Cash\n2026-01-01 open Income:X\n\n";
+/// About 5e28, which fits `Decimal` (7.9e28), written as an expression because a literal of more
+/// than 22 characters is refused. Two of them do not fit.
+const HALF_MAX: &str = "(50000000000000 * 1000000000000000)";
+/// About 3e28: two of them fit, three do not.
+const THIRD_MAX: &str = "(30000000000000 * 1000000000000000)";
+/// 1e19: two of them multiplied do not fit `Decimal`.
+const TEN_E19: &str = "10000000000000000000";
+
+/// Booking must refuse a figure `Decimal` cannot hold as `number-too-precise`, as it does for
+/// the product of two big operands in an expression, instead of panicking inside the booking
+/// crate. The reference (bean-check 3.2.3) computes these with no limit.
+fn refused_as_too_precise(body: &str, line: u32) {
+    let journal = format!("{OPENED}{body}");
+    let ledger = ledgermill::load(&[file("o.beancount", &journal)]);
+    assert!(ledger.transactions().is_empty(), "{journal}");
+    assert_eq!(
+        short_findings("o.beancount", &journal),
+        json!([[line, "unsupported-syntax", "number-too-precise"]]),
+        "{journal}"
+    );
+}
+
+#[test]
+fn units_times_a_cost_per_unit_that_overflows_is_refused_not_a_panic() {
+    for (units, cash) in [("", "-1"), ("-", "1")] {
+        refused_as_too_precise(
+            &format!(
+                "2026-01-02 * \"t\"\n  Assets:A  {units}{TEN_E19} AAPL {{{TEN_E19} EUR}}\n  Assets:Cash  {cash} EUR\n"
+            ),
+            6,
+        );
+    }
+    // A cost written as `per-unit # total` is a per-unit cost too.
+    refused_as_too_precise(
+        &format!(
+            "2026-01-02 * \"t\"\n  Assets:A  {TEN_E19} AAPL {{{TEN_E19} # 1 EUR}}\n  Assets:Cash  -1 EUR\n"
+        ),
+        6,
+    );
+}
+
+#[test]
+fn units_times_a_price_that_overflows_is_refused_not_a_panic() {
+    for (units, cash) in [("", "-1"), ("-", "1")] {
+        refused_as_too_precise(
+            &format!(
+                "2026-01-02 * \"t\"\n  Assets:A  {units}{TEN_E19} AAPL @ {TEN_E19} EUR\n  Assets:Cash  {cash} EUR\n"
+            ),
+            6,
+        );
+    }
+    // Decimals in both factors still need more than the 96 bits `Decimal` holds.
+    refused_as_too_precise(
+        "2026-01-02 * \"t\"\n  Assets:A  12345678901234567.89 AAPL @ 12345678901234567.89 EUR\n  Assets:Cash  -1 EUR\n",
+        6,
+    );
+}
+
+#[test]
+fn several_weights_whose_sum_overflows_are_refused_not_a_panic() {
+    let postings = [
+        // plain amounts
+        format!(
+            "  Assets:A  {HALF_MAX} EUR\n  Assets:B  {HALF_MAX} EUR\n  Assets:Cash  {HALF_MAX} EUR\n"
+        ),
+        format!(
+            "  Assets:A  -{HALF_MAX} EUR\n  Assets:B  -{HALF_MAX} EUR\n  Assets:Cash  -{HALF_MAX} EUR\n"
+        ),
+        // costs
+        format!(
+            "  Assets:A  1 AAPL {{{HALF_MAX} EUR}}\n  Assets:B  1 AAPL {{{HALF_MAX} EUR}}\n  Assets:Cash  1 AAPL {{{HALF_MAX} EUR}}\n"
+        ),
+        // prices
+        format!(
+            "  Assets:A  1 AAPL @ {HALF_MAX} EUR\n  Assets:B  1 AAPL @ {HALF_MAX} EUR\n  Assets:Cash  1 AAPL @ {HALF_MAX} EUR\n"
+        ),
+        // a cost and a price
+        format!(
+            "  Assets:A  2 AAPL {{{HALF_MAX} EUR}}\n  Assets:B  1 MSFT @ {HALF_MAX} EUR\n  Assets:Cash  -1 EUR\n"
+        ),
+    ];
+    for body in postings {
+        refused_as_too_precise(&format!("2026-01-02 * \"t\"\n{body}"), 6);
+    }
+}
+
+#[test]
+fn an_elided_posting_that_would_hold_a_figure_that_overflows_is_refused_not_a_panic() {
+    let postings = [
+        // the elided posting takes the sum of the others
+        format!("  Assets:A  {HALF_MAX} EUR\n  Assets:B  {HALF_MAX} EUR\n  Assets:Cash\n"),
+        format!("  Assets:A  {TEN_E19} AAPL {{{TEN_E19} EUR}}\n  Assets:Cash\n"),
+        format!("  Assets:A  {TEN_E19} AAPL @ {TEN_E19} EUR\n  Assets:Cash\n"),
+    ];
+    for body in postings {
+        refused_as_too_precise(&format!("2026-01-02 * \"t\"\n{body}"), 6);
+    }
+}
+
+#[test]
+fn what_an_account_holds_growing_past_decimal_is_refused_not_a_panic() {
+    let day = |d: u32, units: &str, cash: &str| {
+        format!("2026-01-0{d} * \"t\"\n  Assets:A  {units}\n  Assets:Cash  {cash}\n\n")
+    };
+    // Each transaction fits, and so do two of them; the third makes the account hold more than
+    // `Decimal` can.
+    let cases = [
+        (format!("{THIRD_MAX} EUR"), format!("-{THIRD_MAX} EUR")),
+        (
+            format!("1 AAPL {{{THIRD_MAX} EUR}}"),
+            format!("-{THIRD_MAX} EUR"),
+        ),
+        (
+            format!("{THIRD_MAX} AAPL {{1 EUR}}"),
+            format!("-{THIRD_MAX} EUR"),
+        ),
+    ];
+    for (units, cash) in cases {
+        let body: String = (2..=4).map(|d| day(d, &units, &cash)).collect();
+        refused_as_too_precise(&body, 6 + 2 * 4);
+    }
+}
+
+#[test]
+fn a_sale_whose_lots_weigh_more_than_decimal_is_refused_not_a_panic() {
+    // Two lots of 5e28 bought with different money: each purchase fits, the sale weighs both.
+    let body = format!(
+        "2026-01-02 * \"b\"\n  Assets:A  1 AAPL {{{HALF_MAX} EUR}}\n  Assets:Cash  -{HALF_MAX} EUR\n\n\
+         2026-01-03 * \"b\"\n  Assets:A  1 AAPL {{{HALF_MAX} EUR, 2026-01-03}}\n  Assets:B  -{HALF_MAX} EUR\n\n\
+         2026-01-04 * \"sale\"\n  Assets:A  -2 AAPL {{}}\n  Assets:Cash  1 EUR\n  Income:X\n"
+    );
+    refused_as_too_precise(&body, 6 + 8);
+}
+
+#[test]
+fn figures_that_fit_decimal_exactly_are_still_booked() {
+    let journal = format!(
+        "{OPENED}2026-01-02 * \"t\"\n  Assets:A  1000000000 AAPL {{1000000000 EUR}}\n  Assets:Cash  -1000000000000000000 EUR\n\n\
+         2026-01-03 * \"t\"\n  Assets:A  {HALF_MAX} EUR\n  Assets:Cash  -{HALF_MAX} EUR\n"
+    );
+    assert_eq!(findings("f.beancount", &journal), json!([]));
+    assert_eq!(
+        transactions("f.beancount", &journal)
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
