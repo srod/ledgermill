@@ -159,6 +159,60 @@ fn regex_aliases_that_do_too_much_work_for_a_small_journal_are_refused() {
 }
 
 #[test]
+fn plain_aliases_that_do_too_much_work_for_a_small_journal_are_refused() {
+    // Plain aliases are no cheaper: each one that does not match still has to look at a 60,000-byte
+    // name, once per alias and posting. 2,000 of them and five postings are 600 million bytes of
+    // looking, from a journal of 80 KB.
+    let mut journal = String::new();
+    for i in 0..2_000 {
+        journal.push_str(&format!("alias z{i} = y\n"));
+    }
+    journal.push_str(&format!("alias a = {}\n", "x".repeat(60_000)));
+    journal.push_str("2026-01-01 t\n");
+    for _ in 0..5 {
+        journal.push_str("    a  1\n");
+    }
+    journal.push_str("    b\n");
+    let ledger = load(&[file("plain.journal", &journal)]);
+    let findings = ledger.check();
+    assert!(!findings.is_empty(), "the journal was loaded in full");
+    assert_eq!(findings[0].code, "unsupported-syntax");
+    assert_eq!(findings[0].details["construct"], "alias-too-large");
+}
+
+#[test]
+fn many_aliases_load_on_a_journal_that_names_few_accounts_often() {
+    // What a real journal looks like: 150 aliases (100 regex, 50 plain) and 8,000 postings (300 KB)
+    // that name only 500 accounts and the bank. The aliases need to run once per account, not once
+    // per posting, so nothing here may be refused.
+    let mut journal = String::new();
+    for i in 0..99 {
+        journal.push_str(&format!("alias /^wallet{i}:/ = assets:wallet{i}:\n"));
+    }
+    for i in 0..49 {
+        journal.push_str(&format!("alias old{i} = archive:old{i}\n"));
+    }
+    journal.push_str("alias assets:bank = assets:checking\n");
+    journal.push_str("alias /^expenses:/ = exp:\n");
+    for n in 0..4_000 {
+        let k = n % 500;
+        journal.push_str(&format!(
+            "2026-01-01 t\n    expenses:cat{}:item{k}  1\n    assets:bank\n",
+            k % 20
+        ));
+    }
+    let ledger = load(&[file("big.journal", &journal)]);
+    assert!(ledger.check().is_empty(), "{:?}", ledger.check());
+    let accounts: Vec<&str> = ledger
+        .postings()
+        .iter()
+        .map(|p| p.account.as_str())
+        .collect();
+    assert!(accounts.contains(&"exp:cat3:item3"));
+    assert!(accounts.contains(&"assets:checking"));
+}
+
+#[test]
 fn format_alignment_bombs_return_unchanged_without_oom() {
     // 100k-char account + 500 short postings would expand to ~50 MB of spaces (over the 16 MB budget).
     let long = "a".repeat(100_000);
