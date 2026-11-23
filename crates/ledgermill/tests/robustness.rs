@@ -271,6 +271,39 @@ fn format_alignment_bombs_return_unchanged_without_oom() {
     assert_eq!(format(&file("bomb.beancount", &bc_bomb)), bc_bomb);
 }
 
+/// A Beancount file with one wide account and `short` postings on a two-byte-letter account,
+/// each padded out to the wide one's width. `format` keeps its output within 16 MiB (the floor of
+/// its budget); the padding of a short account is counted in bytes, not characters.
+fn multibyte_padding_journal(short: usize, wide: usize) -> String {
+    let mut journal = format!("2026-01-02 * \"x\"\n  Assets:{}  1 EUR\n", "A".repeat(wide));
+    for _ in 0..short {
+        journal.push_str("  Assets:É  1 EUR\n");
+    }
+    journal.push_str("  Assets:B\n");
+    journal
+}
+
+#[test]
+fn beancount_format_budget_counts_the_bytes_of_multibyte_padding() {
+    const BUDGET: usize = 16 * 1024 * 1024;
+    // 999 short postings pad out to 16,761,027 bytes: formatted.
+    let within = multibyte_padding_journal(999, 16_743);
+    let formatted = format(&file("within.beancount", &within));
+    assert!(
+        formatted != within,
+        "the journal within budget was not formatted"
+    );
+    assert!(formatted.len() <= BUDGET, "{}", formatted.len());
+    // One more makes 16,777,788 bytes, 572 over: returned as written.
+    let over = multibyte_padding_journal(1_000, 16_743);
+    let kept = format(&file("over.beancount", &over));
+    assert!(
+        kept == over,
+        "formatted to {} bytes, over the budget",
+        kept.len()
+    );
+}
+
 #[test]
 fn extreme_price_chains_and_huge_integer_literals_are_refused() {
     // 20 chained `1e4096` prices would exceed the 65,536-bit cap (~19,700 decimal digits).
@@ -303,6 +336,46 @@ fn extreme_price_chains_and_huge_integer_literals_are_refused() {
 }
 
 #[test]
+fn a_number_of_4097_written_digits_is_read_and_one_of_4098_is_refused() {
+    let load_with = |digits: usize| {
+        let journal = format!("2026-01-01 t\n  a  {}\n  b\n", "9".repeat(digits));
+        load(&[file("digits.journal", &journal)])
+    };
+    assert!(load_with(4_097).check().is_empty());
+    let refused = load_with(4_098);
+    assert_eq!(refused.check()[0].code, "unsupported-syntax");
+    assert_eq!(refused.check()[0].details["construct"], "number-too-large");
+    // The digits count as written, so an exponent adds nothing to them.
+    let exponent = load(&[file("e.journal", "2026-01-01 t\n  a  1e4096\n  b\n")]);
+    assert!(exponent.check().is_empty());
+}
+
+#[test]
+fn an_entry_with_thousands_of_errors_is_reported_at_its_header() {
+    // Each error used to be placed by reading back to the entry's header: 5,000 of them in one
+    // entry took seconds, and 40,000 took many times that.
+    let mut duplicates =
+        String::from("2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n2026-01-02 * \"t\"\n");
+    for i in 0..5_000 {
+        duplicates.push_str(&format!("  k{i}: \"1\"\n  k{i}: \"2\"\n"));
+    }
+    duplicates.push_str("  Assets:A  1 EUR\n    pk: \"1\"\n    pk: \"2\"\n  Assets:B\n");
+    let found = load(&[file("dup.beancount", &duplicates)]);
+    let lines: Vec<u32> = found.check().iter().map(|f| f.line).collect();
+    assert_eq!(lines, vec![3; 5_001]);
+    assert_eq!(found.check()[0].details["scope"], "entry");
+    assert_eq!(found.check()[5_000].details["scope"], "posting");
+
+    let mut divisions = String::from("2026-01-01 open Assets:A\n2026-01-02 * \"t\"\n");
+    for _ in 0..5_000 {
+        divisions.push_str("  Assets:A  (1 / 0) EUR\n");
+    }
+    let found = load(&[file("div.beancount", &divisions)]);
+    assert_eq!(found.check().len(), 5_000);
+    assert!(found.check().iter().all(|f| f.code == "division-by-zero"));
+}
+
+#[test]
 fn beancount_extreme_exponents_do_not_oom() {
     // 2,000 chained tiny factors produce exponent -40,000; adding 1 and quantizing stays O(1).
     let mut expr = String::from("(1 + (0.00000000000000000001");
@@ -323,23 +396,29 @@ fn beancount_extreme_exponents_do_not_oom() {
 
 #[test]
 fn beancount_repeated_implicit_prices_do_not_oom() {
-    // 5,000 implicit_prices plugin lines × 250 priced transactions = 1,250,000 entries -> refused.
+    // The most `plugin` lines a file may have for it is 256 (one more is refused before anything
+    // is read), each making the same entries again. 3,907 distinct prices make 1,000,192 entries,
+    // past the million the load may hold.
     let mut repeated = String::new();
-    for _ in 0..5_000 {
+    for _ in 0..256 {
         repeated.push_str("plugin \"beancount.plugins.implicit_prices\"\n");
     }
     repeated.push_str("2026-01-01 open Assets:A\n2026-01-01 open Assets:B\n");
-    for i in 0..250 {
+    for i in 0..3_907 {
         repeated.push_str(&format!(
-            "2026-01-02 * \"t{i}\"\n  Assets:A  1 C{i} @ 2 EUR\n  Assets:B\n"
+            "2026-01-02 * \"t{i}\"\n  Assets:A  1 AAA @ {} EUR\n  Assets:B\n",
+            i + 2
         ));
     }
+    // What the load found before it reached the limit is kept next to the refusal.
+    repeated.push_str("2026-01-03 * \"bad\"\n  Assets:A  1 EUR\n  Assets:B  -2 EUR\n");
     let ledger = load(&[file("rep.beancount", &repeated)]);
-    assert_eq!(ledger.check()[0].code, "unsupported-syntax");
-    assert_eq!(
-        ledger.check()[0].details["construct"],
-        "implicit-prices-limit"
-    );
+    let findings = ledger.check();
+    assert_eq!(findings[0].code, "unsupported-syntax");
+    assert_eq!(findings[0].details["construct"], "implicit-prices-limit");
+    let codes: Vec<&str> = findings.iter().map(|f| f.code.as_str()).collect();
+    assert_eq!(codes, ["unsupported-syntax", "unbalanced-transaction"]);
+    assert!(ledger.transactions().is_empty());
 }
 
 #[test]

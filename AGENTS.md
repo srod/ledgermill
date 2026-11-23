@@ -13,8 +13,9 @@ engines. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; its clean-room rules bin
   may read them to learn rules; write everything in your own words.
 - Learn behaviour only by running the reference tools (`hledger`, `bean-check`, `bean-query`,
   `bean-format`) on journals you write, and record it as a spec note in `spec/`. Run Beancount
-  tools through `spec/beancount/run-ref.sh` so Python tracebacks (which quote upstream source
-  lines) are stripped before reaching the session.
+  tools through `spec/beancount/run-ref.sh` (the helper scripts in that folder do) so the frames
+  of Python tracebacks, which quote upstream source lines, are stripped before reaching the
+  session.
 - Never copy test journals from upstream. Write your own.
 - Commits: `git commit -s`, plus an `Assisted-by: <tool> (<model>, <vendor>)` trailer, e.g.
   `Assisted-by: pi (Claude, Anthropic)`.
@@ -57,7 +58,7 @@ the mechanical ones are enforced by `[workspace.lints]` in `Cargo.toml`.
   advisories; sources),
   `cargo machete` (unused dependencies) and `typos` (spelling). Install: `cargo install
   --locked cargo-deny cargo-machete typos-cli`. A new dependency's licence must be in
-  `deny.toml`'s allow-list; never widen the list to admit a strong copyleft licence.
+  `deny.toml`'s allow-list; never widen the list to admit a copyleft licence other than `MPL-2.0`.
 - `cargo test --workspace`
 - the harness (`harness/README.md`)
 - builds for wasm32, `aarch64-apple-ios` and `aarch64-linux-android`, and the size budget

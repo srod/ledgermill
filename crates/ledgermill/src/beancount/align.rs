@@ -5,6 +5,7 @@
 //! tried on comes from the loader (`Loaded::amount_lines`), so text that only looks like a posting (a
 //! multi-line string, say) is never touched.
 
+use crate::format::format_budget;
 use crate::model::SourceFile;
 use foldhash::HashSet;
 use std::collections::HashMap;
@@ -52,7 +53,7 @@ pub(crate) fn realign(file: &SourceFile, read: &HashSet<u32>) -> String {
     }
 
     // Check projected output size before allocating padding so a pathological line cannot OOM.
-    let budget = file.content.len().saturating_mul(4).max(16 * 1024 * 1024);
+    let budget = format_budget(file.content.len());
     let mut projected = 0usize;
     for (index, ((body, ending), shape)) in lines.iter().zip(&shapes).enumerate() {
         if index > 0 {
@@ -64,20 +65,19 @@ pub(crate) fn realign(file: &SourceFile, read: &HashSet<u32>) -> String {
                 number,
                 rest,
                 ..
-            }) => prefix_width
-                .max(indent.saturating_add(account.len()))
+            }) => indent
+                .saturating_add(padded_len(account, prefix_width.saturating_sub(indent)))
                 .saturating_add(2)
-                .saturating_add(number_width.max(number.len()))
+                .saturating_add(padded_len(number, number_width))
                 .saturating_add(1)
                 .saturating_add(rest.len()),
             Some(Shape::Dated {
                 prefix,
                 number,
                 rest,
-            }) => prefix_width
-                .max(prefix.len())
+            }) => padded_len(prefix, prefix_width)
                 .saturating_add(2)
-                .saturating_add(number_width.max(number.len()))
+                .saturating_add(padded_len(number, number_width))
                 .saturating_add(1)
                 .saturating_add(rest.len()),
             Some(Shape::Account { rest, .. }) => indent.saturating_add(rest.len()),
@@ -125,6 +125,13 @@ pub(crate) fn realign(file: &SourceFile, read: &HashSet<u32>) -> String {
         out.push_str(ending);
     }
     out
+}
+
+/// The bytes `text` takes once padded to `width` characters, which is how `format!` counts a
+/// width: a name of multi-byte letters is longer than its character count.
+fn padded_len(text: &str, width: usize) -> usize {
+    text.len()
+        .saturating_add(width.saturating_sub(text.chars().count()))
 }
 
 /// The indent most account lines have, a tab counting 1; the larger one when two are tied.

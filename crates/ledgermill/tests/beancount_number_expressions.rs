@@ -567,6 +567,7 @@ fn an_expression_cannot_bridge_across_a_quoted_string() {
         "  Equity:B  -6 EUR\n",
     );
     let found = short_findings("x.beancount", journal);
+    assert_eq!(found.as_array().map(Vec::len), Some(1), "{found}");
     assert_eq!(found[0][0], json!(4));
     assert_eq!(found[0][1], json!("parse-error"));
 }

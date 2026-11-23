@@ -51,7 +51,8 @@ and `app/NAME` is in `../../harness/journals/app/`.
 | numbers: digit groups, decimal marks, exponents, trailing point | supported | `numbers-forms`, `numbers-marks`, `numbers-groups-and-exponent`, `numbers-group-spaces`, `numbers-invalid-separators`, `numbers-big` |
 | a number of up to 255 decimal places | supported | `numbers-places-limit`, `numbers-many-places` |
 | a number of more than 255 decimal places (an error) | supported | `numbers-too-many-places`, `numbers-too-many-places-exponent` |
-| an exponent above 4096 | unsupported | `refused/number-too-large-exponent` |
+| a number written with up to 4097 digits | supported | `numbers-digits-limit` |
+| an exponent above 4096, or a number written with more than 4097 digits | unsupported | `refused/number-too-large-exponent`, `refused/number-too-large-digits`, `refused/number-too-large-digits-5000` |
 | cost `@` and `@@` | supported | `prices`, `posting-price`, `app/unit-cost-spelling` |
 | virtual cost `(@)` and `(@@)` | supported | `syntax-virtual-cost` |
 | lot `{}`, `{{}}`, `{=}`, `[DATE]`, `(LABEL)` | supported | `lots`, `app/repeated-account-annotations` |
@@ -99,7 +100,7 @@ The probes named above. Commands and outputs are in the notes of each behaviour 
 README); for what this note adds:
 
 ```sh
-spec/hledger/probe-verdicts.sh spec/hledger/probes/syntax-virtual-cost.journal spec/hledger/probes/syntax-valuation-expression.journal
+spec/hledger/probe-verdicts.sh spec/hledger/probes/syntax-virtual-cost.journal spec/hledger/probes/syntax-valuation-expression.journal spec/hledger/probes/numbers-digits-limit.journal
 spec/hledger/show.sh spec/hledger/probes/syntax-no-postings.journal
 spec/hledger/show.sh spec/hledger/probes/syntax-ledger-directives.journal
 cut -f2- spec/hledger/directive-forms.txt | spec/hledger/directive-verdicts.sh - | diff - spec/hledger/directive-forms.txt
@@ -129,13 +130,16 @@ date-without-year-header | accepts | 1 transactions
 date-without-year-price | accepts | 1 transactions
 include-target | accepts | 1 transactions
 include | accepts | 2 transactions
+number-too-large-digits | accepts | 1 transactions
+number-too-large-digits-5000 | accepts | 1 transactions
 number-too-large-exponent | accepts | 1 transactions
 ```
 
 ```text
-$ spec/hledger/probe-verdicts.sh spec/hledger/probes/syntax-virtual-cost.journal spec/hledger/probes/syntax-valuation-expression.journal
+$ spec/hledger/probe-verdicts.sh spec/hledger/probes/syntax-virtual-cost.journal spec/hledger/probes/syntax-valuation-expression.journal spec/hledger/probes/numbers-digits-limit.journal
 syntax-virtual-cost | accepts | 2 transactions
 syntax-valuation-expression | accepts | 2 transactions
+numbers-digits-limit | accepts | 1 transactions
 ```
 
 `refused/timeclock.timeclock`, `refused/timedot.timedot` and `refused/csv.csv` (with `csv.csv.rules`) each print one
@@ -192,9 +196,12 @@ SKIP on the hledger side. What is left to know:
   error is on the line after the last one.
 - A file that is not valid UTF-8 is an error in hledger with no position; ledgermill is given a string, so
   the caller decides how to decode: nothing to do.
-- A positive exponent up to 4096 and a number of up to 255 decimal places are read exactly as hledger does;
-  an exponent above 4096 is `number-too-large`, and so is a number written with more than 4097 digits (`1e4096`
-  has 4097). hledger reads a number of 5,000 written digits (run 2026-11-22, `hledger --no-conf -f - print -O json`
-  on a posting of 5,000 `1`s gives a mantissa of 5,000 digits and no places). hledger also reads `1e100000` (a mantissa of a hundred thousand
-  digits) and does not finish on `1e9999999999999999999`: not probed further.
+- A positive exponent up to 4096, a number of up to 4097 written digits and a number of up to 255 decimal places
+  are read exactly as hledger does. An exponent above 4096 is `number-too-large`, and so is a number written
+  with 4098 digits or more. The digits count as written, before any exponent: `1e4096` is one digit and is read.
+  hledger reads them all. `print -O json` (hledger 1.52.4, run 2026-11-22) on a posting of 4,097 `1`s
+  (`numbers-digits-limit`), of 4,098 (`refused/number-too-large-digits`) and of 5,000
+  (`refused/number-too-large-digits-5000`) gives a `decimalMantissa` of that many digits and no places.
+  hledger also reads `1e100000`, an integer of 100,001 digits (`decimalMantissa` `1.0e100000`, no places),
+  and does not finish on `1e9999999999999999999`: not probed further.
 - A line of only `*` is not a posting: [posting-star-line](posting-star-line.md).

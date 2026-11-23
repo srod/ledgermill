@@ -5,6 +5,7 @@
 # usage: spec/beancount/show-value.sh FILE V YYYY MM DD [ACCOUNT-REGEX]
 # With a regex, only the postings of the accounts it matches are listed.
 # Cleaned for reading only: CRs and the padding spaces are dropped.
+ref="$(dirname "$0")/run-ref.sh"
 f="$1"; V="$2"; Y="$3"; M="$4"; D="$5"; ONLY="$6"
 CONVERT="convert(position, \"$V\", date($Y, $M, $D))"
 VALUE="SELECT account, number, currency, number($CONVERT) AS amount, currency($CONVERT) AS commodity, lineno FROM postings"
@@ -14,6 +15,6 @@ clean() {
 }
 echo "== $f V=$V on $Y-$M-$D"
 echo "-- bean-check"
-bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
+"$ref" bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
 echo "-- value: account,number,currency,amount,commodity,lineno"
-bean-query -f csv "$f" "$VALUE" 2>&1 | clean | tail -n +2
+"$ref" bean-query -f csv "$f" "$VALUE" 2>&1 | clean | tail -n +2

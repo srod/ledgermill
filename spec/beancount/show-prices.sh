@@ -5,6 +5,7 @@
 # usage: spec/beancount/show-prices.sh FILE...
 # Cleaned for reading only: CRs and the padding spaces are dropped and the directory is cut from the
 # file name.
+ref="$(dirname "$0")/run-ref.sh"
 PRICES="SELECT date, currency, number(amount), currency(amount) FROM prices"
 LINES="SELECT date, lineno, filename FROM entries WHERE type = 'price'"
 clean() {
@@ -13,9 +14,9 @@ clean() {
 for f in "$@"; do
   echo "== $f"
   echo "-- bean-check"
-  bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
+  "$ref" bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
   echo "-- prices: date,currency,number(amount),currency(amount)"
-  bean-query -f csv "$f" "$PRICES" 2>&1 | clean | tail -n +2
+  "$ref" bean-query -f csv "$f" "$PRICES" 2>&1 | clean | tail -n +2
   echo "-- price entries: date,lineno,filename"
-  bean-query -f csv "$f" "$LINES" 2>&1 | clean | tail -n +2
+  "$ref" bean-query -f csv "$f" "$LINES" 2>&1 | clean | tail -n +2
 done

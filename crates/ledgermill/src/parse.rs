@@ -158,6 +158,18 @@ impl Parents {
         true
     }
 
+    /// The length of `name` under the levels in force, what `join` would make.
+    fn joined_len(&self, name: &str) -> usize {
+        if self.outer_lens.is_empty() {
+            name.len()
+        } else {
+            self.prefix
+                .len()
+                .saturating_add(1)
+                .saturating_add(name.len())
+        }
+    }
+
     /// `name` under the levels in force.
     fn join(&self, name: &str) -> String {
         if self.outer_lens.is_empty() {
@@ -917,11 +929,11 @@ impl FileParser<'_> {
     /// The account with `apply account` parents and aliases applied (aliases see the parents).
     /// Its length is charged to the load's budget, so the names of a load stay bounded.
     fn full_account(&mut self, name: &str) -> Parsed<String> {
-        // A prefix past what is left is refused whatever follows it: the name is longer than the
-        // prefix, and the first alias is charged the name's length. Saying so before the prefix is
-        // copied (and hashed, with aliases) for every posting keeps a refused journal of short
-        // postings under a 64 KiB prefix from costing 7 GB of copying per MB.
-        if self.st.parents.prefix.len() > self.out.work_budget {
+        // A name past what is left is refused whatever follows it: it is charged its length, and
+        // so is the first alias. Saying so before the prefix is copied (and hashed, with aliases)
+        // for every posting keeps a refused journal of short postings under a 64 KiB prefix from
+        // costing 7 GB of copying per MB, also when what is left is between the prefix and the name.
+        if self.st.parents.joined_len(name) > self.out.work_budget {
             return Err(Problem::Unsupported(if self.st.aliases.is_empty() {
                 Unsupported::AccountTooLarge
             } else {

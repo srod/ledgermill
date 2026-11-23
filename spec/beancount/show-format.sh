@@ -5,10 +5,11 @@
 # a line as `$`.
 # usage: [BEAN_FORMAT_ARGS='-w 30'] spec/beancount/show-format.sh FILE...
 # BEAN_FORMAT_ARGS holds options for bean-format (-w, -W, -c).
+ref="$(dirname "$0")/run-ref.sh"
 for f in "$@"; do
   echo "== $f"
   out=$(mktemp)
-  if ! bean-format $BEAN_FORMAT_ARGS "$f" > "$out" 2>/dev/null; then
+  if ! "$ref" bean-format $BEAN_FORMAT_ARGS "$f" > "$out" 2>/dev/null; then
     echo "bean-format failed"
     rm -f "$out"
     continue

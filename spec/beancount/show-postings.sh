@@ -4,11 +4,12 @@
 # usage: spec/beancount/show-postings.sh FILE...
 # Cleaned for reading only: CRs and the padding spaces are dropped and the directory is cut from the
 # file name. A multi-line field shows over several lines.
+ref="$(dirname "$0")/run-ref.sh"
 QUERY="SELECT date, flag, payee, narration, account, number, currency, filename, lineno ORDER BY date, filename, lineno"
 for f in "$@"; do
   echo "== $f"
   echo "-- bean-check"
-  bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
+  "$ref" bean-check "$f" 2>&1 | sed -E "s#[^ :]*/##" || true
   echo "-- postings: date,flag,payee,narration,account,number,currency,filename,lineno"
-  bean-query -f csv "$f" "$QUERY" 2>&1 | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//; s#[^,"]*/([^/,"]*\.beancount)#\1#' | tail -n +2
+  "$ref" bean-query -f csv "$f" "$QUERY" 2>&1 | tr -d '\r' | sed -E 's/ +,/,/g; s/, +/,/g; s/ +$//; s#[^,"]*/([^/,"]*\.beancount)#\1#' | tail -n +2
 done

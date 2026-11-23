@@ -8,7 +8,7 @@ dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
 for f in "$@"; do
   out="$dir/$(basename "$f")"
-  if ! bean-format "$f" > "$out" 2>/dev/null; then
+  if ! "$here/run-ref.sh" bean-format "$f" > "$out" 2>/dev/null; then
     echo "$f | bean-format fails"
     continue
   fi

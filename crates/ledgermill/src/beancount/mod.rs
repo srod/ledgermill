@@ -575,14 +575,18 @@ fn load_for(files: &[&SourceFile], with_amount_lines: bool) -> Loaded {
         Some(run) => match run.repeated(implicit_runs) {
             Some(implied) => implied,
             None => {
+                // Like a refused file: what was found so far stays, with the refusal, in the
+                // order of a refused set.
                 let root_name = files.first().map_or("", |f| f.name.as_str());
-                return nothing_but(vec![unsupported(
+                findings.push(unsupported(
                     root_name,
                     0,
                     "implicit-prices-limit",
                     json!({}),
                     refusal_message("implicit-prices-limit"),
-                )]);
+                ));
+                findings.sort_by_key(|f| (ranks.get(f.file.as_str()).copied(), f.line));
+                return nothing_but(findings);
             }
         },
     };

@@ -248,7 +248,7 @@ fn a_malformed_assertion_is_a_parse_error_on_its_posting() {
 
 #[test]
 fn journals_whose_assertions_all_hold_raise_no_finding() {
-    let probes: [(&str, &str); 5] = [
+    let probes: [(&str, &str); 6] = [
         (
             "every form, commodity and exactness rule",
             include_str!("../../../spec/hledger/probes/assert-compare.journal"),
@@ -268,6 +268,10 @@ fn journals_whose_assertions_all_hold_raise_no_finding() {
         (
             "the other ways to write a posting date",
             include_str!("../../../spec/hledger/probes/assert-order-posting-date-forms.journal"),
+        ),
+        (
+            "a bracket date and a date: tag in one comment, in both orders",
+            include_str!("../../../spec/hledger/probes/assert-order-posting-date-both.journal"),
         ),
     ];
     for (name, probe) in probes {

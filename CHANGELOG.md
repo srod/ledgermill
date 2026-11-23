@@ -30,7 +30,7 @@ All notable changes to ledgermill are written here. The format follows
   `spec/hledger/syntax.md` and `spec/README.md`.
 - Beancount: more than 256 `implicit_prices` plugin lines, or more than 1,000,000 price entries from them, is
   refused as `unsupported-syntax` (`implicit-prices-limit`). Thousands of such lines used to exhaust memory or
-  the stack. See `spec/README.md`.
+  the stack. The refusal comes with the findings found before it, as for a refused file. See `spec/README.md`.
 - `format()` returns the file unchanged when the aligned file would be larger than four times the original or
   16 MiB, whichever is larger. See `spec/hledger/format.md` and `spec/beancount/format.md`.
 - wasm: `ledgermill-wasm` asks for `wasm-bindgen` `0.2.130` instead of exactly `=0.2.130`, so a Rust crate
@@ -38,6 +38,11 @@ All notable changes to ledgermill are written here. The format follows
 
 ### Fixed
 
+- Beancount `format()`: the size check counted the padding of an account of multi-byte letters in characters, so
+  a file could be formatted to a little more than four times its size or 16 MiB.
+- Beancount: an entry with thousands of duplicate metadata keys, or with thousands of postings whose amounts
+  divide by zero, took time that grew with the square of their number: 24 s for 40,000 duplicate keys
+  (1 MB). It takes 0.1 s now.
 - hledger: a regex alias whose replacement names a group the pattern lacks (`alias /(a)/ = \2`) is a
   `parse-error` when it matches an account, as hledger rejects it. The account was left unaliased. See
   `spec/hledger/aliases-and-parents.md`.
